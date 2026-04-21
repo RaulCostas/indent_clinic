@@ -441,10 +441,13 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
                             // 2. Atomic Upsert for all new/updated keys
                             if (entitiesToSave.length > 0) {
-                                await this.whatsappSessionRepository.upsert(entitiesToSave, {
-                                    conflictPaths: ['clinicId', 'instanceNumber', 'type', 'keyId'],
-                                    skipUpdateIfNoValuesChanged: true,
-                                });
+                                await this.whatsappSessionRepository
+                                    .createQueryBuilder()
+                                    .insert()
+                                    .into(WhatsappSession)
+                                    .values(entitiesToSave)
+                                    .onConflict(`("clinicId", "instanceNumber", "type", "keyId") DO UPDATE SET "data" = EXCLUDED."data"`)
+                                    .execute();
                             }
                         }
                     }

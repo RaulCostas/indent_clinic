@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+dist/
+
+# Logs y Archivos Temporales
+*.log
+*.pid
+backend_output.log
+backend_error.log
+frontend_output.log
+frontend_error.log
+
+# Entorno y Configuración Sensible
+.env
+.env.local
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

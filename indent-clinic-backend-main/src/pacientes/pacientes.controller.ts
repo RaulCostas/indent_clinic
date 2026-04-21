@@ -1,0 +1,66 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { PacientesService } from './pacientes.service';
+import { CreatePacienteDto } from './dto/create-paciente.dto';
+import { UpdatePacienteDto } from './dto/update-paciente.dto';
+
+@Controller('pacientes')
+export class PacientesController {
+    constructor(private readonly pacientesService: PacientesService) { }
+
+    @Post()
+    create(@Body() createPacienteDto: CreatePacienteDto) {
+        return this.pacientesService.create(createPacienteDto);
+    }
+
+
+    @Get('pendientes')
+    findPendientes(
+        @Query('tab') tab: 'agendados' | 'no_agendados',
+        @Query('doctorId') doctorId?: string,
+        @Query('especialidadId') especialidadId?: string
+    ) {
+        return this.pacientesService.findPendientes(tab, doctorId ? +doctorId : undefined, especialidadId ? +especialidadId : undefined);
+    }
+
+    @Get('no-registrados')
+    findNoRegistrados(@Query('clinicaId') clinicaId?: string) {
+        return this.pacientesService.findNoRegistrados(clinicaId ? +clinicaId : undefined);
+    }
+
+    @Get('dashboard-stats')
+    getDashboardStats(@Query('clinicaId') clinicaId?: string) {
+        return this.pacientesService.getDashboardStats(clinicaId ? +clinicaId : undefined);
+    }
+
+    @Get('statistics')
+    getStatistics(@Query('year') year: string) {
+        return this.pacientesService.getStatistics(year ? +year : new Date().getFullYear());
+    }
+
+
+    @Get()
+    findAll(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
+        @Query('search') search: string = '',
+        @Query('clinicaId') clinicaId?: string,
+        @Query('estado') estado?: string,
+    ) {
+        return this.pacientesService.findAll(Number(page), Number(limit), search, clinicaId ? +clinicaId : undefined, estado);
+    }
+
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.pacientesService.findOne(+id);
+    }
+
+    @Patch(':id')
+    update(@Param('id') id: string, @Body() updatePacienteDto: UpdatePacienteDto) {
+        return this.pacientesService.update(+id, updatePacienteDto);
+    }
+
+    @Delete(':id')
+    remove(@Param('id') id: string) {
+        return this.pacientesService.remove(+id);
+    }
+}

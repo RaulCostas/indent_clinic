@@ -1,0 +1,28 @@
+[
+  {
+    "ventaId": 1,
+    "fecha": "2026-04-09T16:00:00.000Z",
+    "total": "60.00",
+    "comision_monto": "24.00",
+    "comision_pagada": false,
+    "personalId": 2,
+    "personalNombre": "Pamela",
+    "personalPaterno": "Zapata",
+    "pacienteNombre": "Raul",
+    "cantidad": 1,
+    "productoNombre": "Hilo dental"
+  },
+  {
+    "ventaId": 1,
+    "fecha": "2026-04-09T16:00:00.000Z",
+    "total": "60.00",
+    "comision_monto": "24.00",
+    "comision_pagada": false,
+    "personalId": 2,
+    "personalNombre": "Pamela",
+    "personalPaterno": "Zapata",
+    "pacienteNombre": "Raul",
+    "cantidad": 1,
+    "productoNombre": "Pasta dental Colgate 100 gr"
+  }
+]

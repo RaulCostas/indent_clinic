@@ -1,0 +1,7 @@
+CREATE ERROR: Ya existe un arancel con esta descripción para esta clínica
+BadRequestException: Ya existe un arancel con esta descripción para esta clínica
+    at ArancelService.create (D:\SOFT-MEDIC\Antigravity\INDENT CLINIC\indent-clinic-backend-main\src\arancel\arancel.service.ts:34:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async D:\SOFT-MEDIC\Antigravity\INDENT CLINIC\indent-clinic-backend-main\node_modules\@nestjs\core\router\router-execution-context.js:46:28
+    at async D:\SOFT-MEDIC\Antigravity\INDENT CLINIC\indent-clinic-backend-main\node_modules\@nestjs\core\router\router-proxy.js:9:17
+

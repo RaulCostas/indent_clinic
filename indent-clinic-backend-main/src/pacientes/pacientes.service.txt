@@ -1,0 +1,294 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
+import { Paciente } from './entities/paciente.entity';
+import { CreatePacienteDto } from './dto/create-paciente.dto';
+import { UpdatePacienteDto } from './dto/update-paciente.dto';
+import { PacienteMusica } from './entities/paciente-musica.entity';
+import { PacienteTelevision } from './entities/paciente-television.entity';
+
+@Injectable()
+export class PacientesService {
+    constructor(
+        @InjectRepository(Paciente)
+        private pacientesRepository: Repository<Paciente>,
+        @InjectRepository(PacienteMusica)
+        private pacienteMusicaRepository: Repository<PacienteMusica>,
+        @InjectRepository(PacienteTelevision)
+        private pacienteTelevisionRepository: Repository<PacienteTelevision>,
+    ) { }
+
+    async create(createPacienteDto: CreatePacienteDto): Promise<Paciente> {
+        console.log('Creating Paciente with DTO:', createPacienteDto);
+        const paciente = this.pacientesRepository.create(createPacienteDto);
+        return await this.pacientesRepository.save(paciente);
+    }
+
+    async findAll(page: number = 1, limit: number = 10, search: string = ''): Promise<{ data: Paciente[], total: number, page: number, limit: number, totalPages: number }> {
+        const skip = (page - 1) * limit;
+        const [data, total] = await this.pacientesRepository.findAndCount({
+            where: [
+                { nombre: ILike(`%${search}%`) },
+                { paterno: ILike(`%${search}%`) },
+                { materno: ILike(`%${search}%`) }
+            ],
+            order: {
+                paterno: 'ASC',
+                materno: 'ASC',
+                nombre: 'ASC'
+            },
+            take: limit,
+            skip: skip,
+        });
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
+    }
+
+    async findOne(id: number): Promise<Paciente> {
+        const paciente = await this.pacientesRepository.findOne({ where: { id } });
+        if (!paciente) {
+            throw new Error('Paciente not found');
+        }
+        return paciente;
+    }
+
+    async update(id: number, updatePacienteDto: UpdatePacienteDto): Promise<Paciente> {
+        console.log(`Updating Paciente ${id} with DTO:`, updatePacienteDto);
+
+        const paciente = await this.findOne(id);
+        if (!paciente) {
+            throw new NotFoundException(`Paciente #${id} not found`);
+        }
+
+        // Merge main patient data
+        this.pacientesRepository.merge(paciente, updatePacienteDto);
+
+        // Handle nested FichaMedica manually if needed
+        if (updatePacienteDto.fichaMedica) {
+            if (!paciente.fichaMedica) {
+                paciente.fichaMedica = updatePacienteDto.fichaMedica as any;
+            } else {
+                Object.assign(paciente.fichaMedica, updatePacienteDto.fichaMedica);
+            }
+        }
+
+        return await this.pacientesRepository.save(paciente);
+    }
+
+    async remove(id: number): Promise<void> {
+        await this.pacientesRepository.delete(id);
+    }
+
+    async getDashboardStats(): Promise<{ totalPacientes: number, birthdayPacientes: Paciente[] }> {
+        const totalPacientes = await this.pacientesRepository.count();
+
+        // Get today's date parts
+        const today = new Date();
+        const month = today.getMonth() + 1; // JS months are 0-indexed
+        const day = today.getDate();
+
+        // Query for patients with birthday today
+        // Note: This assumes fecha_nacimiento is stored as a date or string 'YYYY-MM-DD'
+        // We use raw query for better date extraction compatibility across DBs, 
+        // but for TypeORM/Postgres specifically:
+        const birthdayPacientes = await this.pacientesRepository
+            .createQueryBuilder('paciente')
+            .where('EXTRACT(MONTH FROM paciente.fecha_nacimiento) = :month', { month })
+            .andWhere('EXTRACT(DAY FROM paciente.fecha_nacimiento) = :day', { day })
+            .getMany();
+
+        return {
+            totalPacientes,
+            birthdayPacientes
+        };
+    }
+
+    async findByCelular(celular: string): Promise<Paciente | null> {
+        // 1. Try strict match first
+        let paciente = await this.pacientesRepository.findOne({ where: { celular } });
+        if (paciente) return paciente;
+
+        // 2. Try super fuzzy match (Digits only equality)
+        // This handles cases like:
+        // DB: "+591 700-123" -> "591700123"
+        // Search: "591700123" -> Match!
+
+        const cleanCelular = celular.replace(/[^0-9]/g, '');
+        if (!cleanCelular) return null; // Avoid searching empty string
+
+        try {
+            paciente = await this.pacientesRepository.createQueryBuilder('p')
+                // Remove everything except 0-9 from DB column and compare with clean input
+                .where("REGEXP_REPLACE(p.celular, '[^0-9]', '', 'g') = :cleanCelular", { cleanCelular })
+                .getOne();
+        } catch (e) {
+            console.error('Error in fuzzy search:', e);
+        }
+
+        return paciente || null;
+    }
+    async findPendientes(tab: 'agendados' | 'no_agendados', doctorId?: number, especialidadId?: number) {
+        // Build the WHERE clause for the patients
+        let whereClause = '1=1';
+
+        // 1. Check for Pending Budget (estadoPresupuesto = 'no terminado')
+        // We also apply Doctor and Specialty filters HERE to ensure we only get patients
+        // pending for THAT doctor/specialty.
+        let hcFilter = `hc."estadoPresupuesto" = 'no terminado'`;
+        if (doctorId) {
+            hcFilter += ` AND hc."doctorId" = ${doctorId}`;
+        }
+        if (especialidadId) {
+            hcFilter += ` AND hc."especialidadId" = ${especialidadId}`;
+        }
+
+        whereClause += ` AND EXISTS (SELECT 1 FROM historia_clinica hc WHERE hc."pacienteId" = p.id AND ${hcFilter})`;
+
+        // 2. Tab Logic (Agenda Check)
+        if (tab === 'agendados') {
+            // Has future appointment
+            whereClause += ` AND EXISTS (SELECT 1 FROM agenda a WHERE a."pacienteId" = p.id AND a.fecha >= CURRENT_DATE)`;
+        } else {
+            // No future appointment
+            whereClause += ` AND NOT EXISTS (SELECT 1 FROM agenda a WHERE a."pacienteId" = p.id AND a.fecha >= CURRENT_DATE)`;
+        }
+
+        // Execution
+        const today = new Date().toISOString().split('T')[0];
+        console.log(`FindPendientes: Tab=${tab}, Date=${today}, Doctor=${doctorId}, Spec=${especialidadId}`);
+        console.log('WhereClause:', whereClause);
+
+        const query = `
+            SELECT 
+                p.id, p.nombre, p.paterno, p.materno, p.celular,
+                (SELECT a.fecha FROM agenda a WHERE a."pacienteId" = p.id ORDER BY a.fecha DESC LIMIT 1) as ultima_cita,
+                (SELECT CONCAT(d.nombre, ' ', d.paterno) 
+                 FROM historia_clinica hc 
+                 LEFT JOIN doctor d ON d.id = hc."doctorId" 
+                 WHERE hc."pacienteId" = p.id AND hc."estadoPresupuesto" = 'no terminado' 
+                 ORDER BY hc.fecha DESC LIMIT 1) as ultimo_doctor,
+                (SELECT hc.tratamiento 
+                 FROM historia_clinica hc 
+                 WHERE hc."pacienteId" = p.id AND hc."estadoPresupuesto" = 'no terminado' 
+                 ORDER BY hc.fecha DESC LIMIT 1) as ultimo_tratamiento,
+                 (SELECT e.especialidad 
+                  FROM historia_clinica hc 
+                  LEFT JOIN especialidad e ON e.id = hc."especialidadId" 
+                  WHERE hc."pacienteId" = p.id AND hc."estadoPresupuesto" = 'no terminado' 
+                  ORDER BY hc.fecha DESC LIMIT 1) as ultima_especialidad,
+                  (SELECT pr.numero 
+                   FROM historia_clinica hc 
+                   LEFT JOIN proformas pr ON pr.id = hc."proformaId" 
+                   WHERE hc."pacienteId" = p.id AND hc."estadoPresupuesto" = 'no terminado' 
+                   ORDER BY hc.fecha DESC LIMIT 1) as numero_presupuesto
+            FROM pacientes p
+            WHERE ${whereClause.replace(/CURRENT_DATE/g, `'${today}'`)}
+        `;
+
+        const results = await this.pacientesRepository.query(query);
+        console.log(`Found ${results.length} results`);
+        return results;
+    }
+
+    async findNoRegistrados() {
+        const today = new Date().toISOString().split('T')[0];
+        console.log(`FindNoRegistrados: Date=${today}`);
+        const query = `
+            SELECT 
+                p.id as "pacienteId",
+                p.nombre, p.paterno, p.materno,
+                a.fecha, a.hora, a.consultorio
+            FROM agenda a
+            JOIN pacientes p ON p.id = a."pacienteId"
+            WHERE a.fecha <= '${today}' 
+              AND LOWER(a.estado) = 'atendido'
+              AND NOT EXISTS (
+                  SELECT 1 
+                  FROM historia_clinica hc 
+                  WHERE hc."pacienteId" = a."pacienteId" 
+                    AND hc.fecha = a.fecha
+              )
+            ORDER BY a.fecha DESC
+        `;
+        console.log('Query:', query);
+        const results = await this.pacientesRepository.query(query);
+        console.log(`Found ${results.length} no registrados results`);
+        return results;
+    }
+
+    async getStatistics(year: number): Promise<any[]> {
+        const query = this.pacientesRepository.createQueryBuilder('paciente')
+            .select('EXTRACT(MONTH FROM paciente.fecha)', 'month')
+            .addSelect('COUNT(paciente.id)', 'count')
+            .where('EXTRACT(YEAR FROM paciente.fecha) = :year', { year })
+            .groupBy('EXTRACT(MONTH FROM paciente.fecha)');
+
+        const rawResults = await query.getRawMany();
+
+        // Initialize array for 12 months with 0 counts
+        const monthlyStats = Array.from({ length: 12 }, (_, i) => ({
+            month: i + 1,
+            count: 0
+        }));
+
+        // Fill in actual data
+        rawResults.forEach(r => {
+            const mIndex = parseInt(r.month) - 1;
+            if (mIndex >= 0 && mIndex < 12) {
+                monthlyStats[mIndex].count = parseInt(r.count);
+            }
+        });
+
+        return monthlyStats;
+    }
+    // Métodos para Música
+    async getPacienteMusica(pacienteId: number): Promise<number[]> {
+        const relaciones = await this.pacienteMusicaRepository.find({
+            where: { pacienteId }
+        });
+        return relaciones.map(r => r.musicaId);
+    }
+
+    async savePacienteMusica(pacienteId: number, musicaIds: number[]): Promise<void> {
+        // Eliminar relaciones existentes
+        await this.pacienteMusicaRepository.delete({ pacienteId });
+
+        // Crear nuevas relaciones
+        if (musicaIds && musicaIds.length > 0) {
+            const relaciones = musicaIds.map(musicaId => ({
+                pacienteId,
+                musicaId
+            }));
+            await this.pacienteMusicaRepository.save(relaciones);
+        }
+    }
+
+    // Métodos para Televisión
+    async getPacienteTelevision(pacienteId: number): Promise<number[]> {
+        const relaciones = await this.pacienteTelevisionRepository.find({
+            where: { pacienteId }
+        });
+        return relaciones.map(r => r.televisionId);
+    }
+
+    async savePacienteTelevision(pacienteId: number, televisionIds: number[]): Promise<void> {
+        // Eliminar relaciones existentes
+        await this.pacienteTelevisionRepository.delete({ pacienteId });
+
+        // Crear nuevas relaciones
+        if (televisionIds && televisionIds.length > 0) {
+            const relaciones = televisionIds.map(televisionId => ({
+                pacienteId,
+                televisionId
+            }));
+            await this.pacienteTelevisionRepository.save(relaciones);
+        }
+    }
+
+}

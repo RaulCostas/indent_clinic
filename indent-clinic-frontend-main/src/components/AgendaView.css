@@ -1,0 +1,31 @@
+/* Desktop default: flex-row is inline-style in TSX, but we override here for mobile */
+
+@media (max-width: 900px) {
+    .agenda-container {
+        flex-direction: column !important;
+        height: auto !important;
+        padding: 10px !important;
+    }
+
+    .agenda-sidebar {
+        width: 100% !important;
+        flex-direction: row !important;
+        justify-content: center;
+    }
+
+    .agenda-grid-container {
+        height: 600px;
+        /* Fixed height for scrollable area on mobile */
+    }
+
+    .agenda-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start !important;
+    }
+
+    .agenda-header>div {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

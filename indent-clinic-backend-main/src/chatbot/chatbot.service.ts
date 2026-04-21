@@ -94,6 +94,9 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
     private async startAllInstancesInBackground() {
         try {
+            // Garantizar que el índice único exista antes de intentar cualquier upsert
+            await this.ensureDatabaseIndex();
+
             const clinicas = await this.clinicaRepository.find({ where: { activo: true } });
             console.log(`[Chatbot] Found ${clinicas.length} active clinics. Starting initialization for 2 instances per clinic staggeredly...`);
             let delayMs = 0;
@@ -119,6 +122,22 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     session.sock.end(undefined);
                 } catch (e) { }
             }
+        }
+    }
+
+    private async ensureDatabaseIndex() {
+        try {
+            console.log('[Chatbot] Ensuring unique index for whatsapp_sessions exist...');
+            // Creamos un índice único manual con un nombre específico para garantizar que ON CONFLICT funcione
+            // Usamos query directo para evitar problemas de sincronización de TypeORM en Render
+            await this.whatsappSessionRepository.query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS "IDX_WHATSAPP_SESSIONS_UPSERT_MANUAL" 
+                ON "whatsapp_sessions" ("clinicId", "instanceNumber", "type", "keyId")
+            `);
+            console.log('[Chatbot] Unique index for whatsapp_sessions ensured.');
+        } catch (error) {
+            console.error('[Chatbot] Failed to ensure database index:', error);
+            // No bloqueamos el arranque, pero advertimos
         }
     }
 

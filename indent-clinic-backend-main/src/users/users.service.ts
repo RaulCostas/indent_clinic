@@ -20,9 +20,9 @@ export class UsersService {
     await this.checkDuplicate(createUserDto);
 
     if (createUserDto.foto && createUserDto.foto.startsWith('data:image')) {
-      this.logger.warn(`[UsersService] Detected Base64 photo for new user: ${createUserDto.email}, attempting upload...`);
+      this.logger.log(`[UsersService] Detected Base64 photo for new user: ${createUserDto.email}, attempting upload...`);
       createUserDto.foto = await this.storageService.uploadBase64('clinica-media', `user-photo-${createUserDto.email}`, createUserDto.foto);
-      this.logger.warn(`[UsersService] Photo uploaded successfully: ${createUserDto.foto}`);
+      this.logger.log(`[UsersService] Photo uploaded successfully: ${createUserDto.foto}`);
     }
 
     const salt = await bcrypt.genSalt();
@@ -58,13 +58,13 @@ export class UsersService {
     const user = await this.findOne(id);
 
     if (updateUserDto.foto && updateUserDto.foto.startsWith('data:image')) {
-      this.logger.warn(`[UsersService] Detected new Base64 photo for user ${id}, attempting upload...`);
+      this.logger.log(`[UsersService] Detected new Base64 photo for user ${id}, attempting upload...`);
       // Delete old photo
       if (user.foto && user.foto.startsWith('http')) {
         await this.storageService.deleteFile('clinica-media', user.foto);
       }
       updateUserDto.foto = await this.storageService.uploadBase64('clinica-media', `user-photo-${id}`, updateUserDto.foto);
-      this.logger.warn(`[UsersService] Photo updated successfully: ${updateUserDto.foto}`);
+      this.logger.log(`[UsersService] Photo updated successfully: ${updateUserDto.foto}`);
     }
 
     if (updateUserDto.password) {

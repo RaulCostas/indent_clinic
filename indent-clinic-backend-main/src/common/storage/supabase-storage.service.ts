@@ -28,7 +28,7 @@ export class SupabaseStorageService {
 
   async uploadFile(bucket: string, fullPath: string, fileBuffer: Buffer, contentType: string): Promise<string> {
     const cleanPath = this.sanitizePath(fullPath);
-    this.logger.warn(`[SupabaseStorageService] Uploading to ${bucket}/${cleanPath}...`);
+    this.logger.log(`[SupabaseStorageService] Uploading to ${bucket}/${cleanPath}...`);
     
     if (!this.supabase) {
       this.logger.error('[SupabaseStorageService] Supabase client is not initialized!');
@@ -49,7 +49,7 @@ export class SupabaseStorageService {
       .from(bucket)
       .getPublicUrl(cleanPath);
 
-    this.logger.warn(`[SupabaseStorageService] Upload successful. Public URL: ${publicUrl}`);
+    this.logger.log(`[SupabaseStorageService] Upload successful. Public URL: ${publicUrl}`);
     return publicUrl;
   }
 

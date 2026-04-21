@@ -36,7 +36,7 @@ export class ClinicasService {
     }
 
     async create(createClinicaDto: CreateClinicaDto): Promise<Clinica> {
-        this.logger.warn(`[ClinicasService] Creating clinic: ${createClinicaDto.nombre}`);
+        this.logger.log(`[ClinicasService] Creating clinic: ${createClinicaDto.nombre}`);
 
         const inputNombre = createClinicaDto.nombre.trim();
         const normalizedInput = normalizeString(inputNombre);
@@ -49,9 +49,9 @@ export class ClinicasService {
         }
 
         if (createClinicaDto.logo && createClinicaDto.logo.startsWith('data:image')) {
-            this.logger.warn(`[ClinicasService] Detected Base64 logo, attempting upload...`);
+            this.logger.log(`[ClinicasService] Detected Base64 logo, attempting upload...`);
             createClinicaDto.logo = await this.storageService.uploadBase64('clinica-media', `logo-clinica-${inputNombre.replace(/\s+/g, '-')}`, createClinicaDto.logo);
-            this.logger.warn(`[ClinicasService] Logo uploaded successfully: ${createClinicaDto.logo}`);
+            this.logger.log(`[ClinicasService] Logo uploaded successfully: ${createClinicaDto.logo}`);
         }
         createClinicaDto.nombre = inputNombre;
         const clinica = this.clinicasRepository.create(createClinicaDto);
@@ -72,7 +72,7 @@ export class ClinicasService {
     }
 
     async update(id: number, updateClinicaDto: UpdateClinicaDto): Promise<Clinica> {
-        this.logger.warn(`[ClinicasService] Updating clinic ID: ${id}`);
+        this.logger.log(`[ClinicasService] Updating clinic ID: ${id}`);
         const clinica = await this.findOne(id);
         
         if (updateClinicaDto.nombre) {
@@ -91,13 +91,13 @@ export class ClinicasService {
         }
 
         if (updateClinicaDto.logo && updateClinicaDto.logo.startsWith('data:image')) {
-            this.logger.warn(`[ClinicasService] Detected new Base64 logo for clinic ${id}, attempting upload...`);
+            this.logger.log(`[ClinicasService] Detected new Base64 logo for clinic ${id}, attempting upload...`);
             // Delete old logo if it exists and is a URL
             if (clinica.logo && clinica.logo.startsWith('http')) {
                 await this.storageService.deleteFile('clinica-media', clinica.logo);
             }
             updateClinicaDto.logo = await this.storageService.uploadBase64('clinica-media', `logo-clinica-${id}`, updateClinicaDto.logo);
-            this.logger.warn(`[ClinicasService] Logo updated successfully: ${updateClinicaDto.logo}`);
+            this.logger.log(`[ClinicasService] Logo updated successfully: ${updateClinicaDto.logo}`);
         }
         Object.assign(clinica, updateClinicaDto);
         return this.clinicasRepository.save(clinica);

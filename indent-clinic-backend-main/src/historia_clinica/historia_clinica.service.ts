@@ -152,7 +152,7 @@ export class HistoriaClinicaService {
                                        totalPagadoYDescontado >= (targetPrice - 0.5);
 
             if (!isFullyPaidByPatient) {
-                console.warn(`[PAGOS_DOCTORES][${timestamp}] HC #${hc.id} EXCLUIDO: Saldo insuficiente. (Paid:${totalPagadoYDescontado} vs Target:${targetPrice})`);
+                console.log(`[PAGOS_DOCTORES][${timestamp}] HC #${hc.id} EXCLUIDO: Saldo insuficiente. (Paid:${totalPagadoYDescontado} vs Target:${targetPrice})`);
                 return null;
             }
 

@@ -54,6 +54,17 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
     const [durationWarning, setDurationWarning] = useState<string | null>(null);
     const [doctorWarning, setDoctorWarning] = useState<string | null>(null);
     const [isRestricted, setIsRestricted] = useState(false);
+    const [horaHastaLocal, setHoraHastaLocal] = useState('');
+ 
+    // Helper to format time as HH:mm
+    const calculateHoraHasta = (start: string, duration: number) => {
+        if (!start || !duration) return '';
+        const [h, m] = start.split(':').map(Number);
+        const totalMins = h * 60 + m + Number(duration);
+        const endH = Math.floor(totalMins / 60) % 24;
+        const endM = totalMins % 60;
+        return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+    };
 
     useEffect(() => {
         const userStr = localStorage.getItem('user');
@@ -203,6 +214,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 sucursal: 'San Miguel'
             }));
             setIsNonPatientEvent(false);
+            setHoraHastaLocal(calculateHoraHasta(defaultTime || '08:00', 60));
             if (defaultPacienteId) {
                 fetchProformasByPaciente(defaultPacienteId);
                 fetchHistoriaClinica(defaultPacienteId);
@@ -243,6 +255,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                     fetchTratamientosByProforma(initialData.proformaId);
                 }
             }
+            setHoraHastaLocal(calculateHoraHasta(initialData.hora, initialData.duracion));
         } else {
             // Si es nueva cita y cambia la clínica, reseteamos el paciente seleccionado
             // para evitar que queden pacientes de otra sede en el selector
@@ -368,14 +381,13 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
             } else {
                 setTratamientos([]);
             }
-        } else if (name === 'hora') {
             const newStart = value;
             setFormData(prev => ({
                 ...prev,
                 hora: newStart
             }));
-            // Si el usuario cambia la hora de inicio, mantenemos la duración actual (60 por defecto)
-            // Esto actualiza visualmente la "Hora Hasta" de forma reactiva a través del useMemo
+            // Sincronizar Hora Hasta Local manteniendo la duración
+            setHoraHastaLocal(calculateHoraHasta(newStart, formData.duracion));
         } else {
             setFormData(prev => ({
                 ...prev,
@@ -522,33 +534,25 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
         }
     }
 
-    const horaHastaValue = React.useMemo(() => {
-        if (!formData.hora || !formData.duracion) return '';
-        const [h, m] = formData.hora.split(':').map(Number);
-        const totalMins = h * 60 + m + Number(formData.duracion);
-        const endH = Math.floor(totalMins / 60) % 24;
-        const endM = totalMins % 60;
-        return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-    }, [formData.hora, formData.duracion]);
-
     const handleHoraHastaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newVal = e.target.value;
+        setHoraHastaLocal(newVal); // Actualizar siempre lo que el usuario escribe
+ 
         if (!newVal || !formData.hora) return;
-
+ 
         const [startH, startM] = formData.hora.split(':').map(Number);
         const [endH, endM] = newVal.split(':').map(Number);
         
-        const startTotal = (startH * 60 + startM);
-        const endTotal = (endH * 60 + endM);
-        let diff = endTotal - startTotal;
-
-        // Si el usuario pone una hora menor (ej: 07:00 cuando empieza 08:00), 
-        // asumimos que es del dia siguiente o simplemente le damos el minimo de 15 min
-        if (diff <= 0) {
-            diff = 15;
+        // Solo actualizar duracion si es una hora válida y posterior al inicio
+        if (!isNaN(startH) && !isNaN(endH)) {
+            const startTotal = (startH * 60 + startM);
+            const endTotal = (endH * 60 + endM);
+            const diff = endTotal - startTotal;
+ 
+            if (diff > 0) {
+                setFormData(prev => ({ ...prev, duracion: diff }));
+            }
         }
-
-        setFormData(prev => ({ ...prev, duracion: diff }));
     };
 
     if (!isOpen) return null;
@@ -653,7 +657,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                                 <input
                                     type="time"
                                     name="horaHasta"
-                                    value={horaHastaValue}
+                                    value={horaHastaLocal}
                                     onChange={handleHoraHastaChange}
                                     step="900"
                                     required

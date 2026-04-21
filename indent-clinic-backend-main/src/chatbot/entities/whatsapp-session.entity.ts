@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 
 @Entity('whatsapp_sessions')
+@Index(['clinicId', 'instanceNumber', 'type', 'keyId'], { unique: true })
 export class WhatsappSession {
     @PrimaryGeneratedColumn()
     id: number;

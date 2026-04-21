@@ -415,15 +415,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
                             const typeKey = `key-${type}`;
 
-                            // 1. Bulk Delete existing keys to avoid Conflict
-                            await this.whatsappSessionRepository.delete({
-                                clinicId,
-                                instanceNumber: instance,
-                                type: typeKey,
-                                keyId: In(keysToUpdateOrDelete)
-                            });
-
-                            // 2. Prepare Bulk Insert for valid values
+                            // 1. Prepare entities for Upsert
                             const entitiesToSave: WhatsappSession[] = [];
                             for (const id of keysToUpdateOrDelete) {
                                 const value = data[type][id];
@@ -436,12 +428,23 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                                         keyId: id,
                                         data: serialized
                                     }));
+                                } else {
+                                    // If value is null/undefined, it means Baileys wants to DELETE this key
+                                    await this.whatsappSessionRepository.delete({
+                                        clinicId,
+                                        instanceNumber: instance,
+                                        type: typeKey,
+                                        keyId: id
+                                    });
                                 }
                             }
 
-                            // 3. Save all new values in Bulk
+                            // 2. Atomic Upsert for all new/updated keys
                             if (entitiesToSave.length > 0) {
-                                await this.whatsappSessionRepository.save(entitiesToSave, { chunk: 100 });
+                                await this.whatsappSessionRepository.upsert(entitiesToSave, {
+                                    conflictPaths: ['clinicId', 'instanceNumber', 'type', 'keyId'],
+                                    skipUpdateIfNoValuesChanged: true,
+                                });
                             }
                         }
                     }

@@ -22,6 +22,6 @@ export class WhatsappSession {
     @Index()
     instanceNumber: number;
 
-    @Column({ type: 'json' }) // Use 'json' for better compatibility with TypeORM and PG
+    @Column({ type: 'jsonb' }) // Use 'jsonb' for better compatibility with TypeORM and PG comparison operators
     data: any;
 }

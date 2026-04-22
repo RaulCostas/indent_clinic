@@ -55,6 +55,13 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
     const [doctorWarning, setDoctorWarning] = useState<string | null>(null);
     const [isRestricted, setIsRestricted] = useState(false);
     const [horaHastaLocal, setHoraHastaLocal] = useState('');
+
+    // Sync Hora Hasta Local when start time or duration changes
+    useEffect(() => {
+        if (formData.hora && formData.duracion) {
+            setHoraHastaLocal(calculateHoraHasta(formData.hora, formData.duracion));
+        }
+    }, [formData.hora, formData.duracion]);
  
     // Helper to format time as HH:mm
     const calculateHoraHasta = (start: string, duration: number) => {
@@ -78,57 +85,6 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
             }
         }
     }, []);
-
-    // Calculate Max Duration on changes
-    useEffect(() => {
-        if (!formData.fecha || !formData.hora) return;
-
-        // Only validate if date matches defaultDate (since existingAppointments provides data for defaultDate)
-        if (formData.fecha !== defaultDate) {
-            setMaxDuration(120);
-            setDurationWarning(null);
-            return;
-        }
-
-        const timeToMinutes = (t: string) => {
-            const [h, m] = t.split(':').map(Number);
-            return h * 60 + m;
-        };
-
-        const currentStart = timeToMinutes(formData.hora);
-        const consultorio = Number(formData.consultorio);
-
-        const dayAppointments = existingAppointments.filter(app =>
-            app.consultorio === consultorio &&
-            app.id !== initialData?.id &&
-            app.estado !== 'cancelado' &&
-            app.estado !== 'eliminado' &&
-            app.estado !== 'no_asistio'
-        );
-
-        dayAppointments.sort((a, b) => timeToMinutes(a.hora) - timeToMinutes(b.hora));
-
-        const nextApp = dayAppointments.find(app => timeToMinutes(app.hora) > currentStart);
-
-        if (nextApp) {
-            const nextStart = timeToMinutes(nextApp.hora);
-            const diff = nextStart - currentStart;
-
-            if (diff > 0) {
-                setMaxDuration(diff);
-                if (formData.duracion > diff) {
-                    setFormData(prev => ({ ...prev, duracion: diff }));
-                    setDurationWarning(`La hora de fin se ajustó por choque con otra cita (máx ${diff} min).`);
-                } else {
-                    setDurationWarning(null);
-                }
-            }
-        } else {
-            setMaxDuration(1440); // 24h limit or effectively no limit
-            setDurationWarning(null);
-        }
-
-    }, [formData.hora, formData.consultorio, formData.fecha, formData.duracion, existingAppointments, defaultDate, initialData]);
 
     // Check Global Doctor Availability
     useEffect(() => {
@@ -381,13 +337,13 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
             } else {
                 setTratamientos([]);
             }
+        } else if (name === 'hora') {
             const newStart = value;
             setFormData(prev => ({
                 ...prev,
                 hora: newStart
             }));
-            // Sincronizar Hora Hasta Local manteniendo la duración
-            setHoraHastaLocal(calculateHoraHasta(newStart, formData.duracion));
+            // UI effect will handle horaHastaLocal sync
         } else {
             setFormData(prev => ({
                 ...prev,

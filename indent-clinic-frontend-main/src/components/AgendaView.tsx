@@ -20,7 +20,8 @@ import { Calendar as CalendarIcon, X as CloseIcon, User as UserIcon, MapPin as L
 import SearchableSelect from './SearchableSelect';
 import type { Doctor } from '../types';
 
-const getStatusColor = (estado: string) => {
+const getStatusColor = (estado: string, isBlock: boolean = false) => {
+    if (isBlock) return '#475569'; // Slate-600 for blocks/events
     switch (estado) {
         case 'agendado': return '#3498db'; // Blue
         case 'confirmado': return '#2ecc71'; // Green
@@ -832,7 +833,8 @@ const AgendaView: React.FC = () => {
                                                                 return appTime === group.hora && (app.duracion || 30) === group.duracion && app.clinicaId === clinica.id && app.estado !== 'eliminado';
                                                             });
                                                             const appointment = appsAtSlot[appIndex];
-                                                            const bgColor = appointment?.paciente?.categoria?.color || (appointment ? getStatusColor(appointment.estado) : '');
+                                                            const isBlock = appointment && !appointment.paciente;
+                                                            const bgColor = isBlock ? '#475569' : (appointment?.paciente?.categoria?.color || (appointment ? getStatusColor(appointment.estado) : ''));
 
                                                             return (
                                                                 <td
@@ -843,9 +845,10 @@ const AgendaView: React.FC = () => {
                                                                         {appointment ? (
                                                                             <div 
                                                                                 onClick={(e) => handleEditAppointment(appointment, e)}
-                                                                                className={`flex flex-col justify-center text-xs overflow-hidden px-2 py-1.5 rounded relative hover:opacity-90 transition-opacity cursor-pointer shadow-sm border border-black/10 ${appointment.estado === 'cancelado' ? 'text-red-800 opacity-70 grayscale-[0.2]' : ''}`}
-                                                                                style={{ backgroundColor: appointment.estado === 'cancelado' ? '#fee2e2' : bgColor, borderLeft: `4px solid ${getStatusColor(appointment.estado)}`, color: appointment.estado === 'cancelado' ? '#991b1b' : getContrastTextColor(bgColor || getStatusColor(appointment.estado)) }}
+                                                                                className={`flex flex-col justify-center text-xs overflow-hidden px-2 py-1.5 rounded relative hover:opacity-90 transition-opacity cursor-pointer shadow-sm border border-black/10 ${appointment.estado === 'cancelado' ? 'text-red-800 opacity-70 grayscale-[0.2]' : ''} ${isBlock ? 'ring-1 ring-white/20' : ''}`}
+                                                                                style={{ backgroundColor: appointment.estado === 'cancelado' ? '#fee2e2' : bgColor, borderLeft: `4px solid ${getStatusColor(appointment.estado, isBlock)}`, color: appointment.estado === 'cancelado' ? '#991b1b' : getContrastTextColor(bgColor || getStatusColor(appointment.estado, isBlock)) }}
                                                                             >
+                                                                                {isBlock && <div className="absolute top-0 left-0 w-full h-full bg-stripe-pattern opacity-10 pointer-events-none rounded"></div>}
                                                                                 {appointment.paciente && appointment.paciente.clasificacion && (
                                                                                     <div className={`absolute top-0 right-0 px-1 py-0.5 rounded-bl-[4px] text-[9px] font-black backdrop-blur-sm z-10 border-l border-b border-white/10 shadow-sm ${appointment.paciente.clasificacion.charAt(0) === 'A' ? 'bg-yellow-500/60 text-yellow-50' :
                                                                                             appointment.paciente.clasificacion.charAt(0) === 'B' ? 'bg-slate-500/60 text-slate-50' :
@@ -974,7 +977,7 @@ const AgendaView: React.FC = () => {
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{cita.doctor ? `Dr. ${cita.doctor.nombre}` : '-'}</td>
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{cita.tratamiento || '-'}</td>
                                                     <td className="p-3">
-                                                        <span className="px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: getStatusColor(cita.estado) }}>
+                                                        <span className="px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: getStatusColor(cita.estado, !cita.pacienteId && !cita.paciente) }}>
                                                             {cita.estado.toUpperCase()}
                                                         </span>
                                                     </td>
@@ -1191,6 +1194,11 @@ const AgendaView: React.FC = () => {
                 .no-scrollbar {
                     -ms-overflow-style: none;
                     scrollbar-width: none;
+                }
+
+                .bg-stripe-pattern {
+                    background-image: linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent);
+                    background-size: 10px 10px;
                 }
 
                 @media (max-height: 600px) and (orientation: landscape) {

@@ -366,11 +366,18 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             disabled={!formData.idPaciente}
                         >
                             <option value={0}>Ninguno / Otros</option>
-                            {historiasClinica.map(hc => (
-                                <option key={hc.id} value={hc.id}>
-                                    {hc.tratamiento || 'Sin descripción'} ({hc.pieza ? `Pieza ${hc.pieza}` : 'General'})
-                                </option>
-                            ))}
+                            {historiasClinica
+                                .filter(hc => hc.estadoTratamiento !== 'eliminado') // Opcional: filtrar eliminados si existieran
+                                .map(hc => {
+                                    const fecha = hc.fecha ? new Date(hc.fecha + 'T12:00:00').toLocaleDateString() : 'S/F';
+                                    const doctorName = hc.doctor ? `${hc.doctor.nombre} ${hc.doctor.paterno}`.trim() : 'S/D';
+                                    const estado = hc.estadoTratamiento === 'terminado' ? 'Terminado' : 'En Proceso';
+                                    return (
+                                        <option key={hc.id} value={hc.id}>
+                                            [{fecha}] {hc.tratamiento || 'Sin desc.'} ({hc.pieza ? `Pza ${hc.pieza}` : 'Gral'}) - {doctorName} - [{estado}]
+                                        </option>
+                                    );
+                                })}
                         </select>
                     </div>
                 </div>

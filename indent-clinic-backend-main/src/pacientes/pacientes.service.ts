@@ -51,11 +51,25 @@ export class PacientesService {
         return await this.pacientesRepository.save(paciente);
     }
 
-    async findAll(page: number, limit: number, search: string, clinicaId?: number, estado?: string): Promise<{ data: Paciente[], total: number, totalPages: number }> {
+    async findAll(page: number, limit: number, search: string, clinicaId?: number, estado?: string, minimal: boolean = false): Promise<{ data: Paciente[], total: number, totalPages: number }> {
         const skip = (page - 1) * limit;
         const queryBuilder = this.pacientesRepository.createQueryBuilder('paciente');
 
-        queryBuilder.leftJoinAndSelect('paciente.fichaMedica', 'fichaMedica');
+        if (!minimal) {
+            queryBuilder.leftJoinAndSelect('paciente.fichaMedica', 'fichaMedica');
+        } else {
+            // Select only essential fields for dropdowns to save bandwidth
+            queryBuilder.select([
+                'paciente.id',
+                'paciente.nombre',
+                'paciente.paterno',
+                'paciente.materno',
+                'paciente.ci',
+                'paciente.celular',
+                'paciente.estado',
+                'paciente.clinicaId'
+            ]);
+        }
 
         if (search) {
             const searchTerm = `%${search}%`;

@@ -61,7 +61,7 @@ const VentaProductoForm: React.FC = () => {
     const fetchInitialData = async () => {
         try {
             const [paciRes, prodRes, formRes, persRes] = await Promise.all([
-                api.get(`/pacientes?limit=99999${clinicaSeleccionada ? `&clinicaId=${clinicaSeleccionada}` : ''}`),
+                api.get(`/pacientes?limit=10000&minimal=true${clinicaSeleccionada ? `&clinicaId=${clinicaSeleccionada}` : ''}`),
                 api.get('/productos-comerciales?limit=1000'),
                 api.get('/forma-pago'),
                 api.get(`/personal?limit=1000${clinicaSeleccionada ? `&clinicaId=${clinicaSeleccionada}` : ''}`)

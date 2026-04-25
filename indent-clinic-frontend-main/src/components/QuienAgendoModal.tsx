@@ -39,7 +39,7 @@ const QuienAgendoModal: React.FC<QuienAgendoModalProps> = ({ isOpen, onClose }) 
 
     const fetchPacientes = async () => {
         try {
-            const response = await api.get('/pacientes?estado=activo&limit=2000');
+            const response = await api.get('/pacientes?estado=activo&limit=5000&minimal=true');
             const data = Array.isArray(response.data.data) ? response.data.data : response.data;
             setPacientes(data);
         } catch (error) {

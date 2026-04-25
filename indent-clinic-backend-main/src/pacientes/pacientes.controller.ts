@@ -45,8 +45,9 @@ export class PacientesController {
         @Query('search') search: string = '',
         @Query('clinicaId') clinicaId?: string,
         @Query('estado') estado?: string,
+        @Query('minimal') minimal?: string,
     ) {
-        return this.pacientesService.findAll(Number(page), Number(limit), search, clinicaId ? +clinicaId : undefined, estado);
+        return this.pacientesService.findAll(Number(page), Number(limit), search, clinicaId ? +clinicaId : undefined, estado, minimal === 'true');
     }
 
     @Get(':id')

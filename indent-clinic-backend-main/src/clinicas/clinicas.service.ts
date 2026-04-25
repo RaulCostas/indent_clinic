@@ -53,6 +53,11 @@ export class ClinicasService {
             createClinicaDto.logo = await this.storageService.uploadBase64('clinica-media', `logo-clinica-${inputNombre.replace(/\s+/g, '-')}`, createClinicaDto.logo);
             this.logger.log(`[ClinicasService] Logo uploaded successfully: ${createClinicaDto.logo}`);
         }
+        if (createClinicaDto.qr_pago && createClinicaDto.qr_pago.startsWith('data:image')) {
+            this.logger.log(`[ClinicasService] Detected Base64 qr_pago, attempting upload...`);
+            createClinicaDto.qr_pago = await this.storageService.uploadBase64('clinica-media', `qr-pago-${inputNombre.replace(/\s+/g, '-')}`, createClinicaDto.qr_pago);
+            this.logger.log(`[ClinicasService] QR Pago uploaded successfully: ${createClinicaDto.qr_pago}`);
+        }
         createClinicaDto.nombre = inputNombre;
         const clinica = this.clinicasRepository.create(createClinicaDto);
         if (!clinica.slug) {
@@ -98,6 +103,15 @@ export class ClinicasService {
             }
             updateClinicaDto.logo = await this.storageService.uploadBase64('clinica-media', `logo-clinica-${id}`, updateClinicaDto.logo);
             this.logger.log(`[ClinicasService] Logo updated successfully: ${updateClinicaDto.logo}`);
+        }
+
+        if (updateClinicaDto.qr_pago && updateClinicaDto.qr_pago.startsWith('data:image')) {
+            this.logger.log(`[ClinicasService] Detected new Base64 qr_pago for clinic ${id}, attempting upload...`);
+            if (clinica.qr_pago && clinica.qr_pago.startsWith('http')) {
+                await this.storageService.deleteFile('clinica-media', clinica.qr_pago);
+            }
+            updateClinicaDto.qr_pago = await this.storageService.uploadBase64('clinica-media', `qr-pago-${id}`, updateClinicaDto.qr_pago);
+            this.logger.log(`[ClinicasService] QR Pago updated successfully: ${updateClinicaDto.qr_pago}`);
         }
         Object.assign(clinica, updateClinicaDto);
         return this.clinicasRepository.save(clinica);

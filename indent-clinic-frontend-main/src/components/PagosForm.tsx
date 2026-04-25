@@ -991,7 +991,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
         // Fetch patients only when needed for transfer
         if (pacientes.length === 0) {
             try {
-                const response = await api.get('/pacientes?limit=1000');
+                const response = await api.get('/pacientes?limit=10000&minimal=true');
                 const data = response.data.data || [];
                 setPacientes(data.filter((p: any) => p.estado === 'activo'));
             } catch (error) {

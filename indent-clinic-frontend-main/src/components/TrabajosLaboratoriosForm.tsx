@@ -98,7 +98,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
         try {
             const clinicaParam = clinicaSeleccionada ? `&clinicaId=${clinicaSeleccionada}` : '';
             const [pacResponse, labRes, preciosRes, cubetasRes, docsRes] = await Promise.all([
-                api.get(`/pacientes?limit=1000${clinicaParam}`),
+                api.get(`/pacientes?limit=5000&minimal=true${clinicaParam}`),
                 api.get('/laboratorios?limit=100'),
                 api.get('/precios-laboratorios?limit=1000'),
                 api.get(`/cubetas?dentro_fuera=DENTRO&limit=100${clinicaParam}`),

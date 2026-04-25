@@ -115,8 +115,8 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, onSa
         try {
             // Filter by clinic and active status
             const url = clinicaSeleccionada 
-                ? `/pacientes?limit=1000&clinicaId=${clinicaSeleccionada}&estado=activo` 
-                : '/pacientes?limit=1000&estado=activo';
+                ? `/pacientes?limit=5000&minimal=true&clinicaId=${clinicaSeleccionada}&estado=activo` 
+                : '/pacientes?limit=5000&minimal=true&estado=activo';
             const response = await api.get(url);
             setPacientes(response.data.data || []);
         } catch (error) {

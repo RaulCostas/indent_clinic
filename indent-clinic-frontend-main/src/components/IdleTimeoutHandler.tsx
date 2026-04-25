@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 const IdleTimeoutHandler: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<any>(null);
     
     // 15 minutes in milliseconds
     const INACTIVITY_LIMIT = 15 * 60 * 1000;

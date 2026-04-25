@@ -262,7 +262,6 @@ const PacienteTabCitas: React.FC = () => {
                     initialData={selectedCita}
                     defaultDate={selectedCita ? selectedCita.fecha : getLocalDateString()}
                     defaultTime={selectedCita ? selectedCita.hora : '08:00'}
-                    defaultConsultorio={selectedCita ? selectedCita.consultorio : 1}
                     defaultClinicaId={selectedCita ? selectedCita.clinicaId : (paciente?.clinicaId || null)}
                     defaultPacienteId={Number(id)}
                 />

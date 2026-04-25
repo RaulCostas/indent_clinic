@@ -252,7 +252,6 @@ const QuienAgendoModal: React.FC<QuienAgendoModalProps> = ({ isOpen, onClose }) 
                                                         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Usuario</th>
                                                         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Fecha Agendada</th>
                                                         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Paciente</th>
-                                                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Consultorio</th>
                                                         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Fecha Cita</th>
                                                         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Hora Cita</th>
                                                         <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Estado</th>
@@ -270,9 +269,6 @@ const QuienAgendoModal: React.FC<QuienAgendoModalProps> = ({ isOpen, onClose }) 
                                                                 </td>
                                                                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                                                     {agenda.paciente ? `${agenda.paciente.nombre} ${agenda.paciente.paterno}` : '-'}
-                                                                </td>
-                                                                <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                                                                    {agenda.consultorio || '-'}
                                                                 </td>
                                                                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                                                     {formatDateLocal(agenda.fecha)}

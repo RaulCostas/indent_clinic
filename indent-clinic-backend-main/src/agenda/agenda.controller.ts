@@ -30,6 +30,14 @@ export class AgendaController {
         return await this.agendaService.enviarRecordatoriosManana(clinicaId, instance);
     }
 
+    @Post('recordatorio-individual')
+    async enviarRecordatorioIndividual(
+        @Body('agendaId') agendaId: number,
+        @Body('instance') instance?: number
+    ) {
+        return await this.agendaService.enviarRecordatorioIndividual(agendaId, instance);
+    }
+
     @Get('estado-recordatorios-manana')
     async estadoRecordatoriosManana(@Query('clinicaId') clinicaId?: string) {
         return await this.agendaService.estadoRecordatoriosManana(clinicaId ? +clinicaId : undefined);

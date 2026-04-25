@@ -37,6 +37,8 @@ export class Clinica {
     @Column({ type: 'date', nullable: true })
     fecha_cierre_caja: string;
 
+    @Column({ type: 'text', nullable: true })
+    qr_pago: string;
 
     @CreateDateColumn()
     createdAt: Date;

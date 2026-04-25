@@ -33,9 +33,6 @@ export class CreateHistoriaClinicaDto {
     @IsNumber()
     doctorId?: number;
 
-    @IsOptional()
-    @IsNumber()
-    personalId?: number;
 
     @IsOptional()
     @IsString()

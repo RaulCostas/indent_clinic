@@ -46,4 +46,12 @@ export class ChatbotController {
         await this.chatbotService.sendMessage(body.jid, body.text, +clinicId);
         return { success: true };
     }
+
+    @Post('enviar-saldo-deudor')
+    async enviarSaldoDeudor(
+        @Param('clinicId') clinicId: string,
+        @Body() body: { pacienteId: number, instance?: number }
+    ) {
+        return this.chatbotService.enviarSaldoDeudor(body.pacienteId, +clinicId, body.instance || 1);
+    }
 }

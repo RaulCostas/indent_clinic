@@ -41,6 +41,7 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
         monedaDefault: 'Bs.',
         horario_atencion: '',
         logo: '',
+        qr_pago: '',
     });
 
     const manualSections: ManualSection[] = [
@@ -69,6 +70,7 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                         monedaDefault: c.monedaDefault || 'Bs.',
                         horario_atencion: c.horario_atencion || '',
                         logo: c.logo || '',
+                        qr_pago: c.qr_pago || '',
                     });
                 })
                 .catch(() => {
@@ -85,6 +87,7 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                 monedaDefault: 'Bs.',
                 horario_atencion: '',
                 logo: '',
+                qr_pago: '',
             });
         }
     }, [isOpen, id]);
@@ -95,6 +98,17 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
             const reader = new FileReader();
             reader.onloadend = () => {
                 setForm({ ...form, logo: reader.result as string });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleQrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setForm({ ...form, qr_pago: reader.result as string });
             };
             reader.readAsDataURL(file);
         }
@@ -346,6 +360,57 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                                         <button
                                             type="button"
                                             onClick={() => setForm({ ...form, logo: '' })}
+                                            className="ml-3 inline-flex items-center gap-1 px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-colors text-xs font-semibold"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            Eliminar
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* QR Pago Upload */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                QR de Pago (WhatsApp)
+                            </label>
+                            <div className="flex items-center gap-4 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                                <div className="w-24 h-24 rounded-lg bg-white dark:bg-gray-700 border dark:border-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                    {form.qr_pago ? (
+                                        <img src={getLogoUrl(form.qr_pago) || ''} alt="QR Preview" className="max-w-full max-h-full object-contain" />
+                                    ) : (
+                                        <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                        </svg>
+                                    )}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                        Se enviará por WhatsApp junto con los recordatorios de deuda.
+                                    </p>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleQrChange}
+                                        id="qr-upload"
+                                        className="hidden"
+                                    />
+                                    <label
+                                        htmlFor="qr-upload"
+                                        className="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-300 py-1.5 px-4 rounded-lg cursor-pointer inline-flex items-center gap-2 text-sm font-semibold transition-colors border border-blue-200 dark:border-blue-800"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        Subir QR
+                                    </label>
+                                    {form.qr_pago && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm({ ...form, qr_pago: '' })}
                                             className="ml-3 inline-flex items-center gap-1 px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-colors text-xs font-semibold"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

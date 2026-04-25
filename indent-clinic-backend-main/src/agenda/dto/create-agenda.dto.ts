@@ -13,11 +13,6 @@ export class CreateAgendaDto {
     @IsNumber()
     duracion: number;
 
-    @IsNotEmpty()
-    @IsNumber()
-    @Min(1)
-    @Max(8)
-    consultorio: number;
 
     @IsOptional()
     @IsNumber()
@@ -58,4 +53,8 @@ export class CreateAgendaDto {
     @IsOptional()
     @IsString()
     sucursal?: string;
+
+    @IsOptional()
+    @IsNumber()
+    doctorDerivaId?: number;
 }

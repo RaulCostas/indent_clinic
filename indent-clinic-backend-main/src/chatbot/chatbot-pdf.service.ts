@@ -100,7 +100,7 @@ export class ChatbotPdfService {
                                 { text: d.arancel?.detalle || d.tratamiento || '', alignment: 'left' },
                                 { text: (d.cantidad || 0).toString(), alignment: 'center' },
                                 { text: Number(d.precioUnitario || 0).toFixed(2), alignment: 'right' },
-                                { text: Number(d.subTotal || 0).toFixed(2), alignment: 'right' }
+                                { text: Number(d.total || 0).toFixed(2), alignment: 'right' }
                             ]);
                         });
                     }

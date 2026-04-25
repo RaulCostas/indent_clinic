@@ -10,6 +10,9 @@ import { ThemeToggle } from './ThemeToggle';
 import { useClinica } from '../context/ClinicaContext';
 import { getLogoUrl } from '../utils/formatters';
 
+
+
+
 const Layout: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -25,6 +28,7 @@ const Layout: React.FC = () => {
     const [isProvidersOpen, setIsProvidersOpen] = useState(false);
     const [isStatsOpen, setIsStatsOpen] = useState(false);
     const [isSalesOpen, setIsSalesOpen] = useState(false);
+
 
     // Permission Logic
     const [permisos, setPermisos] = useState<string[]>([]);
@@ -84,6 +88,8 @@ const Layout: React.FC = () => {
             window.removeEventListener('user-updated', handleUserUpdate);
         };
     }, []);
+
+
 
     const hasAccess = (moduleId: string) => {
         return !permisos.includes(moduleId);
@@ -1084,6 +1090,11 @@ const Layout: React.FC = () => {
                                     </span>
                                 )}
                             </button>
+                            
+
+
+
+
                             <button
                                 onClick={() => navigate('/')}
                                 className="header-icon-btn dark:text-white"
@@ -1113,6 +1124,7 @@ const Layout: React.FC = () => {
                 </main>
             </div>
             <ChatWidget />
+
         </div>
     );
 };

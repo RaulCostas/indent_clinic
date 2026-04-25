@@ -37,7 +37,6 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
         fecha: defaultDate,
         hora: defaultTime || '08:00',
         duracion: 60,
-        consultorio: defaultConsultorio || 1,
         pacienteId: 0,
         doctorId: 0,
         proformaId: 0,
@@ -47,7 +46,8 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
         motivoCancelacion: '',
         clinicaId: defaultClinicaId || clinicaSeleccionada || 0,
         observacion: '',
-        sucursal: 'San Miguel'
+        sucursal: 'San Miguel',
+        doctorDerivaId: 0
     });
 
     const [maxDuration, setMaxDuration] = useState(120); // Default max
@@ -158,7 +158,6 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 ...prev,
                 fecha: defaultDate,
                 hora: defaultTime || '08:00',
-                consultorio: defaultConsultorio || 1,
                 clinicaId: defaultClinicaId || clinicaSeleccionada || 0,
                 // Reset other fields for new app
                 pacienteId: defaultPacienteId || 0,
@@ -167,7 +166,8 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 tratamiento: '',
                 motivoCancelacion: '',
                 observacion: '',
-                sucursal: 'San Miguel'
+                sucursal: 'San Miguel',
+                doctorDerivaId: 0
             }));
             setIsNonPatientEvent(false);
             setHoraHastaLocal(calculateHoraHasta(defaultTime || '08:00', 60));
@@ -188,7 +188,6 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 fecha: initialData.fecha,
                 hora: initialData.hora,
                 duracion: initialData.duracion,
-                consultorio: initialData.consultorio,
                 pacienteId: initialData.pacienteId || 0,
                 doctorId: initialData.doctorId,
                 proformaId: initialData.proformaId || 0,
@@ -198,7 +197,8 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 motivoCancelacion: initialData.motivoCancelacion || '',
                 clinicaId: initialData.clinicaId || clinicaSeleccionada || 0,
                 observacion: initialData.observacion || '',
-                sucursal: initialData.sucursal || ''
+                sucursal: initialData.sucursal || '',
+                doctorDerivaId: initialData.doctorDerivaId || 0
             });
 
             if (!initialData.pacienteId || initialData.pacienteId === 0) {
@@ -408,6 +408,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 ...formData,
                 pacienteId: formData.pacienteId > 0 ? formData.pacienteId : undefined,
                 proformaId: formData.proformaId > 0 ? formData.proformaId : undefined,
+                doctorDerivaId: formData.doctorDerivaId > 0 ? formData.doctorDerivaId : undefined,
                 clinicaId: Number(formData.clinicaId)
             };
 
@@ -578,10 +579,6 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                             </div>
                         </div>
 
-                        {/* Oculto: Consultorio for compatibility */}
-                        <div className="hidden">
-                            <select name="consultorio" value={formData.consultorio} onChange={() => {}}><option value={1}>1</option></select>
-                        </div>
 
                         {/* 2. Hora / Duracion */}
                         <div>
@@ -890,6 +887,30 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                                     className="w-full pl-9 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
+                        </div>
+
+                        {/* Derivado por */}
+                        <div className="col-span-1 md:col-span-2">
+                            <label className="block mb-1 font-bold text-sm">Derivado por (opcional):</label>
+                                <SearchableSelect
+                                    options={doctors.map(d => ({
+                                        id: d.id,
+                                        label: `${d.nombre} ${d.paterno} ${d.materno || ''}`.trim(),
+                                        subLabel: d.especialidad?.especialidad
+                                    }))}
+                                    value={formData.doctorDerivaId}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, doctorDerivaId: Number(val) }))}
+                                    placeholder="-- Seleccione Doctor --"
+                                    disabled={isRestricted}
+                                    icon={
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                        </svg>
+                                    }
+                                />
                         </div>
 
                         {/* 9. Estado */}

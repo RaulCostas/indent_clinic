@@ -307,7 +307,6 @@ export interface HistoriaClinica {
     especialidad?: Especialidad;
     doctorId?: number;
     doctor?: Doctor;
-    personal?: Personal;
     diagnostico?: string;
 
     estadoTratamiento: string;
@@ -363,7 +362,6 @@ export interface Agenda {
     fecha: string;
     hora: string;
     duracion: number;
-    consultorio: number;
     pacienteId: number;
     paciente?: Paciente;
     doctorId: number;
@@ -378,8 +376,11 @@ export interface Agenda {
     observacion?: string;
     sucursal?: string;
     motivoCancelacion?: string;
+    doctorDerivaId?: number;
+    doctorDeriva?: Doctor;
     clinicaId?: number;
     clinica?: Clinica;
+    recordatorioEnviado?: boolean;
 }
 
 export interface GastoFijo {
@@ -732,3 +733,5 @@ export interface CompraProducto {
     createdAt?: string;
     updatedAt?: string;
 }
+
+

@@ -118,32 +118,86 @@ const PacienteTabFicha: React.FC = () => {
                             {/* Antecedentes Patológicos */}
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Antecedentes Patológicos</p>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                    <CheckBadge label="Bruxismo" value={ficha.bruxismo} />
-                                    <CheckBadge label="Alergia a Medicamento" value={ficha.alergia_medicamento} />
-                                    <CheckBadge label="Medicamento últimas 72h" value={ficha.medicamento_72h} />
-                                    <CheckBadge label="Tratamiento Médico" value={ficha.tratamiento_medico} />
-                                    <CheckBadge label="De las Articulaciones" value={ficha.articulaciones} />
-                                    <CheckBadge label="Anestesiado Anteriormente" value={ficha.anestesiado_anteriormente} />
-                                    <CheckBadge label="Reacción a Anestesia" value={ficha.reaccion_anestesia} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Bruxismo" value={ficha.bruxismo} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Alergia a Medicamento" value={ficha.alergia_medicamento} />
+                                        {ficha.alergia_medicamento && ficha.alergia_medicamento_detalle && (
+                                            <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                <Field label="Detalle de Alergia" value={ficha.alergia_medicamento_detalle} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Medicamento últimas 72h" value={ficha.medicamento_72h} />
+                                        {ficha.medicamento_72h && ficha.medicamento_72h_detalle && (
+                                            <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                <Field label="Detalle Medicamento" value={ficha.medicamento_72h_detalle} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Tratamiento Médico" value={ficha.tratamiento_medico} />
+                                        {ficha.tratamiento_medico && ficha.tratamiento_medico_detalle && (
+                                            <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                <Field label="Detalle Tratamiento" value={ficha.tratamiento_medico_detalle} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="De las Articulaciones" value={ficha.articulaciones} />
+                                        {ficha.articulaciones && ficha.articulaciones_detalle && (
+                                            <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                <Field label="Detalle Articulaciones" value={ficha.articulaciones_detalle} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Anestesiado Anteriormente" value={ficha.anestesiado_anteriormente} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Reacción a Anestesia" value={ficha.reaccion_anestesia} />
+                                        {ficha.reaccion_anestesia && ficha.reaccion_anestesia_detalle && (
+                                            <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                <Field label="Detalle Reacción" value={ficha.reaccion_anestesia_detalle} />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Enfermedades */}
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Enfermedades</p>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                    <CheckBadge label="Neurológicas" value={ficha.enf_neurologicas} />
-                                    <CheckBadge label="Pulmonares" value={ficha.enf_pulmonares} />
-                                    <CheckBadge label="Cardíacas" value={ficha.enf_cardiacas} />
-                                    <CheckBadge label="Hígado" value={ficha.enf_higado} />
-                                    <CheckBadge label="Gástricas" value={ficha.enf_gastricas} />
-                                    <CheckBadge label="Venéreas" value={ficha.enf_venereas} />
-                                    <CheckBadge label="Renales" value={ficha.enf_renales} />
-                                    <CheckBadge label="Diabetes" value={ficha.diabetes} />
-                                    <CheckBadge label="Hemorragias / Anemia" value={ficha.anemia} />
-                                    <CheckBadge label="Presión Alta (Hipertensión)" value={ficha.hipertension} />
-                                    <CheckBadge label="Presión Baja (Hipotensión)" value={ficha.hipotension} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {[
+                                        { label: 'Neurológicas', key: 'enf_neurologicas', detailKey: 'enf_neurologicas_detalle' },
+                                        { label: 'Pulmonares', key: 'enf_pulmonares', detailKey: 'enf_pulmonares_detalle' },
+                                        { label: 'Cardíacas', key: 'enf_cardiacas', detailKey: 'enf_cardiacas_detalle' },
+                                        { label: 'Hígado', key: 'enf_higado', detailKey: 'enf_higado_detalle' },
+                                        { label: 'Gástricas', key: 'enf_gastricas', detailKey: 'enf_gastricas_detalle' },
+                                        { label: 'Venéreas', key: 'enf_venereas', detailKey: 'enf_venereas_detalle' },
+                                        { label: 'Renales', key: 'enf_renales', detailKey: 'enf_renales_detalle' },
+                                        { label: 'Diabetes', key: 'diabetes', detailKey: 'diabetes_detalle' },
+                                        { label: 'Hemorragias / Anemia', key: 'anemia', detailKey: 'anemia_detalle' },
+                                    ].map((enf) => (
+                                        <div key={enf.key} className="space-y-1">
+                                            <CheckBadge label={enf.label} value={ficha[enf.key]} />
+                                            {ficha[enf.key] && ficha[enf.detailKey] && (
+                                                <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                    <Field label={`Detalle ${enf.label}`} value={ficha[enf.detailKey]} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Presión Alta (Hipertensión)" value={ficha.hipertension} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <CheckBadge label="Presión Baja (Hipotensión)" value={ficha.hipotension} />
+                                    </div>
                                 </div>
                                 <div className="mt-3">
                                     <Field label="¿Requirió o requiere Prueba de VIH?" value={ficha.prueba_vih ? `SÍ (${ficha.prueba_vih_resultado || 'Sin especificar'})` : 'NO'} />
@@ -154,9 +208,23 @@ const PacienteTabFicha: React.FC = () => {
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Antecedentes Gineco / Obstétricos</p>
                                 {paciente.sexo === 'Femenino' ? (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                        <CheckBadge label="Anticonceptivo Hormonal" value={ficha.anticonceptivo_hormonal} />
-                                        <CheckBadge label="Posibilidad Embarazo" value={ficha.posibilidad_embarazo} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <CheckBadge label="Anticonceptivo Hormonal" value={ficha.anticonceptivo_hormonal} />
+                                            {ficha.anticonceptivo_hormonal && ficha.anticonceptivo_hormonal_detalle && (
+                                                <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                    <Field label="Detalle Anticonceptivo" value={ficha.anticonceptivo_hormonal_detalle} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <CheckBadge label="Posibilidad Embarazo" value={ficha.posibilidad_embarazo} />
+                                            {ficha.posibilidad_embarazo && ficha.semana_gestacion && (
+                                                <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                    <Field label="Semana de Gestación" value={ficha.semana_gestacion} />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="text-sm text-gray-500 italic px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">No aplica para este paciente (Sexo: {paciente.sexo})</div>
@@ -166,16 +234,20 @@ const PacienteTabFicha: React.FC = () => {
                             {/* Hábitos */}
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Hábitos</p>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                    <div className="col-span-1 md:col-span-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="col-span-1 md:col-span-2">
                                         <Field label="¿Cuántas veces al día se cepilla los dientes?" value={ficha.cepillado_veces} />
                                     </div>
                                     <CheckBadge label="Usa Hilo Dental" value={ficha.usa_hilo_dental} />
                                     <CheckBadge label="Usa Enjuague" value={ficha.usa_enjuague} />
                                     <CheckBadge label="Consume Cítricos" value={ficha.consume_citricos} />
-                                    <div className="col-span-1 md:col-span-3">
-                                        <CheckBadge label="Fuma" value={ficha.fuma} />
-                                        {ficha.fuma && <div className="mt-2"><Field label="Fuma (Cantidad)" value={ficha.fuma_cantidad} /></div>}
+                                    <div className="col-span-1 md:col-span-2">
+                                        <div className="space-y-1">
+                                            <CheckBadge label="Fuma" value={ficha.fuma} />
+                                            {ficha.fuma && ficha.fuma_cantidad && (
+                                                <div className="mt-2"><Field label="Fuma (Cantidad)" value={ficha.fuma_cantidad} /></div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -64,6 +64,49 @@ export class AgendaService {
         };
     }
 
+    async enviarRecordatorioIndividual(agendaId: number, instance?: number): Promise<{ success: boolean; message: string }> {
+        const cita = await this.findOne(agendaId);
+        if (!cita.paciente?.celular) {
+            throw new BadRequestException('El paciente no tiene un número de celular registrado.');
+        }
+
+        try {
+            // Remove all non-digit characters
+            let celular = cita.paciente.celular.replace(/\D/g, '');
+
+            // Automatically prepend country code 591 if it's a standard Bolivian length missing it
+            if (celular.length === 8 && /^[67]/.test(celular)) {
+                celular = '591' + celular;
+            }
+
+            const jid = `${celular}@s.whatsapp.net`;
+            const horaStr = cita.hora ? cita.hora.substring(0, 5) : 'la hora acordada';
+            const nombrePaciente = [cita.paciente.nombre, cita.paciente.paterno, cita.paciente.materno].filter(Boolean).join(' ');
+            const nomClinica = cita.clinica?.nombre || 'el Centro Odontológico';
+
+            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana a las *${horaStr}*.`;
+
+            await this.chatbotService.sendAgendaMenu(
+                jid,
+                mensaje,
+                cita.id,
+                cita.clinicaId || 1,
+                instance
+            );
+
+            // Marcar como enviado en la base de datos
+            await this.agendaRepository.update(cita.id, { recordatorioEnviado: true });
+
+            return {
+                success: true,
+                message: `Recordatorio enviado correctamente a ${nombrePaciente}.`
+            };
+        } catch (error) {
+            console.error(`Error enviando recordatorio individual a ${cita.paciente.celular}:`, error);
+            throw new InternalServerErrorException('No se pudo enviar el recordatorio. Verifique la conexión del chatbot.');
+        }
+    }
+
     private async _enviarRecordatoriosEnBackground(citasParaRecordar: any[], clinicaId?: number, instance?: number): Promise<void> {
         let enviados = 0;
         let fallidos = 0;
@@ -231,6 +274,7 @@ export class AgendaService {
             .leftJoinAndSelect('agenda.proforma', 'proforma')
             .leftJoinAndSelect('agenda.clinica', 'clinica')
             .leftJoinAndSelect('agenda.usuario', 'usuario')
+            .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
             .where("agenda.estado != 'eliminado'"); // Filter out deleted
 
         if (date) {
@@ -273,7 +317,7 @@ export class AgendaService {
     async findAllByPaciente(pacienteId: number): Promise<Agenda[]> {
         return await this.agendaRepository.find({
             where: { pacienteId }, // Return all history for this patient
-            relations: ['paciente', 'doctor', 'proforma', 'usuario'],
+            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva'],
             order: { fecha: 'DESC', hora: 'ASC' }
         });
     }
@@ -281,7 +325,7 @@ export class AgendaService {
     async findOne(id: number): Promise<Agenda> {
         const cita = await this.agendaRepository.findOne({
             where: { id },
-            relations: ['paciente', 'doctor', 'proforma', 'usuario']
+            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva']
         });
         if (!cita) {
             throw new NotFoundException(`Cita #${id} not found`);
@@ -323,6 +367,11 @@ export class AgendaService {
             console.log(`[AgendaService] Proforma change detected: ${cita.proformaId} -> ${updateDto.proformaId}. Clearing relation object.`);
             (cita as any).proforma = null;
         }
+        
+        if (updateDto.doctorDerivaId !== undefined && updateDto.doctorDerivaId !== cita.doctorDerivaId) {
+            console.log(`[AgendaService] doctorDeriva change detected: ${cita.doctorDerivaId} -> ${updateDto.doctorDerivaId}. Clearing relation object.`);
+            (cita as any).doctorDeriva = null;
+        }
 
         this.agendaRepository.merge(cita, updateDto);
         const saved = await this.agendaRepository.save(cita);
@@ -346,7 +395,7 @@ export class AgendaService {
                 doctorId, 
                 estado: In(['agendado', 'confirmado', 'sala de espera'])
             } as any,
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'clinica'],
+            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'clinica', 'doctorDeriva'],
             order: { fecha: 'ASC', hora: 'ASC' }
         });
     }

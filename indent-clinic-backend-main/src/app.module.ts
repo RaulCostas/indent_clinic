@@ -126,6 +126,7 @@ import { ComprasProductosModule } from './compras_productos/compras_productos.mo
 import { LoteProducto } from './productos_comerciales/entities/lote-producto.entity';
 import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-producto-detalle-lote.entity';
 
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -201,6 +202,7 @@ import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-prod
         CompraProductoDetalle,
         LoteProducto,
         VentaProductoDetalleLote,
+
       ],
       migrations: [__dirname + '/db/migrations/*{.ts,.js}'],
       migrationsRun: true,
@@ -261,6 +263,7 @@ import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-prod
     ProductosComercialesModule,
     VentasProductosModule,
     ComprasProductosModule,
+
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -16,7 +16,7 @@ type ValuePiece = Date | null;
 type Value = ValuePiece | [ValuePiece, ValuePiece];
 
 import { useClinica } from '../context/ClinicaContext';
-import { Calendar as CalendarIcon, X as CloseIcon, User as UserIcon, MapPin as LocationIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, X as CloseIcon, User as UserIcon, MapPin as LocationIcon, MessageCircle } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import type { Doctor } from '../types';
 
@@ -63,6 +63,16 @@ const AgendaView: React.FC = () => {
     const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
     const [isRestricted, setIsRestricted] = useState(false);
+
+
+    const isTomorrow = (() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const y = tomorrow.getFullYear();
+        const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const d = String(tomorrow.getDate()).padStart(2, '0');
+        return currentDate === `${y}-${m}-${d}`;
+    })();
 
     useEffect(() => {
         const userStr = localStorage.getItem('user');
@@ -161,6 +171,8 @@ const AgendaView: React.FC = () => {
     useEffect(() => {
         fetchDoctors();
     }, []);
+
+
 
     const fetchDoctors = async () => {
         try {
@@ -398,14 +410,14 @@ const AgendaView: React.FC = () => {
         });
     };
 
-    const handleEnviarRecordatoriosManana = async () => {
-        if (!globalClinicaId) {
-            Swal.fire('Atención', 'Por favor seleccione una clínica para enviar recordatorios.', 'warning');
+    const handleEnviarRecordatorioIndividual = async (appointment: Agenda) => {
+        if (!appointment.paciente?.celular) {
+            Swal.fire('Atención', 'El paciente no tiene un número de celular registrado.', 'warning');
             return;
         }
 
         try {
-            // 1. Obtener estados de ambas instancias para mostrar los números
+            // 1. Verificar chatbots activos
             Swal.fire({
                 title: 'Verificando chatbots...',
                 allowOutsideClick: false,
@@ -417,17 +429,14 @@ const AgendaView: React.FC = () => {
 
             const formatPhone = (phone: string) => {
                 if (!phone) return 'Número desconocido';
-                // Remove any non-digits
                 const d = phone.replace(/\D/g, '');
-                if (d.startsWith('591')) {
-                    return `(+591) ${d.substring(3)}`;
-                }
+                if (d.startsWith('591')) return `(+591) ${d.substring(3)}`;
                 return `(+${d})`;
             };
 
             for (const inst of instances) {
                 try {
-                    const res = await api.get(`/chatbot/${globalClinicaId}/status?instance=${inst}`);
+                    const res = await api.get(`/chatbot/${appointment.clinicaId}/status?instance=${inst}`);
                     if (res.data.status === 'connected') {
                         const formatted = formatPhone(res.data.phoneNumber);
                         activeInstances.push({
@@ -460,95 +469,64 @@ const AgendaView: React.FC = () => {
 
             let selectedInstance = activeInstances[0].id;
 
-            // 2. Si hay más de una conectada, dejar elegir
             if (activeInstances.length > 1) {
                 const inputOptions: any = {};
-                activeInstances.forEach(ai => {
-                    inputOptions[ai.id] = ai.label;
-                });
+                activeInstances.forEach(ai => { inputOptions[ai.id] = ai.label; });
 
                 const { value: instanceId, isConfirmed } = await Swal.fire({
                     title: 'Seleccionar número de envío',
-                    html: '<p class="text-sm text-gray-500 mb-4">Se han detectado dos números activos. ¿Cuál desea usar para los recordatorios?</p>',
+                    html: '<p class="text-sm text-gray-500 mb-4">¿Cuál número desea usar para este recordatorio?</p>',
                     input: 'radio',
                     inputOptions,
                     inputValue: activeInstances[0].id,
                     showCancelButton: true,
-                    confirmButtonText: '<span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg> Continuar</span>',
-                    cancelButtonText: '<span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Cancelar</span>',
-                    confirmButtonColor: '#28a745',
-                    cancelButtonColor: '#6c757d',
-                    inputValidator: (value) => {
-                        if (!value) return 'Debes seleccionar una instancia';
-                    },
-                    customClass: {
-                        popup: 'rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700',
-                        confirmButton: 'px-6 py-2.5 font-bold transition-all transform hover:-translate-y-1 active:scale-95 duration-200 shadow-lg rounded-lg',
-                        cancelButton: 'px-6 py-2.5 font-bold transition-all transform hover:-translate-y-1 active:scale-95 duration-200 shadow-lg rounded-lg',
-                        input: 'flex flex-col gap-3 items-start p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl'
-                    },
+                    confirmButtonText: 'Continuar',
+                    cancelButtonText: 'Cancelar',
                     background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
                     color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
                 });
 
                 if (!isConfirmed) return;
                 selectedInstance = Number(instanceId);
-            } else {
-                // Si solo hay una, confirmar que se usará esa
-                const confirmChoice = await Swal.fire({
-                    title: '¿Enviar recordatorios?',
-                    html: `<p>Se usará la <b>Instancia ${activeInstances[0].id}</b> (<span class="font-mono text-blue-600">${activeInstances[0].phone}</span>) para enviar mensajes a los pacientes de mañana.</p>`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sí, enviar',
-                    cancelButtonText: 'Cancelar',
-                    confirmButtonColor: '#28a745',
-                    customClass: {
-                        confirmButton: 'px-6 py-2.5 font-bold transition-all transform hover:-translate-y-1 active:scale-95 duration-200 shadow-md rounded-lg',
-                        cancelButton: 'px-6 py-2.5 font-bold transition-all transform hover:-translate-y-1 active:scale-95 duration-200 shadow-md rounded-lg'
-                    },
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-                });
-                if (!confirmChoice.isConfirmed) return;
             }
 
-            // 3. Proceder con el envío
-            setIsSendingReminders(true);
+            // 2. Enviar recordatorio
             Swal.fire({
-                title: 'Enviando mensajes...',
-                text: 'Por favor, espere un momento.',
+                title: 'Enviando mensaje...',
                 allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
+                didOpen: () => Swal.showLoading()
             });
 
-            const response = await api.post('/agenda/recordatorios-manana', {
-                clinicaId: globalClinicaId,
+            const response = await api.post('/agenda/recordatorio-individual', {
+                agendaId: appointment.id,
                 instance: selectedInstance
             });
 
             if (response.data.success) {
-                setRecordatoriosEnviadosHoy(true);
+                // Actualizar estado local
+                setAppointments(prev => prev.map(app => 
+                    app.id === appointment.id ? { ...app, recordatorioEnviado: true } : app
+                ));
+
                 Swal.fire({
-                    title: '¡Proceso iniciado!',
-                    text: response.data.programados > 0
-                        ? `Se envían ${response.data.programados} recordatorio(s) en segundo plano desde la Instancia ${selectedInstance}.`
-                        : response.data.message,
+                    title: '¡Enviado!',
+                    text: `Recordatorio enviado a ${appointment.paciente.nombre}`,
                     icon: 'success',
-                    showConfirmButton: false,
-                    timer: 3000
+                    timer: 2000,
+                    showConfirmButton: false
                 });
             } else {
-                Swal.fire('Error', 'Hubo un problema al enviar los mensajes', 'error');
+                Swal.fire('Error', 'No se pudo enviar el recordatorio.', 'error');
             }
         } catch (error) {
-            console.error('Error sending reminders:', error);
-            Swal.fire('Error', 'Error de conexión con el servidor', 'error');
-        } finally {
-            setIsSendingReminders(false);
+            console.error('Error sending individual reminder:', error);
+            Swal.fire('Error', 'Ocurrió un error al procesar el envío.', 'error');
         }
+    };
+
+    const handleEnviarRecordatoriosManana = async () => {
+        // This function is now deprecated in favor of individual reminders
+        Swal.fire('Información', 'Esta función ha sido reemplazada por recordatorios individuales en cada cita.', 'info');
     };
 
     // Calculate which cells to skip rendering - NOT NEEDED ANYMORE since we removed rowSpan.
@@ -730,7 +708,8 @@ const AgendaView: React.FC = () => {
                                     Nueva Cita
                                 </button>
                             )}
-                            {!isRestricted && (
+                            {/* 
+                                !isRestricted && (
                                 <button
                                     onClick={handleEnviarRecordatoriosManana}
                                     disabled={isSendingReminders || recordatoriosEnviadosHoy}
@@ -742,7 +721,8 @@ const AgendaView: React.FC = () => {
                                     </svg>
                                     {recordatoriosEnviadosHoy ? 'Enviados Hoy' : 'Recordatorios'}
                                 </button>
-                            )}
+                                )
+                            */}
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-between sm:justify-end mt-1 sm:mt-0 pt-1">
                             <button
@@ -785,10 +765,10 @@ const AgendaView: React.FC = () => {
                     </div>
 
                     <div className="flex-1 overflow-x-auto relative bg-white dark:bg-gray-800 custom-scrollbar">
-                        <table className="min-w-[800px] w-full border-collapse table-fixed">
+                        <table className="min-w-[500px] md:min-w-[800px] w-full border-collapse table-fixed">
                             <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700 z-10 shadow-sm">
                                 <tr>
-                                    <th className="sticky left-0 bg-gray-100 dark:bg-gray-700 z-[25] border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">HORA</th>
+                                    <th className="sticky left-0 bg-gray-100 dark:bg-gray-700 z-[25] border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 md:w-32 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">HORA</th>
                                     {visibleClinics.map(clinica => (
                                         <th key={clinica.id} className="border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 uppercase">{clinica.nombre}</th>
                                     ))}
@@ -821,10 +801,10 @@ const AgendaView: React.FC = () => {
                                             <React.Fragment key={groupIndex}>
                                                 {Array.from({ length: maxAppsInRow }).map((_, appIndex) => (
                                                     <tr key={`${groupIndex}-${appIndex}`}>
-                                                        <td className="sticky left-0 z-20 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-300 text-sm align-middle whitespace-nowrap min-w-[120px] shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
+                                                        <td className="sticky left-0 z-20 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1 md:p-2 text-center font-bold text-gray-700 dark:text-gray-300 text-sm align-middle whitespace-nowrap min-w-[80px] md:min-w-[120px] shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
                                                             <div className="flex flex-col justify-center items-center gap-0.5">
-                                                                <span className="text-sm">{group.hora}</span>
-                                                                <span className="text-[9px] text-gray-500 font-medium">hasta {endTimeStr}</span>
+                                                                <span className="text-[11px] md:text-sm">{group.hora}</span>
+                                                                <span className="text-[8px] md:text-[9px] text-gray-500 font-medium">hasta {endTimeStr}</span>
                                                             </div>
                                                         </td>
                                                         {visibleClinics.map(clinica => {
@@ -845,7 +825,7 @@ const AgendaView: React.FC = () => {
                                                                         {appointment ? (
                                                                             <div 
                                                                                 onClick={(e) => handleEditAppointment(appointment, e)}
-                                                                                className={`flex flex-col justify-center text-xs overflow-hidden px-2 py-1.5 rounded relative hover:opacity-90 transition-opacity cursor-pointer shadow-sm border border-black/10 ${appointment.estado === 'cancelado' ? 'text-red-800 opacity-70 grayscale-[0.2]' : ''} ${isBlock ? 'ring-1 ring-white/20' : ''}`}
+                                                                                className={`flex flex-col justify-center text-xs overflow-hidden px-1 py-1 md:px-2 md:py-1.5 rounded relative hover:opacity-90 transition-opacity cursor-pointer shadow-sm border border-black/10 ${appointment.estado === 'cancelado' ? 'text-red-800 opacity-70 grayscale-[0.2]' : ''} ${isBlock ? 'ring-1 ring-white/20' : ''}`}
                                                                                 style={{ backgroundColor: appointment.estado === 'cancelado' ? '#fee2e2' : bgColor, borderLeft: `4px solid ${getStatusColor(appointment.estado, isBlock)}`, color: appointment.estado === 'cancelado' ? '#991b1b' : getContrastTextColor(bgColor || getStatusColor(appointment.estado, isBlock)) }}
                                                                             >
                                                                                 {isBlock && <div className="absolute top-0 left-0 w-full h-full bg-stripe-pattern opacity-10 pointer-events-none rounded"></div>}
@@ -871,8 +851,13 @@ const AgendaView: React.FC = () => {
                                                                                             title={`Ver perfil de ${appointment.paciente.nombre} ${appointment.paciente.paterno}`}
                                                                                             onClick={(e) => { e.stopPropagation(); navigate(`/pacientes/${appointment.paciente!.id}/ficha`); }}
                                                                                         >
-                                                                                            {`${appointment.paciente.nombre} ${appointment.paciente.paterno} ${appointment.paciente.materno || ''} ${appointment.paciente.seguro_medico ? `(${appointment.paciente.seguro_medico})` : ''}`.trim()}
-                                                                                        </span>
+                                                                                             <span className="hidden md:inline">
+                                                                                                {`${appointment.paciente.nombre} ${appointment.paciente.paterno} ${appointment.paciente.materno || ''} ${appointment.paciente.seguro_medico ? `(${appointment.paciente.seguro_medico})` : ''}`.trim()}
+                                                                                             </span>
+                                                                                             <span className="md:hidden">
+                                                                                                {`${appointment.paciente.nombre} ${appointment.paciente.paterno}`.trim()}
+                                                                                             </span>
+                                                                                         </span>
                                                                                     ) : (
                                                                                         <span className="italic">
                                                                                             {appointment.tratamiento || 'Bloqueo'}
@@ -891,17 +876,17 @@ const AgendaView: React.FC = () => {
                                                                                 )}
                                                                                 {appointment.sucursal && (
                                                                                     <div className={`mt-0.5 text-[10px] font-bold py-0.5 px-0.5 rounded inline-flex items-center gap-1 shadow-sm border border-white/20 w-fit
-                                                                                        ${appointment.sucursal.toLowerCase().includes('arce') ? 'bg-indigo-600/60 text-white' :
-                                                                                        appointment.sucursal.toLowerCase().includes('miguel') ? 'bg-emerald-600/60 text-white' :
+                                                                                        ${appointment.sucursal?.toLowerCase()?.includes('arce') ? 'bg-indigo-600/60 text-white' :
+                                                                                        appointment.sucursal?.toLowerCase()?.includes('miguel') ? 'bg-emerald-600/60 text-white' :
                                                                                         'bg-gray-600/60 text-white'}`}>
                                                                                         <LocationIcon size={8} /> {appointment.sucursal}
                                                                                     </div>
                                                                                 )}
-                                                                                <div className="text-[9px] mt-1 font-bold uppercase opacity-90 flex items-center gap-1">
+                                                                                <div className="text-[9px] mt-1 font-bold uppercase opacity-90 flex items-center gap-1.5">
                                                                                     <select
                                                                                         value={appointment.estado}
                                                                                         disabled={isRestricted}
-                                                                                        className={`bg-black/20 hover:bg-black/30 text-white border-none rounded px-1.5 py-0.5 focus:ring-1 focus:ring-white/50 text-[9px] font-bold outline-none appearance-none ${isRestricted ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                                                                                        className={`bg-black/20 hover:bg-black/30 text-white border-none rounded px-1.5 py-0.5 focus:ring-1 focus:ring-white/50 text-[9px] font-bold outline-none appearance-none w-fit ${isRestricted ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                                                                                         onClick={(e) => e.stopPropagation()}
                                                                                         onChange={(e) => handleStatusChange(appointment.id, e.target.value, e)}
                                                                                     >
@@ -911,6 +896,24 @@ const AgendaView: React.FC = () => {
                                                                                         <option value="no_asistio" className="bg-purple-600 text-white">NO ASISTIÓ</option>
                                                                                         <option value="cancelado" className="bg-red-600 text-white">CANCELADO</option>
                                                                                     </select>
+                                                                                    {appointment.doctorDeriva && (
+                                                                                        <div className="text-[8px] sm:text-[9px] bg-orange-100/30 dark:bg-orange-900/40 text-white px-1.5 py-0.5 rounded border border-white/20 italic flex items-center gap-1">
+                                                                                            <span className="opacity-70 font-bold">Derivado por:</span> 
+                                                                                            Dr. {`${appointment.doctorDeriva.nombre} ${appointment.doctorDeriva.paterno} ${appointment.doctorDeriva.materno || ''}`.trim()}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {isTomorrow && appointment.paciente && appointment.paciente.celular && (
+                                                                                        <button
+                                                                                            onClick={(e) => { e.stopPropagation(); handleEnviarRecordatorioIndividual(appointment); }}
+                                                                                            disabled={appointment.recordatorioEnviado}
+                                                                                            className={`flex-shrink-0 flex items-center justify-center w-[28px] h-[24px] rounded-lg shadow-md transition-all transform ${appointment.recordatorioEnviado ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 hover:-translate-y-0.5'} text-white border-none`}
+                                                                                            title={appointment.recordatorioEnviado ? "Recordatorio ya enviado" : "Enviar recordatorio por WhatsApp"}
+                                                                                        >
+                                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                                                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
+                                                                                            </svg>
+                                                                                        </button>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
                                                                         ) : (
@@ -941,7 +944,6 @@ const AgendaView: React.FC = () => {
                         initialData={editingAppointment}
                         defaultDate={currentDate}
                         defaultTime={selectedSlot?.time}
-                        defaultConsultorio={1}
                         defaultClinicaId={selectedSlot?.clinicaId}
                         existingAppointments={appointments}
                     />

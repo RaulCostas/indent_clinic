@@ -10,6 +10,8 @@ import HistoriaClinicaList from './HistoriaClinicaList';
 import PlanTratamientoModal from './PlanTratamientoModal';
 import RecordatorioTratamientoModal from './RecordatorioTratamientoModal';
 import FirmaModal from './FirmaModal';
+import SeguimientoClinicoModal from './SeguimientoClinicoModal';
+
 import { formatDate } from '../utils/dateUtils';
 import { useClinica } from '../context/ClinicaContext';
 
@@ -27,7 +29,9 @@ const HistoriaClinica: React.FC = () => {
     const [historiaToEdit, setHistoriaToEdit] = useState<HistoriaClinicaType | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [showPlanModal, setShowPlanModal] = useState(false);
+    const [showSeguimientoModal, setShowSeguimientoModal] = useState(false);
     const [showReminderModal, setShowReminderModal] = useState(false);
+
     const [selectedReminderHistoria, setSelectedReminderHistoria] = useState<HistoriaClinicaType | null>(null);
 
     // Firma Digital
@@ -392,43 +396,38 @@ const HistoriaClinica: React.FC = () => {
 
             {/* Tab Contents */}
             <div className="animate-fade-in-up">
-                <>
-                    {selectedProformaId > 0 ? (
-                        <>
-                            {(showForm || historiaToEdit) && (
-                                <div className="mb-6">
-                                    <HistoriaClinicaForm
-                                        pacienteId={Number(id)}
-                                        onSuccess={() => {
-                                            fetchHistoria();
-                                            setShowForm(false);
-                                        }}
-                                        historiaToEdit={historiaToEdit}
-                                        onCancelEdit={handleCancelEdit}
-                                        selectedProformaId={selectedProformaId}
-                                        proformas={proformas}
+                {(showForm || historiaToEdit) && selectedProformaId > 0 && (
+                    <div className="mb-6">
+                        <HistoriaClinicaForm
+                            pacienteId={Number(id)}
+                            onSuccess={() => {
+                                fetchHistoria();
+                                setShowForm(false);
+                            }}
+                            historiaToEdit={historiaToEdit}
+                            onCancelEdit={handleCancelEdit}
+                            selectedProformaId={selectedProformaId}
+                            proformas={proformas}
+                        />
+                    </div>
+                )}
 
-                                    />
-                                </div>
-                            )}
-
-                            <HistoriaClinicaList
-                                historia={filteredHistoria}
-                                onDelete={handleDelete}
-                                onEdit={handleEdit}
-                                onNewHistoria={!showForm && !historiaToEdit ? () => setShowForm(true) : undefined}
-                                onPrint={handlePrintHistory}
-                                onViewPlan={() => setShowPlanModal(true)}
-                                onSign={handleOpenFirma}
-                                onReminder={(item) => {
-                                    setSelectedReminderHistoria(item);
-                                    setShowReminderModal(true);
-                                }}
-                            />
-
-                        </>
-                    ) : null}
-                </>
+                {selectedProformaId > 0 && (
+                    <HistoriaClinicaList
+                        historia={filteredHistoria}
+                        onDelete={handleDelete}
+                        onEdit={handleEdit}
+                        onNewHistoria={selectedProformaId > 0 && !showForm && !historiaToEdit ? () => setShowForm(true) : undefined}
+                        onPrint={handlePrintHistory}
+                        onViewPlan={selectedProformaId > 0 ? () => setShowPlanModal(true) : undefined}
+                        onViewSeguimiento={() => setShowSeguimientoModal(true)}
+                        onSign={handleOpenFirma}
+                        onReminder={(item) => {
+                            setSelectedReminderHistoria(item);
+                            setShowReminderModal(true);
+                        }}
+                    />
+                )}
             </div>
 
 
@@ -439,6 +438,15 @@ const HistoriaClinica: React.FC = () => {
                 onClose={() => setShowPlanModal(false)}
                 proforma={proformas.find(p => p.id === selectedProformaId) || null}
                 historia={historia}
+            />
+
+            {/* Seguimiento Clinico Modal */}
+            <SeguimientoClinicoModal
+                isOpen={showSeguimientoModal}
+                onClose={() => setShowSeguimientoModal(false)}
+                historia={historia}
+                pacienteNombre={paciente ? `${paciente.nombre} ${paciente.paterno}` : ''}
+                proformas={proformas}
             />
 
             {/* Recordatorio Modal */}
@@ -457,6 +465,8 @@ const HistoriaClinica: React.FC = () => {
                 title="Firma Digital del Paciente"
                 subtitle="El paciente puede firmar a continuación como constancia del tratamiento realizado. (Opcional)"
             />
+
+
         </div >
     );
 };

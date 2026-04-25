@@ -63,7 +63,7 @@ export class HistoriaClinicaService {
 
     async findAll(): Promise<HistoriaClinica[]> {
         return await this.historiaClinicaRepository.find({
-            relations: ['paciente', 'doctor', 'especialidad', 'personal', 'proforma', 'proformaDetalle', 'proformaDetalle.arancel'],
+            relations: ['paciente', 'doctor', 'especialidad', 'proforma', 'proformaDetalle', 'proformaDetalle.arancel'],
             order: { fecha: 'DESC' }
         });
     }
@@ -71,7 +71,7 @@ export class HistoriaClinicaService {
     async findAllByPaciente(pacienteId: number): Promise<HistoriaClinica[]> {
         return await this.historiaClinicaRepository.find({
             where: { pacienteId },
-            relations: ['paciente', 'doctor', 'especialidad', 'personal', 'proforma', 'proformaDetalle'],
+            relations: ['paciente', 'doctor', 'especialidad', 'proforma', 'proformaDetalle'],
             order: { fecha: 'DESC' }
         });
     }
@@ -84,7 +84,6 @@ export class HistoriaClinicaService {
             .leftJoinAndSelect('hc.paciente', 'paciente')
             .leftJoinAndSelect('hc.doctor', 'doctor')
             .leftJoinAndSelect('hc.especialidad', 'especialidad')
-            .leftJoinAndSelect('hc.personal', 'personal')
             .leftJoinAndSelect('hc.proforma', 'proforma')
             .leftJoinAndSelect('hc.proformaDetalle', 'proformaDetalle')
             .leftJoinAndSelect('proformaDetalle.arancel', 'arancel');
@@ -261,7 +260,7 @@ export class HistoriaClinicaService {
     async findOne(id: number): Promise<HistoriaClinica> {
         const historia = await this.historiaClinicaRepository.findOne({
             where: { id },
-            relations: ['paciente', 'doctor', 'especialidad', 'personal', 'proforma', 'proformaDetalle']
+            relations: ['paciente', 'doctor', 'especialidad', 'proforma', 'proformaDetalle']
         });
         if (!historia) {
             throw new NotFoundException(`Historia Clínica #${id} not found`);

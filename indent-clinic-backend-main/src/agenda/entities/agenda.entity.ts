@@ -3,7 +3,6 @@ import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { Doctor } from '../../doctors/entities/doctor.entity';
 import { Proforma } from '../../proformas/entities/proforma.entity';
 import { User } from '../../users/entities/user.entity';
-import { Personal } from '../../personal/entities/personal.entity';
 import { Clinica } from '../../clinicas/entities/clinica.entity';
 
 @Entity('agenda')
@@ -18,10 +17,8 @@ export class Agenda {
     hora: string;
 
     @Column({ type: 'int' })
-    duracion: number; // en minutos
+    duracion: number;
 
-    @Column({ type: 'int' })
-    consultorio: number; // 1 - 8
 
     @Column({ nullable: true })
     pacienteId: number;
@@ -38,6 +35,13 @@ export class Agenda {
     doctor: Doctor;
 
     @Column({ nullable: true })
+    doctorDerivaId: number;
+
+    @ManyToOne(() => Doctor, { nullable: true })
+    @JoinColumn({ name: 'doctorDerivaId' })
+    doctorDeriva: Doctor;
+
+    @Column({ nullable: true })
     proformaId: number;
 
     @ManyToOne(() => Proforma, { nullable: true })
@@ -48,26 +52,20 @@ export class Agenda {
     tratamiento: string;
 
     @Column()
-    usuarioId: number; // Quien agendó
+    usuarioId: number;
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'usuarioId' })
     usuario: User;
 
-    @CreateDateColumn({ name: 'fecha_agendado' })
-    fechaAgendado: Date;
-
-    // Hora agendado is implicitly part of fecha_agendado timestamp, but if specific column needed:
-    // We will rely on fechaAgendado being a full timestamp.
-
-    @Column({ default: 'agendado' })
+    @Column({ default: 'pendiente' })
     estado: string;
 
     @Column({ type: 'text', nullable: true })
-    motivoCancelacion: string;
+    observacion: string;
 
     @Column({ type: 'text', nullable: true })
-    observacion: string;
+    motivoCancelacion: string;
 
     @Column({ type: 'varchar', length: 100, nullable: true })
     sucursal: string;
@@ -75,12 +73,18 @@ export class Agenda {
     @Column({ type: 'boolean', default: false })
     recordatorioEnviado: boolean;
 
+    @Column({ default: false })
+    notificado: boolean;
+
     @Column({ nullable: true })
     clinicaId: number;
 
     @ManyToOne(() => Clinica, { nullable: true, eager: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @CreateDateColumn({ name: 'fecha_agendado' })
+    fechaAgendado: Date;
 
     @UpdateDateColumn()
     updatedAt: Date;

@@ -80,6 +80,7 @@ import PacienteTabPagos from './components/PacienteTabPagos';
 import PacienteTabImagenes from './components/PacienteTabImagenes';
 
 import { ThemeProvider } from './context/ThemeContext';
+import IdleTimeoutHandler from './components/IdleTimeoutHandler';
 
 const RootRedirect = () => {
     const user = localStorage.getItem('user');
@@ -89,6 +90,7 @@ const RootRedirect = () => {
 function App() {
     return (
         <Router>
+            {/* <IdleTimeoutHandler /> */}
             <ChatProvider>
                 <CorreosProvider>
                     <ThemeProvider>

@@ -43,5 +43,8 @@ export class CreateClinicaDto {
     @IsOptional()
     @IsString()
     logo?: string;
-}
 
+    @IsOptional()
+    @IsString()
+    qr_pago?: string;
+}

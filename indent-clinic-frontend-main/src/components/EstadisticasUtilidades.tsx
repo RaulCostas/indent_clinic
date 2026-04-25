@@ -257,15 +257,15 @@ const EstadisticasUtilidades: React.FC = () => {
                     <div className="mt-8 flex justify-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 bg-green-500 rounded"></div>
-                            <span className="dark:text-gray-300">Ingresos</span>
+                            <span className="text-gray-700 dark:text-gray-300">Ingresos</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 bg-red-400 rounded"></div>
-                            <span className="dark:text-gray-300">Egresos</span>
+                            <span className="text-gray-700 dark:text-gray-300">Egresos</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                            <span className="dark:text-gray-300">Utilidad</span>
+                            <span className="text-gray-700 dark:text-gray-300">Utilidad</span>
                         </div>
                     </div>
                 </div>

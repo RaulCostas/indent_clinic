@@ -21,6 +21,7 @@ interface Clinica {
     horario_atencion?: string;
     createdAt?: string;
     logo?: string;
+    qr_pago?: string;
 }
 
 
@@ -344,8 +345,10 @@ const ClinicasList: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Logo</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dirección</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Horario</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Teléfono</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Celular</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">QR Pago</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Estado</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                         </tr>
@@ -373,6 +376,9 @@ const ClinicasList: React.FC = () => {
                                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-200">
                                     {c.direccion || <span className="text-gray-400 italic">—</span>}
                                 </td>
+                                <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-200">
+                                    {c.horario_atencion || <span className="text-gray-400 italic">—</span>}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
                                     {c.telefono || <span className="text-gray-400 italic">—</span>}
                                 </td>
@@ -381,6 +387,17 @@ const ClinicasList: React.FC = () => {
                                         ? <span>{c.codigoPaisCelular || '+591'} {c.celular}</span>
                                         : <span className="text-gray-400 italic">—</span>
                                     }
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="w-12 h-12 rounded-lg bg-white dark:bg-gray-700 border dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-sm">
+                                        {c.qr_pago ? (
+                                            <img src={getLogoUrl(c.qr_pago) || ''} alt="QR" className="max-w-full max-h-full object-contain" />
+                                        ) : (
+                                            <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                            </svg>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                                     <span className={`px-2 py-1 rounded text-sm ${c.activo ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>

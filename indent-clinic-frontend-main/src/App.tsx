@@ -90,7 +90,7 @@ const RootRedirect = () => {
 function App() {
     return (
         <Router>
-            {/* <IdleTimeoutHandler /> */}
+            <IdleTimeoutHandler />
             <ChatProvider>
                 <CorreosProvider>
                     <ThemeProvider>

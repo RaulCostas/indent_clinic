@@ -1,7 +1,7 @@
 import { IsInt, IsNumber, IsOptional, IsArray, ValidateNested, Min, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class CompraProductoDetalleDto {
+export class CompraProductoDetalleDto {
     @IsInt()
     productoId: number;
 
@@ -12,6 +12,14 @@ class CompraProductoDetalleDto {
     @IsNumber()
     @Min(0)
     costo_unitario: number;
+
+    @IsString()
+    @IsOptional()
+    numero_lote?: string;
+
+    @IsString()
+    @IsOptional()
+    fecha_vencimiento?: string;
 }
 
 export class CreateCompraProductoDto {

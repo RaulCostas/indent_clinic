@@ -17,9 +17,19 @@ export class PacientesController {
     findPendientes(
         @Query('tab') tab: 'agendados' | 'no_agendados',
         @Query('doctorId') doctorId?: string,
-        @Query('especialidadId') especialidadId?: string
+        @Query('especialidadId') especialidadId?: string,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
+        @Query('search') search: string = ''
     ) {
-        return this.pacientesService.findPendientes(tab, doctorId ? +doctorId : undefined, especialidadId ? +especialidadId : undefined);
+        return this.pacientesService.findPendientes(
+            tab, 
+            doctorId ? +doctorId : undefined, 
+            especialidadId ? +especialidadId : undefined,
+            +page,
+            +limit,
+            search
+        );
     }
 
     @Get('no-registrados')

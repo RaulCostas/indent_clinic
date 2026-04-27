@@ -346,7 +346,7 @@ const ReporteComisiones: React.FC = () => {
 
     const exportToExcel = () => {
         const excelData = report.map(row => ({
-            'Personal': row.nombre,
+            'Personal': `${row.nombre} ${row.paterno} ${row.materno || ''}`.trim(),
             'Cant. Ventas': row.cantidad_ventas,
             'Total Ventas (Bs.)': row.total_ventas,
             'Comisión 40% Utilidad (Bs.)': row.total_comision
@@ -362,7 +362,7 @@ const ReporteComisiones: React.FC = () => {
         doc.text(`Reporte de Comisiones - ${month}/${year}`, 14, 15);
         autoTable(doc, {
             head: [['Personal', 'Cant. Ventas', 'Total Ventas', 'Comisión 40%']],
-            body: report.map(r => [r.nombre, r.cantidad_ventas, Number(r.total_ventas).toFixed(2), Number(r.total_comision).toFixed(2)]),
+            body: report.map(r => [`${r.nombre} ${r.paterno} ${r.materno || ''}`.trim(), r.cantidad_ventas, Number(r.total_ventas).toFixed(2), Number(r.total_comision).toFixed(2)]),
             startY: 20
         });
         doc.save(`comisiones_${month}_${year}.pdf`);
@@ -428,7 +428,7 @@ const ReporteComisiones: React.FC = () => {
                         >
                             <option value="">Todos los personales</option>
                             {personales.map(p => (
-                                <option key={p.id} value={p.id}>{p.paterno} {p.nombre}</option>
+                                <option key={p.id} value={p.id}>{p.nombre} {p.paterno} {p.materno || ''}</option>
                             ))}
                         </select>
                     </div>

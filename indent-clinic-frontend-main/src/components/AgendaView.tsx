@@ -897,8 +897,8 @@ const AgendaView: React.FC = () => {
                                                                                         <option value="cancelado" className="bg-red-600 text-white">CANCELADO</option>
                                                                                     </select>
                                                                                     {appointment.doctorDeriva && (
-                                                                                        <div className="text-[8px] sm:text-[9px] bg-orange-100/30 dark:bg-orange-900/40 text-white px-1.5 py-0.5 rounded border border-white/20 italic flex items-center gap-1">
-                                                                                            <span className="opacity-70 font-bold">Derivado por:</span> 
+                                                                                        <div className="text-[9px] sm:text-[10px] bg-orange-600 dark:bg-orange-500 text-white px-2 py-1 rounded shadow-md font-bold flex items-center gap-1.5 border border-white/20 not-italic">
+                                                                                            <span className="opacity-90">Derivado por:</span> 
                                                                                             Dr. {`${appointment.doctorDeriva.nombre} ${appointment.doctorDeriva.paterno} ${appointment.doctorDeriva.materno || ''}`.trim()}
                                                                                         </div>
                                                                                     )}

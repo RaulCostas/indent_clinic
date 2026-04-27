@@ -12,6 +12,10 @@ class VentaDetalleDto {
     @IsNumber()
     @Min(0)
     precio_unitario: number;
+
+    @IsInt()
+    @IsOptional()
+    loteId?: number;
 }
 
 export class CreateVentaProductoDto {

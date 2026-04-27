@@ -51,6 +51,10 @@ const GastosFijosList: React.FC = () => {
     const [userPermisos, setUserPermisos] = useState<string[]>([]);
     const canEditPayments = !userPermisos.includes('editar-pagos');
 
+    const formatNumber = (num: number | string) => {
+        return Number(num).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     useEffect(() => {
         fetchGastos();
         fetchPagos();
@@ -266,7 +270,7 @@ const GastosFijosList: React.FC = () => {
                 gasto.dia ? String(gasto.dia) : '',
                 gasto.anual ? `Anual (${gasto.mes || '-'})` : 'Mensual',
                 gasto.gasto_fijo || '',
-                Number(gasto.monto).toFixed(2),
+                formatNumber(gasto.monto),
                 gasto.moneda || '',
                 gasto.estado || 'activo'
             ]);
@@ -325,7 +329,7 @@ const GastosFijosList: React.FC = () => {
                 doc.setFontSize(12);
                 doc.setTextColor(44, 62, 80);
                 doc.setFont('helvetica', 'bold');
-                doc.text(safeAmount.toFixed(2), startXTotal + 33, currentY + 12, { align: 'center' });
+                doc.text(formatNumber(safeAmount), startXTotal + 33, currentY + 12, { align: 'center' });
 
                 currentY += 20;
             });
@@ -400,7 +404,7 @@ const GastosFijosList: React.FC = () => {
             const tableData = data.map(pago => [
                 formatDate(pago.fecha),
                 pago.gastoFijo?.gasto_fijo || 'N/A',
-                `${pago.monto} ${pago.moneda === 'Bolivianos' ? 'Bs' : '$us'}`,
+                `${formatNumber(pago.monto)} ${pago.moneda === 'Bolivianos' ? 'Bs' : '$us'}`,
                 pago.formaPago?.forma_pago || 'N/A',
                 pago.observaciones || ''
             ]);
@@ -459,7 +463,7 @@ const GastosFijosList: React.FC = () => {
                 doc.setFontSize(12);
                 doc.setTextColor(44, 62, 80);
                 doc.setFont('helvetica', 'bold');
-                doc.text(safeAmount.toFixed(2), startXTotal + 33, currentY + 12, { align: 'center' });
+                doc.text(formatNumber(safeAmount), startXTotal + 33, currentY + 12, { align: 'center' });
                 currentY += 20;
             });
 
@@ -549,7 +553,7 @@ const GastosFijosList: React.FC = () => {
                 doc.text('Monto:', 20, contentStartY + lineHeight * 3);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(14);
-                doc.text(`${pago.monto} ${pago.moneda}`, 70, contentStartY + lineHeight * 3);
+                doc.text(`${formatNumber(pago.monto)} ${pago.moneda}`, 70, contentStartY + lineHeight * 3);
                 doc.setFontSize(12);
 
                 doc.setFont('helvetica', 'bold');
@@ -766,7 +770,7 @@ const GastosFijosList: React.FC = () => {
                                     <td>${g.dia || '-'}</td>
                                     <td>${g.anual ? `Anual (${g.mes || '-'})` : 'Mensual'}</td>
                                     <td>${g.gasto_fijo}</td>
-                                    <td class="amount">${Number(g.monto).toFixed(2)}</td>
+                                    <td class="amount">${formatNumber(g.monto)}</td>
                                     <td>${g.moneda}</td>
                                     <td>
                                         <span class="status status-${(g.estado || 'activo').toLowerCase()}">
@@ -782,7 +786,7 @@ const GastosFijosList: React.FC = () => {
                         ${Object.entries(totals).map(([curr, amount]) => `
                             <div class="total-card">
                                 <span class="total-label">Total ${curr}</span>
-                                <span class="total-amount">${amount.toFixed(2)}</span>
+                                <span class="total-amount">${formatNumber(amount)}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -915,7 +919,7 @@ const GastosFijosList: React.FC = () => {
                                 <tr>
                                     <td>${formatDate(p.fecha)}</td>
                                     <td style="font-weight: 600;">${p.gastoFijo?.gasto_fijo || 'N/A'}</td>
-                                    <td class="amount">${p.monto} ${p.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
+                                    <td class="amount">${formatNumber(p.monto)} ${p.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
                                     <td>${p.formaPago?.forma_pago || 'N/A'}</td>
                                     <td style="font-size: 10px;">${p.observaciones || ''}</td>
                                 </tr>
@@ -927,7 +931,7 @@ const GastosFijosList: React.FC = () => {
                         ${Object.entries(totals).map(([curr, amount]) => `
                             <div class="total-card">
                                 <span class="total-label">Total ${curr}</span>
-                                <span class="total-amount">${amount.toFixed(2)}</span>
+                                <span class="total-amount">${formatNumber(amount)}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -1015,8 +1019,6 @@ const GastosFijosList: React.FC = () => {
             document.head.appendChild(style);
         }
     };
-
-
 
     const tabStyle = (tab: 'gastos' | 'pagos') => {
         const isActive = activeTab === tab;
@@ -1195,7 +1197,7 @@ const GastosFijosList: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 font-medium text-gray-700 dark:text-gray-300">{gasto.gasto_fijo}</td>
-                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{gasto.monto}</td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{formatNumber(gasto.monto)}</td>
                                             <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{gasto.moneda}</td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-1 rounded text-sm ${(gasto.estado === 'activo' || !gasto.estado)
@@ -1286,11 +1288,11 @@ const GastosFijosList: React.FC = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center">
                                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Gastos ({currency})</span>
-                                            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{data.toFixed(2)} {currency}</span>
+                                            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatNumber(data)} {currency}</span>
                                         </div>
                                         <div className="bg-[#1e293b] dark:bg-slate-700 p-4 rounded-xl shadow-md flex flex-col items-center justify-center transform hover:scale-105 transition-all duration-300">
                                             <span className="text-xs font-medium text-slate-300 uppercase tracking-wider">Gran Total {currency}</span>
-                                            <span className="text-xl font-bold text-white tracking-tight">{data.toFixed(2)} {currency}</span>
+                                            <span className="text-xl font-bold text-white tracking-tight">{formatNumber(data)} {currency}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1413,7 +1415,7 @@ const GastosFijosList: React.FC = () => {
                                                 <td className="px-6 py-4 font-medium text-gray-700 dark:text-gray-300">
                                                     {pago.gastoFijo?.gasto_fijo || 'N/A'}
                                                 </td>
-                                                <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{pago.monto}</td>
+                                                <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{formatNumber(pago.monto)}</td>
                                                 <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{pago.moneda}</td>
                                                 <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{pago.formaPago?.forma_pago || 'N/A'}</td>
                                                 <td className="px-6 py-4 text-gray-600 dark:text-gray-400 text-sm max-w-xs truncate">{pago.observaciones}</td>

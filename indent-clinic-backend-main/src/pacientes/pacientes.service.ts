@@ -210,12 +210,11 @@ export class PacientesService {
 
         return paciente || null;
     }
-    async findPendientes(tab: 'agendados' | 'no_agendados', doctorId?: number, especialidadId?: number) {
+    async findPendientes(tab: 'agendados' | 'no_agendados', doctorId?: number, especialidadId?: number, page: number = 1, limit: number = 10, search: string = '') {
         // Build the WHERE clause for the patients
         let whereClause = '1=1';
 
         // 1. Check for Pending Budget (estadoPresupuesto = 'no terminado')
-        // Only consider the LATEST treatment entry for each proforma to determine its current status.
         let hcFilter = `hc."estadoPresupuesto" = 'no terminado'`;
         if (doctorId) {
             hcFilter += ` AND hc."doctorId" = ${doctorId}`;
@@ -238,17 +237,28 @@ export class PacientesService {
 
         // 2. Tab Logic (Agenda Check)
         if (tab === 'agendados') {
-            // Has future appointment
             whereClause += ` AND EXISTS (SELECT 1 FROM agenda a WHERE a."pacienteId" = p.id AND a.fecha >= CURRENT_DATE)`;
         } else {
-            // No future appointment
             whereClause += ` AND NOT EXISTS (SELECT 1 FROM agenda a WHERE a."pacienteId" = p.id AND a.fecha >= CURRENT_DATE)`;
+        }
+
+        // 3. Search logic
+        if (search) {
+            const st = `%${search.toLowerCase()}%`;
+            whereClause += ` AND (LOWER(p.nombre) LIKE '${st}' OR LOWER(p.paterno) LIKE '${st}' OR LOWER(p.materno) LIKE '${st}')`;
         }
 
         // Execution
         const today = getBoliviaDate();
-        console.log(`FindPendientes: Tab=${tab}, Date=${today}, Doctor=${doctorId}, Spec=${especialidadId}`);
-        console.log('WhereClause:', whereClause);
+        const skip = (page - 1) * limit;
+        
+        console.log(`FindPendientes: Tab=${tab}, Date=${today}, Doctor=${doctorId}, Spec=${especialidadId}, Page=${page}, Search=${search}`);
+
+        const countQuery = `
+            SELECT COUNT(*) as total 
+            FROM pacientes p 
+            WHERE ${whereClause.replace(/CURRENT_DATE/g, `'${today}'`)}
+        `;
 
         const query = `
             SELECT 
@@ -275,11 +285,22 @@ export class PacientesService {
                    ORDER BY hc.fecha DESC LIMIT 1) as numero_presupuesto
             FROM pacientes p
             WHERE ${whereClause.replace(/CURRENT_DATE/g, `'${today}'`)}
+            ORDER BY p.paterno ASC, p.materno ASC, p.nombre ASC
+            LIMIT ${limit} OFFSET ${skip}
         `;
 
-        const results = await this.pacientesRepository.query(query);
-        console.log(`Found ${results.length} results`);
-        return results;
+        const [countRes, results] = await Promise.all([
+            this.pacientesRepository.query(countQuery),
+            this.pacientesRepository.query(query)
+        ]);
+
+        const total = parseInt(countRes[0].total);
+
+        return {
+            data: results,
+            total,
+            totalPages: Math.ceil(total / limit)
+        };
     }
 
     async findNoRegistrados(clinicaId?: number) {

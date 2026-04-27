@@ -6,6 +6,7 @@ import { CompraProducto } from './entities/compra-producto.entity';
 import { CompraProductoDetalle } from './entities/compra-producto-detalle.entity';
 import { ProductoComercial } from '../productos_comerciales/entities/producto_comercial.entity';
 import { Proveedor } from '../proveedores/entities/proveedor.entity';
+import { LoteProducto } from '../productos_comerciales/entities/lote-producto.entity';
 
 @Module({
     imports: [
@@ -13,7 +14,8 @@ import { Proveedor } from '../proveedores/entities/proveedor.entity';
             CompraProducto,
             CompraProductoDetalle,
             ProductoComercial,
-            Proveedor
+            Proveedor,
+            LoteProducto
         ])
     ],
     controllers: [ComprasProductosController],

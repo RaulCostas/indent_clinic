@@ -5,6 +5,7 @@ import { formatDate, getLocalDateString } from '../utils/dateUtils';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import ManualModal, { type ManualSection } from './ManualModal';
+import Pagination from './Pagination';
 import { useClinica } from '../context/ClinicaContext';
 import { Printer, FileText, Lock, Tablet } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -92,6 +93,8 @@ const HojaDiaria: React.FC = () => {
     const [showManual, setShowManual] = useState(false);
     const { clinicaSeleccionada, clinicaActual, recargarClinicas } = useClinica();
     const [userPermisos, setUserPermisos] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const canCerrarCaja = !userPermisos.includes('cerrar-caja');
     const canCrucePagos = !userPermisos.includes('cruce-pagos');
@@ -105,6 +108,7 @@ const HojaDiaria: React.FC = () => {
             } catch (e) {}
         }
     }, []);
+
 
     const manualSections: ManualSection[] = [
         {
@@ -147,6 +151,10 @@ const HojaDiaria: React.FC = () => {
         egresos: { bs: number; sus: number };
         utilidad: { bs: number; sus: number };
     } | null>(null);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, selectedDate, rangeStart, rangeEnd, searchMode, clinicaSeleccionada]);
 
 
 
@@ -1533,38 +1541,55 @@ const HojaDiaria: React.FC = () => {
         type: 'ingreso' | 'egreso' | 'doctor' | 'laboratorio' | 'pedido' | 'gasto'
     ) => {
         const summary = calculateSummary(data, type);
+        const total = data.length;
+        const totalPages = Math.ceil(total / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const paginatedData = data.slice(startIndex, startIndex + itemsPerPage);
 
         return (
-            <div className="flex flex-col lg:flex-row gap-6">
-                <div className="flex-grow overflow-x-auto">
-                    <table className="min-w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm rounded-lg">
-                        <thead>
-                            <tr className="bg-blue-600 dark:bg-blue-900/50 text-white uppercase text-sm leading-normal">
-                                {columns.map((col, idx) => (
-                                    <th key={idx} className="p-3 text-left text-xs font-semibold text-white uppercase tracking-wider">{col.header}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="text-gray-600 dark:text-gray-300 text-sm font-light">
-                            {data.length === 0 ? (
-                                <tr>
-                                    <td colSpan={columns.length} className="py-3 px-6 text-center italic text-gray-400 dark:text-gray-500">No hay registros para esta {searchMode === 'single' ? 'fecha' : 'rango'}.</td>
-                                </tr>
-                            ) : (
-                                data.map((row, idx) => (
-                                    <tr key={idx} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                        {columns.map((col, colIdx) => (
-                                            <td key={colIdx} className="p-3 text-gray-800 dark:text-gray-300 font-medium whitespace-nowrap">
-                                                {col.accessor(row)}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+            <div className="flex flex-col gap-4">
+                <div className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                    Mostrando {total === 0 ? 0 : startIndex + 1} - {Math.min(currentPage * itemsPerPage, total)} de {total} registros
                 </div>
-                {renderSummary(summary)}
+                <div className="flex flex-col lg:flex-row gap-6">
+                    <div className="flex-grow overflow-x-auto">
+                        <table className="min-w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm rounded-lg">
+                            <thead>
+                                <tr className="bg-blue-600 dark:bg-blue-900/50 text-white uppercase text-sm leading-normal">
+                                    {columns.map((col, idx) => (
+                                        <th key={idx} className="p-3 text-left text-xs font-semibold text-white uppercase tracking-wider">{col.header}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="text-gray-600 dark:text-gray-300 text-sm font-light">
+                                {paginatedData.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={columns.length} className="py-3 px-6 text-center italic text-gray-400 dark:text-gray-500">No hay registros para esta {searchMode === 'single' ? 'fecha' : 'rango'}.</td>
+                                    </tr>
+                                ) : (
+                                    paginatedData.map((row, idx) => (
+                                        <tr key={idx} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                            {columns.map((col, colIdx) => (
+                                                <td key={colIdx} className="p-3 text-gray-800 dark:text-gray-300 font-medium whitespace-nowrap">
+                                                    {col.accessor(row)}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                        
+                        <div className="no-print">
+                            <Pagination 
+                                currentPage={currentPage} 
+                                totalPages={totalPages} 
+                                onPageChange={(page) => setCurrentPage(page)} 
+                            />
+                        </div>
+                    </div>
+                    {renderSummary(summary)}
+                </div>
             </div>
         );
     };

@@ -668,7 +668,7 @@ const PresupuestoList: React.FC = () => {
             {/* Record Count */}
             {filteredProformas.length > 0 && (
                 <div className="mb-4 px-4 text-sm text-gray-600 dark:text-gray-400">
-                    Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, filteredProformas.length)} de {filteredProformas.length} planes de tratamiento
+                    Mostrando {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredProformas.length)} de {filteredProformas.length} planes de tratamiento
                 </div>
             )}
 

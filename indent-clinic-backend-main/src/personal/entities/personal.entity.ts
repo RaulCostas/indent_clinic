@@ -22,7 +22,7 @@ export class Personal {
     @Column()
     direccion: string;
 
-    @Column()
+    @Column({ nullable: true })
     telefono: string;
 
     @Column()

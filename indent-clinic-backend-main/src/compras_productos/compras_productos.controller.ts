@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, ParseBoolPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, ParseBoolPipe, Patch } from '@nestjs/common';
 import { ComprasProductosService } from './compras_productos.service';
 import { CreateCompraProductoDto } from './dto/create-compra-producto.dto';
 
@@ -37,5 +37,10 @@ export class ComprasProductosController {
     @Delete(':id')
     remove(@Param('id', ParseIntPipe) id: number) {
         return this.comprasService.remove(id);
+    }
+
+    @Patch(':id')
+    update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: CreateCompraProductoDto) {
+        return this.comprasService.update(id, updateDto);
     }
 }

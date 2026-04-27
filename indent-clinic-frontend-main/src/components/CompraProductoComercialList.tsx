@@ -3,7 +3,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useClinica } from '../context/ClinicaContext';
 import type { CompraProducto, FormaPago } from '../types';
-import { Truck, Plus, CheckCircle, Clock, Eye, DollarSign, Filter, Search, Calendar, ChevronRight, X, CreditCard } from 'lucide-react';
+import { Truck, Plus, CheckCircle, Clock, Eye, DollarSign, Filter, Search, Calendar, ChevronRight, X, CreditCard, Edit, Trash2 } from 'lucide-react';
 import CompraProductoForm from './CompraProductoForm';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -21,6 +21,7 @@ const CompraProductoComercialList: React.FC = () => {
     // Details Modal
     const [viewingCompra, setViewingCompra] = useState<CompraProducto | null>(null);
     const [showManual, setShowManual] = useState(false);
+    const [editingCompraId, setEditingCompraId] = useState<number | null>(null);
 
     useEffect(() => {
         fetchCompras();
@@ -86,6 +87,33 @@ const CompraProductoComercialList: React.FC = () => {
         }
     };
 
+    const handleDelete = async (compra: CompraProducto) => {
+        const result = await Swal.fire({
+            title: '¿Eliminar Compra?',
+            text: `Esta acción revertirá el stock de los productos e incrementará los costos si corresponde. ¿Está seguro de eliminar la compra de ${compra.proveedor?.proveedor}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            confirmButtonColor: '#ef4444'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                await api.delete(`/compras-productos/${compra.id}`);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Eliminado',
+                    text: 'La compra ha sido eliminada y el stock revertido.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                fetchCompras();
+            } catch (error: any) {
+                Swal.fire('Error', error.response?.data?.message || 'No se pudo eliminar la compra', 'error');
+            }
+        }
+    };
+
     const filteredCompras = compras.filter(c => {
         const matchesSearch = c.proveedor?.proveedor.toLowerCase().includes(searchTerm.toLowerCase()) || 
                               c.id.toString().includes(searchTerm);
@@ -115,7 +143,10 @@ const CompraProductoComercialList: React.FC = () => {
                         ?
                     </button>
                     <button
-                        onClick={() => setIsFormOpen(true)}
+                        onClick={() => {
+                            setEditingCompraId(null);
+                            setIsFormOpen(true);
+                        }}
                         className="bg-[#3498db] hover:bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
                     >
                         <Plus size={20} /> Nueva Compra
@@ -230,6 +261,51 @@ const CompraProductoComercialList: React.FC = () => {
                                             >
                                                 <Eye size={20} />
                                             </button>
+                                            {!c.pagada && (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (c.tieneVentas) {
+                                                                Swal.fire('Bloqueado', 'No se puede editar esta compra porque ya se han realizado ventas de sus productos.', 'warning');
+                                                                return;
+                                                            }
+                                                            setEditingCompraId(c.id);
+                                                            setIsFormOpen(true);
+                                                        }}
+                                                        disabled={c.tieneVentas}
+                                                        className={`p-2.5 rounded-lg text-white shadow-md transition-all transform flex items-center justify-center ${
+                                                            c.tieneVentas 
+                                                            ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                                                            : 'bg-[#ffc107] hover:bg-yellow-600 hover:-translate-y-0.5'
+                                                        }`}
+                                                        title={c.tieneVentas ? "Protegido: Tiene ventas asociadas" : "Editar Compra"}
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (c.tieneVentas) {
+                                                                Swal.fire('Bloqueado', 'No se puede eliminar esta compra porque ya se han realizado ventas de sus productos.', 'warning');
+                                                                return;
+                                                            }
+                                                            handleDelete(c);
+                                                        }}
+                                                        disabled={c.tieneVentas}
+                                                        className={`p-2.5 rounded-lg text-white shadow-md transition-all transform flex items-center justify-center ${
+                                                            c.tieneVentas 
+                                                            ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                                                            : 'bg-[#dc3545] hover:bg-red-700 hover:-translate-y-0.5'
+                                                        }`}
+                                                        title={c.tieneVentas ? "Protegido: Tiene ventas asociadas" : "Eliminar Compra"}
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -241,8 +317,12 @@ const CompraProductoComercialList: React.FC = () => {
             {/* Nueva Compra Modal */}
             <CompraProductoForm
                 isOpen={isFormOpen}
-                onClose={() => setIsFormOpen(false)}
+                onClose={() => {
+                    setIsFormOpen(false);
+                    setEditingCompraId(null);
+                }}
                 onSuccess={fetchCompras}
+                editId={editingCompraId}
             />
 
             {viewingCompra && (
@@ -287,6 +367,8 @@ const CompraProductoComercialList: React.FC = () => {
                                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Producto</th>
                                             <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant</th>
                                             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Costo Un.</th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nº Lote</th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Vencimiento</th>
                                             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Subtotal</th>
                                         </tr>
                                     </thead>
@@ -296,13 +378,17 @@ const CompraProductoComercialList: React.FC = () => {
                                                 <td className="p-3 text-gray-800 dark:text-gray-300">{det.producto?.nombre}</td>
                                                 <td className="p-3 text-center text-gray-800 dark:text-gray-300">{det.cantidad}</td>
                                                 <td className="p-3 text-right text-gray-800 dark:text-gray-300">{Number(det.costo_unitario).toFixed(2)}</td>
-                                                <td className="p-3 text-right text-gray-800 dark:text-gray-300">{Number(det.subtotal).toFixed(2)}</td>
+                                                <td className="p-3 text-center text-gray-800 dark:text-gray-300 text-xs font-medium">{det.numero_lote || '-'}</td>
+                                                <td className="p-3 text-center text-gray-800 dark:text-gray-300 text-xs font-medium">
+                                                    {det.fecha_vencimiento ? format(new Date(det.fecha_vencimiento), 'dd/MM/yyyy') : '-'}
+                                                </td>
+                                                <td className="p-3 text-right text-gray-800 dark:text-gray-300 font-bold">{Number(det.subtotal).toFixed(2)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                     <tfoot>
                                         <tr className="bg-gray-100/50 dark:bg-gray-900">
-                                            <td colSpan={3} className="px-5 py-4 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Total Compra</td>
+                                            <td colSpan={5} className="px-5 py-4 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Total Compra</td>
                                             <td className="px-5 py-4 text-right text-xl font-black text-emerald-600">Bs. {Number(viewingCompra.total).toFixed(2)}</td>
                                         </tr>
                                     </tfoot>

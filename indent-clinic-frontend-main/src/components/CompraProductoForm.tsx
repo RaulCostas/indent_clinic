@@ -17,7 +17,7 @@ interface CartItem {
     fecha_vencimiento: string;
 }
 
-const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({ isOpen, onClose, onSuccess }) => {
+const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void; editId?: number | null }> = ({ isOpen, onClose, onSuccess, editId }) => {
     const { clinicaSeleccionada } = useClinica();
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
     const [productos, setProductos] = useState<ProductoComercial[]>([]);
@@ -48,7 +48,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
         if (isOpen) {
             fetchInitialData();
         }
-    }, [isOpen, clinicaSeleccionada]);
+    }, [isOpen, clinicaSeleccionada, editId]);
 
     const fetchInitialData = async () => {
         try {
@@ -59,6 +59,28 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
 
             setProveedores(Array.isArray(provRes.data.data) ? provRes.data.data : []);
             setProductos(Array.isArray(prodRes.data.data) ? prodRes.data.data : []);
+
+            if (editId) {
+                const editRes = await api.get(`/compras-productos/${editId}`);
+                const comp = editRes.data;
+                setSelectedProveedorId(comp.proveedorId);
+                setFecha(comp.fecha ? comp.fecha.split('T')[0] : getLocalDateString());
+                setObservaciones(comp.observaciones || '');
+                setCart((comp.detalles || []).map((det: any) => ({
+                    productoId: det.productoId,
+                    nombre: det.producto?.nombre || 'Producto',
+                    costo_unitario: Number(det.costo_unitario),
+                    cantidad: det.cantidad,
+                    numero_lote: det.numero_lote || '',
+                    fecha_vencimiento: det.fecha_vencimiento || ''
+                })));
+            } else {
+                // Reset form for new purchase
+                setCart([]);
+                setObservaciones('');
+                setSelectedProveedorId('');
+                setFecha(getLocalDateString());
+            }
         } catch (error) {
             console.error('Error fetching data for Compras:', error);
         }
@@ -129,7 +151,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
         if (result.isConfirmed) {
             setIsSubmitting(true);
             try {
-                await api.post('/compras-productos', {
+                const payload = {
                     proveedorId: Number(selectedProveedorId),
                     fecha,
                     observaciones,
@@ -142,12 +164,18 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
                         numero_lote: item.numero_lote,
                         fecha_vencimiento: item.fecha_vencimiento
                     }))
-                });
+                };
+
+                if (editId) {
+                    await api.patch(`/compras-productos/${editId}`, payload);
+                } else {
+                    await api.post('/compras-productos', payload);
+                }
 
                 await Swal.fire({
                     icon: 'success',
-                    title: 'Compra Registrada',
-                    text: 'El stock ha sido actualizado correctamente.',
+                    title: editId ? 'Compra Actualizada' : 'Compra Registrada',
+                    text: editId ? 'Se ha actualizado la compra y el stock.' : 'El stock ha sido actualizado correctamente.',
                     timer: 2000,
                     showConfirmButton: false
                 });
@@ -191,7 +219,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
                         <span className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-600 dark:text-blue-300">
                             <Truck size={24} />
                         </span>
-                        Nueva Compra de Productos Comerciales
+                        {editId ? `Editar Compra #${editId}` : 'Nueva Compra de Productos Comerciales'}
                     </h3>
                     <button
                         onClick={() => setShowManual(true)}

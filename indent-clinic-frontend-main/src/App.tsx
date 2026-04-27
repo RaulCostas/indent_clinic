@@ -70,7 +70,7 @@ import CambiarPassword from './components/CambiarPassword';
 
 import ClinicasList from './components/ClinicasList';
 import ProductosComercialesList from './components/ProductosComercialesList';
-import VentaProductoForm from './components/VentaProductoForm';
+import VentaProductoList from './components/VentaProductoList';
 import CompraProductoComercialList from './components/CompraProductoComercialList';
 import ReporteComisiones from './components/ReporteComisiones';
 import PacientePerfil from './components/PacientePerfil';
@@ -282,7 +282,7 @@ function App() {
                                 {/* Ventas Comerciales */}
                                 <Route element={<ProtectedRoute moduleId="ventas-comerciales" />}>
                                     <Route path="/productos-comerciales" element={<ProductosComercialesList />} />
-                                    <Route path="/ventas-comerciales" element={<VentaProductoForm />} />
+                                    <Route path="/ventas-comerciales" element={<VentaProductoList />} />
                                     <Route path="/compras-productos" element={<CompraProductoComercialList />} />
                                     <Route path="/reporte-comisiones" element={<ReporteComisiones />} />
                                 </Route>

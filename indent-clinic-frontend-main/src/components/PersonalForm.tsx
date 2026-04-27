@@ -331,7 +331,6 @@ const PersonalForm: React.FC<PersonalFormProps> = ({ isOpen, onClose, id, onSave
                                             name="telefono"
                                             value={formData.telefono}
                                             onChange={handleChange}
-                                            required
                                             className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             placeholder="Ej: 4-440000"
 

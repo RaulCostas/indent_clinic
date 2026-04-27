@@ -239,32 +239,32 @@ const ProductosComercialesList: React.FC = () => {
             </div>
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <div className="flex flex-col w-full md:w-1/3">
-                    <div className="flex gap-2 mb-2">
-                        <input
-                            type="text"
-                            placeholder="Buscar por nombre de producto..."
-                            value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="flex-grow pl-4 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                        {searchTerm && (
-                            <button
-                                onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
-                                className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95"
-                            >
-                                Limpiar
-                            </button>
-                        )}
-                    </div>
-                    <div className="text-gray-600 dark:text-gray-400 text-xs ml-1">
-                        Mostrando {items.length === 0 ? 0 : (currentPage - 1) * limit + 1} - {Math.min(currentPage * limit, total)} de {total} registros
-                    </div>
+                <div className="flex gap-2 w-full md:w-1/2">
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre de producto..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="flex-grow pl-4 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95"
+                        >
+                            Limpiar
+                        </button>
+                    )}
                 </div>
             </div>
+
+            <div className="mb-2 text-gray-600 dark:text-gray-400 text-sm">
+                Mostrando {total === 0 ? 0 : (currentPage - 1) * limit + 1} - {Math.min(currentPage * limit, total)} de {total} registros
+            </div>
+
 
             <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -313,12 +313,12 @@ const ProductosComercialesList: React.FC = () => {
                                         {Number(item.precio_venta).toFixed(2)}
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
+                                        <span className={`px-2 py-1 rounded text-sm ${
                                             item.estado.toLowerCase() === 'activo' 
                                             ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
                                             : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
                                         }`}>
-                                            {item.estado.toLowerCase()}
+                                            {item.estado}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 flex justify-center gap-2">

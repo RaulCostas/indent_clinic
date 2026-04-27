@@ -17,6 +17,7 @@ export class CreatePersonalDto {
     direccion: string;
 
     @IsString()
+    @IsOptional()
     telefono: string;
 
     @IsString()

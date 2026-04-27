@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { Doctor, Especialidad } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { Clock } from 'lucide-react';
+import { Clock, Search, X } from 'lucide-react';
 import ManualModal, { type ManualSection } from './ManualModal';
+import Pagination from './Pagination';
 
 interface PacientePendiente {
     id: number;
@@ -24,11 +24,12 @@ const PacientesPendientes: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showManual, setShowManual] = useState(false);
 
-    // Filters
-    const [doctors, setDoctors] = useState<Doctor[]>([]);
-    const [especialidades, setEspecialidades] = useState<Especialidad[]>([]);
-    const [selectedDoctor, setSelectedDoctor] = useState<string>('');
-    const [selectedEspecialidad, setSelectedEspecialidad] = useState<string>('');
+    // Search and Pagination
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const limit = 10;
 
     const manualSections: ManualSection[] = [
         {
@@ -40,8 +41,8 @@ const PacientesPendientes: React.FC = () => {
             content: 'Lista a los pacientes que ya tienen una cita programada, permitiendo verificar cuándo regresarán a la clínica.'
         },
         {
-            title: 'Filtros de Búsqueda',
-            content: 'Utilice los selectores de Doctor y Especialidad para filtrar la lista. Esto es útil para que cada especialista pueda ver su propia lista de pacientes pendientes.'
+            title: 'Búsqueda de Pacientes',
+            content: 'Use el buscador por nombre para localizar rápidamente a un paciente específico. Este buscador reemplaza los filtros previos de doctor y especialidad para una búsqueda más directa.'
         },
         {
             title: 'Seguimiento Clínico',
@@ -49,43 +50,37 @@ const PacientesPendientes: React.FC = () => {
         }];
 
     useEffect(() => {
-        fetchFilters();
-    }, []);
-
-    useEffect(() => {
         fetchPacientes();
-    }, [activeTab, selectedDoctor, selectedEspecialidad]);
-
-    const fetchFilters = async () => {
-        try {
-            const [doctorsRes, especialidadesRes] = await Promise.all([
-                api.get('/doctors?limit=100'),
-                api.get('/especialidad?limit=100')
-            ]);
-            const activeDoctors = (doctorsRes.data.data || []).filter((doctor: any) => doctor.estado === 'activo');
-            const activeEspecialidades = (especialidadesRes.data.data || []).filter((esp: any) => esp.estado === 'activo');
-            setDoctors(activeDoctors);
-            setEspecialidades(activeEspecialidades);
-        } catch (error) {
-            console.error('Error fetching filters:', error);
-        }
-    };
+    }, [activeTab, searchTerm, currentPage]);
 
     const fetchPacientes = async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
             params.append('tab', activeTab);
-            if (selectedDoctor) params.append('doctorId', selectedDoctor);
-            if (selectedEspecialidad) params.append('especialidadId', selectedEspecialidad);
+            params.append('page', currentPage.toString());
+            params.append('limit', limit.toString());
+            if (searchTerm) params.append('search', searchTerm);
 
-            const response = await api.get<PacientePendiente[]>(`/pacientes/pendientes?${params.toString()}`);
-            setPacientes(response.data);
+            const response = await api.get<any>(`/pacientes/pendientes?${params.toString()}`);
+            setPacientes(response.data.data);
+            setTotalPages(response.data.totalPages);
+            setTotalRecords(response.data.total);
         } catch (error) {
             console.error('Error fetching pacientes pendientes:', error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setCurrentPage(1);
+    };
+
+    const handleClearSearch = () => {
+        setSearchTerm('');
+        setCurrentPage(1);
     };
 
     const tabs = [
@@ -105,7 +100,7 @@ const PacientesPendientes: React.FC = () => {
                 </div>
                 <button
                     onClick={() => setShowManual(true)}
-                    className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                    className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[40px] h-[40px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
                     title="Ayuda / Manual"
                 >
                     ?
@@ -117,7 +112,10 @@ const PacientesPendientes: React.FC = () => {
                 {tabs.map(tab => (
                     <div
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => {
+                            setActiveTab(tab.id as any);
+                            setCurrentPage(1);
+                        }}
                         className={`px-5 py-2.5 cursor-pointer border-b-4 flex items-center gap-2 transition-all duration-200 text-base ${activeTab === tab.id
                             ? 'border-blue-500 text-blue-500 font-bold dark:border-blue-400 dark:text-blue-400'
                             : 'border-transparent text-gray-600 dark:text-gray-400 font-normal hover:text-blue-500 dark:hover:text-blue-300'
@@ -144,37 +142,29 @@ const PacientesPendientes: React.FC = () => {
                 ))}
             </div>
 
-            {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Doctor</label>
-                    <select
-                        value={selectedDoctor}
-                        onChange={(e) =>setSelectedDoctor(e.target.value)}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none focus:border-blue-500"
-                    >
-                        <option value="">Todos</option>
-                        {doctors.map(d => (
-                            <option key={d.id} value={d.id}>
-                                {d.nombre} {d.paterno}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Especialidad</label>
-                    <select
-                        value={selectedEspecialidad}
-                        onChange={(e) =>setSelectedEspecialidad(e.target.value)}
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none focus:border-blue-500"
-                    >
-                        <option value="">Todas</option>
-                        {especialidades.map(e => (
-                            <option key={e.id} value={e.id}>
-                                {e.especialidad}
-                            </option>
-                        ))}
-                    </select>
+            {/* Search Bar (Styled like Deudores) */}
+            <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 no-print flex justify-between items-center transition-colors">
+                <div className="flex gap-2 w-full md:max-w-md">
+                    <div className="relative flex-grow">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por Paciente..."
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 placeholder-gray-400 dark:placeholder-gray-300"
+                            value={searchTerm}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {searchTerm && (
+                        <button
+                            onClick={handleClearSearch}
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                        >
+                            Limpiar
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -183,8 +173,11 @@ const PacientesPendientes: React.FC = () => {
                 <div className="text-center py-10 text-gray-500 dark:text-gray-400">Cargando...</div>
             ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto transition-colors">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
-                        Mostrando {pacientes.length} de {pacientes.length} registros
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center">
+                        <span>Mostrando {totalRecords === 0 ? 0 : (currentPage - 1) * limit + 1} - {Math.min(currentPage * limit, totalRecords)} de {totalRecords} registros</span>
+                        {totalPages > 1 && (
+                            <div className="text-xs">Página {currentPage} de {totalPages}</div>
+                        )}
                     </div>
 
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -203,7 +196,7 @@ const PacientesPendientes: React.FC = () => {
                             {pacientes.length > 0 ? (
                                 pacientes.map((p, index) => (
                                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200">{index + 1}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200">{(currentPage - 1) * limit + index + 1}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-200 font-bold">{p.numero_presupuesto || '-'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white font-medium">
                                             {p.nombre} {p.paterno} {p.materno}
@@ -229,6 +222,16 @@ const PacientesPendientes: React.FC = () => {
                             )}
                         </tbody>
                     </table>
+                    
+                    {totalPages > 1 && (
+                        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                            <Pagination 
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={(page) => setCurrentPage(page)}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
             <ManualModal

@@ -703,6 +703,7 @@ export interface VentaProducto {
     clinica?: Clinica;
     detalles?: VentaProductoDetalle[];
     observaciones?: string | null;
+    comision_pagada?: boolean;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -716,6 +717,8 @@ export interface CompraProductoDetalle {
     cantidad: number;
     costo_unitario: number;
     subtotal: number;
+    numero_lote?: string;
+    fecha_vencimiento?: string;
 }
 
 export interface CompraProducto {
@@ -725,6 +728,7 @@ export interface CompraProducto {
     proveedor?: Proveedor;
     total: number;
     pagada: boolean;
+    tieneVentas?: boolean;
     fecha_pago?: string;
     observaciones?: string | null;
     clinicaId: number | null;

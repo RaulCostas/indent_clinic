@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Between } from 'typeorm';
+import { Repository, DataSource, Between, ILike, In } from 'typeorm';
 import { VentaProducto } from './entities/venta-producto.entity';
 import { VentaProductoDetalle } from './entities/venta-producto-detalle.entity';
 import { ProductoComercial } from '../productos_comerciales/entities/producto_comercial.entity';
 import { OtrosIngresosService } from '../otros-ingresos/otros-ingresos.service';
+import { OtrosIngresos } from '../otros-ingresos/entities/otros-ingresos.entity';
 import { EgresosService } from '../egresos/egresos.service';
 import { Egreso } from '../egresos/entities/egreso.entity';
 import { VentaProductoDetalleLote } from './entities/venta-producto-detalle-lote.entity';
@@ -67,28 +68,43 @@ export class VentasProductosService {
                 detalle.subtotal = Number((item.cantidad * item.precio_unitario).toFixed(2));
                 const savedDetalle = await queryRunner.manager.save(detalle);
 
-                // Lógica FIFO: Buscar lotes con stock disponible para este producto
+                // Lógica de Consumo de Lotes
                 let cantidadPendiente = item.cantidad;
-                const lotes = await queryRunner.manager.find(LoteProducto, {
-                    where: { 
-                        productoId: item.productoId, 
-                        estado: 'activo',
-                        ...(createDto.clinicaId ? { clinicaId: createDto.clinicaId } : {})
-                    },
-                    order: { fecha_ingreso: 'ASC' }
-                });
+                
+                // Si viene un lote específico, lo priorizamos
+                const manualLoteId = (item as any).loteId;
+                let lotesDisponibles: LoteProducto[] = [];
 
-                if (lotes.length === 0) {
+                if (manualLoteId) {
+                    const loteManual = await queryRunner.manager.findOne(LoteProducto, {
+                        where: { id: manualLoteId, productoId: item.productoId }
+                    });
+                    if (loteManual) lotesDisponibles = [loteManual];
+                }
+
+                // Si no hay lote manual o no se encontró, usamos FIFO (First-In-First-Out)
+                if (lotesDisponibles.length === 0) {
+                    lotesDisponibles = await queryRunner.manager.find(LoteProducto, {
+                        where: { 
+                            productoId: item.productoId, 
+                            estado: 'activo',
+                            ...(createDto.clinicaId ? { clinicaId: createDto.clinicaId } : {})
+                        },
+                        order: { fecha_ingreso: 'ASC' }
+                    });
+                }
+
+                if (lotesDisponibles.length === 0) {
                     // Fallback si no hay lotes registrados pero hay stock global 
-                    // (para compatibilidad con datos migrados sin lotes)
                     const producto = await queryRunner.manager.findOne(ProductoComercial, { where: { id: item.productoId } });
                     const utilidadFallback = (Number(item.precio_unitario) - Number(producto?.costo || 0)) * item.cantidad;
                     totalUtilidadVenta += utilidadFallback;
                 } else {
-                    for (const lote of lotes) {
+                    for (const lote of lotesDisponibles) {
                         if (cantidadPendiente <= 0) break;
 
                         const cantidadAConsumir = Math.min(lote.cantidad_actual, cantidadPendiente);
+                        if (cantidadAConsumir <= 0) continue;
                         
                         // Registrar el uso de este lote para este detalle
                         const detalleLote = new VentaProductoDetalleLote();
@@ -111,7 +127,9 @@ export class VentasProductosService {
                     }
 
                     if (cantidadPendiente > 0) {
-                        // Si después de agotar lotes activos aún falta cantidad, usamos el costo base como fallback
+                        // Si después de agotar los lotes seleccionados/disponibles aún falta cantidad,
+                        // (esto pasaría si el lote manual no tiene suficiente stock)
+                        // usamos el costo base como fallback
                         const producto = await queryRunner.manager.findOne(ProductoComercial, { where: { id: item.productoId } });
                         totalUtilidadVenta += (Number(item.precio_unitario) - Number(producto?.costo || 0)) * cantidadPendiente;
                     }
@@ -379,11 +397,223 @@ export class VentasProductosService {
         }
     }
 
-    async findAllVentas(clinicaId?: number): Promise<VentaProducto[]> {
-      return await this.ventaRepository.find({
-          where: clinicaId ? { clinicaId } : {},
-          relations: ['paciente', 'personal', 'detalles', 'detalles.producto'],
-          order: { fecha: 'DESC' }
-      });
+    async findAllVentas(page: number = 1, limit: number = 10, search?: string, startDate?: string, endDate?: string, clinicaId?: number) {
+        const skip = (page - 1) * limit;
+        const queryBuilder = this.ventaRepository.createQueryBuilder('venta')
+            .leftJoinAndSelect('venta.paciente', 'paciente')
+            .leftJoinAndSelect('venta.personal', 'personal')
+            .leftJoinAndSelect('venta.detalles', 'detalles')
+            .leftJoinAndSelect('detalles.producto', 'producto')
+            .leftJoinAndSelect('venta.formaPago', 'formaPago')
+            .orderBy('venta.fecha', 'DESC')
+            .addOrderBy('venta.id', 'DESC');
+
+        if (clinicaId) {
+            queryBuilder.andWhere('venta.clinicaId = :clinicaId', { clinicaId });
+        }
+
+        if (search) {
+            queryBuilder.andWhere(
+                '(paciente.nombre ILIKE :search OR paciente.paterno ILIKE :search OR paciente.materno ILIKE :search OR personal.nombre ILIKE :search OR personal.paterno ILIKE :search OR personal.materno ILIKE :search)', 
+                { search: `%${search}%` }
+            );
+        }
+
+        if (startDate && endDate) {
+            const start = new Date(startDate + 'T00:00:00');
+            const end = new Date(endDate + 'T23:59:59');
+            queryBuilder.andWhere('venta.fecha BETWEEN :start AND :end', { start, end });
+        }
+
+        queryBuilder.skip(skip).take(limit);
+
+        const [data, total] = await queryBuilder.getManyAndCount();
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+
+    async removeVenta(id: number): Promise<void> {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+            const venta = await queryRunner.manager.findOne(VentaProducto, {
+                where: { id },
+                relations: ['detalles']
+            });
+
+            if (!venta) throw new NotFoundException('Venta no encontrada');
+            if (venta.comision_pagada) throw new BadRequestException('No se puede eliminar una venta cuya comisión ya ha sido pagada');
+
+            // 1. Restaurar Stock
+            for (const detalle of venta.detalles) {
+                // A. Obtener detalles de lotes usados
+                const lotesUsados = await queryRunner.manager.find(VentaProductoDetalleLote, {
+                    where: { ventaDetalleId: detalle.id }
+                });
+
+                for (const detLote of lotesUsados) {
+                    const lote = await queryRunner.manager.findOne(LoteProducto, { where: { id: detLote.loteId } });
+                    if (lote) {
+                        lote.cantidad_actual = Number(lote.cantidad_actual) + Number(detLote.cantidad);
+                        lote.estado = 'activo';
+                        await queryRunner.manager.save(lote);
+                    }
+                }
+
+                // B. Restaurar stock global del producto
+                await queryRunner.manager.increment(ProductoComercial, { id: detalle.productoId }, 'stock_actual', detalle.cantidad);
+                
+                // C. Eliminar relación detalle-lote
+                await queryRunner.manager.delete(VentaProductoDetalleLote, { ventaDetalleId: detalle.id });
+            }
+
+            // 2. Eliminar Ingreso relacionado (en Otros Ingresos)
+            await queryRunner.manager.delete(OtrosIngresos, { 
+                detalle: ILike(`VENTA DE PRODUCTOS - REC: ${venta.id}`),
+                clinicaId: venta.clinicaId || 0
+            });
+
+            // 3. Eliminar la Venta y sus Detalles
+            await queryRunner.manager.delete(VentaProductoDetalle, { ventaId: venta.id });
+            await queryRunner.manager.delete(VentaProducto, { id: venta.id });
+
+            await queryRunner.commitTransaction();
+        } catch (err) {
+            console.error('Error al eliminar venta:', err);
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally {
+            await queryRunner.release();
+        }
+    }
+
+    async findOneVenta(id: number) {
+        const venta = await this.ventaRepository.findOne({
+            where: { id },
+            relations: ['paciente', 'personal', 'formaPago', 'detalles', 'detalles.producto']
+        });
+        if (!venta) throw new NotFoundException('Venta no encontrada');
+        return venta;
+    }
+
+    async updateVenta(id: number, data: CreateVentaProductoDto) {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+            const oldVenta = await queryRunner.manager.findOne(VentaProducto, {
+                where: { id },
+                relations: ['detalles']
+            });
+
+            if (!oldVenta) throw new NotFoundException('Venta no encontrada');
+            if (oldVenta.comision_pagada) throw new BadRequestException('No se puede editar una venta cuya comisión ya ha sido pagada');
+
+            // 1. Restaurar Stock Anterior
+            for (const detalle of oldVenta.detalles) {
+                const lotesUsados = await queryRunner.manager.find(VentaProductoDetalleLote, {
+                    where: { ventaDetalleId: detalle.id }
+                });
+                for (const detLote of lotesUsados) {
+                    const lote = await queryRunner.manager.findOne(LoteProducto, { where: { id: detLote.loteId } });
+                    if (lote) {
+                        lote.cantidad_actual = Number(lote.cantidad_actual) + Number(detLote.cantidad);
+                        await queryRunner.manager.save(lote);
+                    }
+                }
+                await queryRunner.manager.increment(ProductoComercial, { id: detalle.productoId }, 'stock_actual', detalle.cantidad);
+                await queryRunner.manager.delete(VentaProductoDetalleLote, { ventaDetalleId: detalle.id });
+                await queryRunner.manager.delete(VentaProductoDetalle, { id: detalle.id });
+            }
+
+            // 2. Validar nuevo stock
+            let total = 0;
+            for (const d of data.detalles) {
+                const prod = await queryRunner.manager.findOne(ProductoComercial, { where: { id: d.productoId } });
+                if (!prod || Number(prod.stock_actual) < d.cantidad) {
+                    throw new BadRequestException(`Stock insuficiente para el producto: ${prod?.nombre || 'Desconocido'}`);
+                }
+                total += Number(d.precio_unitario) * d.cantidad;
+            }
+
+            // 3. Actualizar Venta
+            oldVenta.pacienteId = data.pacienteId;
+            oldVenta.personalId = data.personalId;
+            oldVenta.formaPagoId = data.formaPagoId;
+            oldVenta.fecha = data.fecha ? new Date(data.fecha) : oldVenta.fecha;
+            oldVenta.observaciones = data.observaciones || '';
+            oldVenta.total = total;
+            oldVenta.comision_monto = total * (Number(oldVenta.comision_porcentaje) / 100); 
+            
+            const savedVenta = await queryRunner.manager.save(oldVenta);
+
+            // 4. Crear nuevos detalles y consumir stock
+            for (const d of data.detalles) {
+                const detalle = queryRunner.manager.create(VentaProductoDetalle, {
+                    ventaId: savedVenta.id,
+                    productoId: d.productoId,
+                    cantidad: d.cantidad,
+                    precio_unitario: d.precio_unitario,
+                    subtotal: Number(d.precio_unitario) * d.cantidad
+                });
+                const savedDetalle = await queryRunner.manager.save(detalle);
+
+                let cantRestante = d.cantidad;
+                const lotes = await queryRunner.manager.find(LoteProducto, {
+                    where: { productoId: d.productoId, estado: 'activo' },
+                    order: { fecha_vencimiento: 'ASC', id: 'ASC' }
+                });
+
+                for (const lote of lotes) {
+                    if (cantRestante <= 0) break;
+                    const canTake = Math.min(Number(lote.cantidad_actual), cantRestante);
+                    if (canTake > 0) {
+                        lote.cantidad_actual = Number(lote.cantidad_actual) - canTake;
+                        if (Number(lote.cantidad_actual) === 0) lote.estado = 'agotado';
+                        await queryRunner.manager.save(lote);
+
+                        await queryRunner.manager.save(VentaProductoDetalleLote, {
+                            ventaDetalleId: savedDetalle.id,
+                            loteId: lote.id,
+                            cantidad: canTake
+                        });
+                        cantRestante -= canTake;
+                    }
+                }
+                await queryRunner.manager.decrement(ProductoComercial, { id: d.productoId }, 'stock_actual', d.cantidad);
+            }
+
+            // 5. Actualizar OtrosIngresos
+            const ingreso = await queryRunner.manager.findOne(OtrosIngresos, {
+                where: { 
+                    detalle: ILike(`VENTA DE PRODUCTOS - REC: ${id}`),
+                    clinicaId: oldVenta.clinicaId || 0
+                }
+            });
+
+            if (ingreso) {
+                ingreso.monto = total;
+                ingreso.fecha = data.fecha ? new Date(data.fecha) : ingreso.fecha;
+                ingreso.formaPagoId = data.formaPagoId;
+                await queryRunner.manager.save(ingreso);
+            }
+
+            await queryRunner.commitTransaction();
+            return savedVenta;
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally {
+            await queryRunner.release();
+        }
     }
 }

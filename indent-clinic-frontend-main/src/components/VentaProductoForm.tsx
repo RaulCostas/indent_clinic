@@ -4,7 +4,7 @@ import Swal from 'sweetalert2';
 import type { Paciente, ProductoComercial, FormaPago, VentaProductoDetalle, Personal } from '../types';
 import SearchableSelect from './SearchableSelect';
 import { useClinica } from '../context/ClinicaContext';
-import { ShoppingCart, User, Package, Trash2, Plus, Minus, CreditCard, Save, X, Info, Calendar } from 'lucide-react';
+import { ShoppingCart, User, Package, Trash2, Plus, Minus, CreditCard, Save, X, Info, Calendar, ArrowLeft } from 'lucide-react';
 import { getLocalDateString } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 
@@ -14,14 +14,25 @@ interface CartItem {
     precio_unitario: number;
     cantidad: number;
     stock_actual: number;
+    loteId?: number;
+    numero_lote?: string;
 }
 
-const VentaProductoForm: React.FC = () => {
+interface VentaProductoFormProps {
+    id?: number;
+    onSuccess?: () => void;
+    onCancel?: () => void;
+}
+
+const VentaProductoForm: React.FC<VentaProductoFormProps> = ({ id, onSuccess, onCancel }) => {
     const { clinicaSeleccionada, clinicas } = useClinica();
     const [pacientes, setPacientes] = useState<Paciente[]>([]);
     const [productos, setProductos] = useState<ProductoComercial[]>([]);
     const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
     const [personales, setPersonales] = useState<Personal[]>([]);
+    
+    // Map of product ID to its available lotes
+    const [productLotes, setProductLotes] = useState<Record<number, any[]>>({});
     
     const [selectedPacienteId, setSelectedPacienteId] = useState<number | string>('');
     const [selectedPersonalId, setSelectedPersonalId] = useState<number | string>('');
@@ -56,7 +67,50 @@ const VentaProductoForm: React.FC = () => {
 
     useEffect(() => {
         fetchInitialData();
-    }, [clinicaSeleccionada]);
+        if (id) {
+            fetchVentaForEdit();
+        }
+    }, [clinicaSeleccionada, id]);
+
+    const fetchVentaForEdit = async () => {
+        try {
+            const res = await api.get(`/ventas-productos/${id}`);
+            const venta = res.data;
+            
+            setSelectedPacienteId(venta.pacienteId || '');
+            setSelectedPersonalId(venta.personalId || '');
+            setSelectedFormaPagoId(venta.formaPagoId || '');
+            setFecha(venta.fecha.split('T')[0]);
+            setObservaciones(venta.observaciones || '');
+            
+            const initialCart: CartItem[] = venta.detalles.map((d: any) => ({
+                productoId: d.productoId,
+                nombre: d.producto?.nombre || 'Producto',
+                precio_unitario: Number(d.precio_unitario),
+                cantidad: Number(d.cantidad),
+                stock_actual: Number(d.producto?.stock_actual || 0) + Number(d.cantidad) // Stock potential
+            }));
+            setCart(initialCart);
+
+            // Fetch lotes for these products
+            for (const d of venta.detalles) {
+                fetchLotes(d.productoId);
+            }
+        } catch (error) {
+            console.error('Error fetching sale for edit:', error);
+            Swal.fire('Error', 'No se pudo cargar la información de la venta', 'error');
+        }
+    };
+
+    const fetchLotes = async (productId: number) => {
+        if (productLotes[productId]) return;
+        try {
+            const res = await api.get(`/productos-comerciales/${productId}/lotes${clinicaSeleccionada ? `?clinicaId=${clinicaSeleccionada}` : ''}`);
+            setProductLotes(prev => ({ ...prev, [productId]: res.data }));
+        } catch (error) {
+            console.error('Error fetching lotes:', error);
+        }
+    };
 
     const fetchInitialData = async () => {
         try {
@@ -72,16 +126,7 @@ const VentaProductoForm: React.FC = () => {
             setFormasPago(Array.isArray(formRes.data.data) ? formRes.data.data : []);
             setPersonales(Array.isArray(persRes.data.data) ? persRes.data.data : []);
 
-            // Set current user as default receptionist if possible
-            const loggedUserStr = localStorage.getItem('user');
-            if (loggedUserStr) {
-                const loggedUser = JSON.parse(loggedUserStr);
-                // The backend user might not have a 1:1 'personalId' linked in localstorage simple user object
-                // We'll let the user select or if there's a match by name/email logic... 
-                // For now, let's just pre-select first receptionist if available
-                const firstReceptionist = persRes.data.data?.find((p: any) => p.personalTipo?.area?.toLowerCase().includes('recep'));
-                if (firstReceptionist) setSelectedPersonalId(firstReceptionist.id);
-            }
+            // No pre-select personal anymore as requested by user
 
             const formasPagoData = formRes.data.data || [];
             if (formasPagoData.length > 0) {
@@ -118,13 +163,18 @@ const VentaProductoForm: React.FC = () => {
         }
     };
 
-    const addToCart = (productId: number | string) => {
+    const addToCart = async (productId: number | string) => {
         const product = productos.find(p => p.id === Number(productId));
         if (!product) return;
 
         if (product.stock_actual <= 0) {
             Swal.fire('Sin Stock', 'No hay existencias de este producto.', 'warning');
             return;
+        }
+
+        // Fetch lotes if not already fetched
+        if (!productLotes[product.id]) {
+            fetchLotes(product.id);
         }
 
         const existing = cart.find(item => item.productoId === product.id);
@@ -166,6 +216,24 @@ const VentaProductoForm: React.FC = () => {
         setCart(cart.filter(item => item.productoId !== productId));
     };
 
+    const updateLote = (productId: number, loteId: string) => {
+        const lotes = productLotes[productId] || [];
+        const selectedLote = lotes.find(l => l.id === Number(loteId));
+        
+        setCart(cart.map(item => {
+            if (item.productoId === productId) {
+                return { 
+                    ...item, 
+                    loteId: selectedLote ? selectedLote.id : undefined,
+                    numero_lote: selectedLote ? selectedLote.numero_lote : undefined,
+                    // Optionally update stock_actual if we want to limit by batch stock
+                    // but for now let's keep it simple
+                };
+            }
+            return item;
+        }));
+    };
+
     const total = cart.reduce((acc, item) => acc + (Number(item.precio_unitario) * item.cantidad), 0);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -176,17 +244,17 @@ const VentaProductoForm: React.FC = () => {
         if (cart.length === 0) return Swal.fire('Error', 'El carrito está vacío', 'warning');
 
         const result = await Swal.fire({
-            title: '¿Confirmar Venta?',
+            title: id ? '¿Guardar Cambios?' : '¿Confirmar Venta?',
             text: `Total: ${total.toFixed(2)} Bs.`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Sí, registrar venta'
+            confirmButtonText: id ? 'Sí, guardar' : 'Sí, registrar venta'
         });
 
         if (result.isConfirmed) {
             setIsSubmitting(true);
             try {
-                await api.post('/ventas-productos', {
+                const ventaData = {
                     pacienteId: Number(selectedPacienteId),
                     personalId: Number(selectedPersonalId),
                     formaPagoId: Number(selectedFormaPagoId),
@@ -197,28 +265,29 @@ const VentaProductoForm: React.FC = () => {
                     detalles: cart.map(item => ({
                         productoId: item.productoId,
                         cantidad: item.cantidad,
-                        precio_unitario: item.precio_unitario
+                        precio_unitario: item.precio_unitario,
+                        loteId: item.loteId
                     }))
-                });
+                };
+
+                if (id) {
+                    await api.patch(`/ventas-productos/${id}`, ventaData);
+                } else {
+                    await api.post('/ventas-productos', ventaData);
+                }
 
                 await Swal.fire({
                     icon: 'success',
-                    title: 'Venta Realizada',
-                    text: 'Se ha registrado la venta y actualizado el inventario.',
+                    title: id ? 'Venta Actualizada' : 'Venta Realizada',
+                    text: id ? 'Los cambios han sido guardados con éxito.' : 'Se ha registrado la venta y actualizado el inventario.',
                     timer: 2000,
                     showConfirmButton: false
                 });
 
-                // Reset
-                setCart([]);
-                setObservaciones('');
-                setSelectedPacienteId('');
-                setSelectedPersonalId('');
-                setSelectedFormaPagoId('');
-                fetchInitialData(); // Refresh product lists for stock
+                if (onSuccess) onSuccess();
             } catch (error: any) {
                 console.error('Error in sale:', error);
-                Swal.fire('Error', error.response?.data?.message || 'No se pudo registrar la venta', 'error');
+                Swal.fire('Error', error.response?.data?.message || 'No se pudo procesar la venta', 'error');
             } finally {
                 setIsSubmitting(false);
             }
@@ -246,7 +315,7 @@ const VentaProductoForm: React.FC = () => {
                 <div className="flex flex-col">
                     <h2 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-3">
                         <ShoppingCart className="text-emerald-600" size={32} />
-                        Punto de Venta Comercial
+                        {id ? `Editar Venta #${id}` : 'Punto de Venta Comercial'}
                     </h2>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Registro de Ventas y Comisiones</p>
                 </div>
@@ -254,11 +323,19 @@ const VentaProductoForm: React.FC = () => {
                 <div className="flex gap-2 flex-wrap justify-center md:justify-end items-center">
                     <button
                         onClick={() => setShowManual(true)}
-                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all shadow-sm"
                         title="Ayuda / Manual"
                     >
                         ?
                     </button>
+                    {onCancel && (
+                        <button
+                            onClick={onCancel}
+                            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold py-2 px-4 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center gap-2"
+                        >
+                            <ArrowLeft size={18} /> Volver
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -425,6 +502,25 @@ const VentaProductoForm: React.FC = () => {
                                                     <div className="font-bold text-emerald-600">Bs. {(item.cantidad * item.precio_unitario).toFixed(2)}</div>
                                                 </div>
                                             </div>
+
+                                            {/* Lote Selection */}
+                                            {productLotes[item.productoId] && productLotes[item.productoId].length > 0 && (
+                                                <div className="mt-1 flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase">Lote:</span>
+                                                    <select 
+                                                        value={item.loteId || ''}
+                                                        onChange={(e) => updateLote(item.productoId, e.target.value)}
+                                                        className="flex-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-2 py-0.5 text-xs text-gray-700 dark:text-gray-300 outline-none focus:ring-1 focus:ring-emerald-500"
+                                                    >
+                                                        <option value="">Automático (FIFO)</option>
+                                                        {(productLotes[item.productoId] || []).map((l: any) => (
+                                                            <option key={l.id} value={l.id}>
+                                                                {l.numero_lote || 'S/N'} (Disp: {l.cantidad_actual}) {l.fecha_vencimiento ? `- Venc: ${l.fecha_vencimiento}` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
                                     ))
                                 )}
@@ -447,7 +543,7 @@ const VentaProductoForm: React.FC = () => {
                                     className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:transform-none"
                                 >
                                     <Save className="w-6 h-6" />
-                                    {isSubmitting ? 'Procesando...' : 'FINALIZAR VENTA'}
+                                    {isSubmitting ? 'Procesando...' : (id ? 'GUARDAR CAMBIOS' : 'FINALIZAR VENTA')}
                                 </button>
                             </div>
                         </div>

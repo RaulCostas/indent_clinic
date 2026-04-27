@@ -32,6 +32,11 @@ export class ProductosComercialesController {
         return this.productosService.findOne(id);
     }
 
+    @Get(':id/lotes')
+    findLotes(@Param('id', ParseIntPipe) id: number, @Query('clinicaId') clinicaId?: string) {
+        return this.productosService.findLotes(id, clinicaId ? +clinicaId : undefined);
+    }
+
     @Patch(':id')
     update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateProductoComercialDto) {
         return this.productosService.update(id, updateDto);

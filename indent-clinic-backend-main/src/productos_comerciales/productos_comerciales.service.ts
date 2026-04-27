@@ -4,12 +4,15 @@ import { Repository } from 'typeorm';
 import { ProductoComercial } from './entities/producto_comercial.entity';
 import { CreateProductoComercialDto } from './dto/create-producto_comercial.dto';
 import { UpdateProductoComercialDto } from './dto/update-producto_comercial.dto';
+import { LoteProducto } from './entities/lote-producto.entity';
 
 @Injectable()
 export class ProductosComercialesService {
     constructor(
         @InjectRepository(ProductoComercial)
         private readonly productoRepository: Repository<ProductoComercial>,
+        @InjectRepository(LoteProducto)
+        private readonly loteRepository: Repository<LoteProducto>,
     ) {}
 
     async create(createDto: CreateProductoComercialDto): Promise<ProductoComercial> {
@@ -77,5 +80,18 @@ export class ProductosComercialesService {
             producto.stock_actual -= cantidad;
         }
         await this.productoRepository.save(producto);
+    }
+
+    async findLotes(productoId: number, clinicaId?: number) {
+        const where: any = { 
+            productoId, 
+            estado: 'activo' 
+        };
+        if (clinicaId) where.clinicaId = clinicaId;
+
+        return await this.loteRepository.find({
+            where,
+            order: { fecha_ingreso: 'ASC' }
+        });
     }
 }

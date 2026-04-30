@@ -745,7 +745,7 @@ const GastosFijosList: React.FC = () => {
                             <h1>Reporte de Gastos Fijos</h1>
                         </div>
                         <div class="header-info">
-                            <div style="font-weight: 700; color: #3b82f6;">${clinicaActual?.telefono || ''}</div>
+                            <div style="font-weight: 700; color: #3b82f6;"></div>
                         </div>
                     </div>
 
@@ -896,7 +896,7 @@ const GastosFijosList: React.FC = () => {
                             <h1>Historial de Pagos</h1>
                         </div>
                         <div class="header-info">
-                            <div style="font-weight: 700; color: #3b82f6;">${clinicaActual?.telefono || ''}</div>
+                            <div style="font-weight: 700; color: #3b82f6;"></div>
                         </div>
                     </div>
 

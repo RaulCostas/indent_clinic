@@ -310,11 +310,13 @@ export class PacientesService {
             SELECT 
                 p.id as "pacienteId",
                 p.nombre, p.paterno, p.materno,
-                a.fecha, a.hora, a.consultorio,
-                c.nombre as "clinicaNombre"
+                a.fecha, a.hora,
+                c.nombre as "clinicaNombre",
+                CONCAT(COALESCE(d.nombre,''), ' ', COALESCE(d.paterno,''), ' ', COALESCE(d.materno,'')) as "doctorNombre"
             FROM agenda a
             JOIN pacientes p ON p.id = a."pacienteId"
             LEFT JOIN clinicas c ON c.id = a."clinicaId"
+            LEFT JOIN doctor d ON d.id = a."doctorId"
             WHERE a.fecha <= '${today}' 
               AND LOWER(a.estado) = 'atendido'
               ${clinicaId ? `AND a."clinicaId" = ${clinicaId}` : ''}

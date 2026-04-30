@@ -1,8 +1,8 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateFichaMedicaDto {
     @IsString() @IsOptional() ultima_visita_odontologo?: string;
-    @IsString() @IsOptional() motivo_consulta?: string;
+    @IsString() @IsNotEmpty() motivo_consulta: string;
 
     @IsBoolean() @IsOptional() bruxismo?: boolean;
     @IsBoolean() @IsOptional() alergia_medicamento?: boolean;

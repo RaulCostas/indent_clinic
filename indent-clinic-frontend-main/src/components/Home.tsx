@@ -7,6 +7,7 @@ import { getLocalDateString, formatDate } from '../utils/dateUtils';
 import { useClinica } from '../context/ClinicaContext';
 import Swal from 'sweetalert2';
 import PagosGastosFijosForm from './PagosGastosFijosForm';
+import Pagination from './Pagination';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
@@ -183,6 +184,7 @@ const Home: React.FC = () => {
 
     const [noRegistrados, setNoRegistrados] = useState<any[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedDoctor, setSelectedDoctor] = useState('');
     const itemsPerPage = 5;
 
     const fetchNoRegistrados = async () => {
@@ -260,77 +262,113 @@ const Home: React.FC = () => {
             </p>
 
             {/* Pacientes No Registrados Section */}
-            {hasAccess('dashboard_pacientes_no_registrados') && noRegistrados.length > 0 && (
-                <div className="mb-8 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-6 rounded-r-lg shadow-sm">
-                    <h2 className="text-xl font-bold text-yellow-800 dark:text-yellow-400 mb-4 flex items-center gap-2">
-                        <span>⚠️</span> Pacientes Agendados (Atendidos) Sin Registro
-                    </h2>
-                    <div className="overflow-x-auto bg-white dark:bg-gray-700 rounded-lg shadow-sm p-4">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-500">
-                                    <th className="p-3 font-semibold text-gray-700 dark:text-gray-200">Paciente</th>
-                                    {!clinicaSeleccionada && <th className="p-3 font-semibold text-gray-700 dark:text-gray-200">Clínica</th>}
-                                    <th className="p-3 font-semibold text-gray-700 dark:text-gray-200">Fecha (cita)</th>
-                                    <th className="p-3 font-semibold text-gray-700 dark:text-gray-200">Hora</th>
-                                    <th className="p-3 font-semibold text-gray-700 dark:text-gray-200">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-600">
-                                {noRegistrados.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item, index) => (
-                                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                        <td className="p-3 text-gray-700 dark:text-gray-300">{item.nombre} {item.paterno} {item.materno}</td>
-                                        {!clinicaSeleccionada && (
-                                            <td className="p-3">
-                                                <span className="font-semibold text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-900/40 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
-                                                    🏥 {item.clinicaNombre || 'N/A'}
-                                                </span>
-                                            </td>
-                                        )}
-                                        <td className="p-3 text-gray-700 dark:text-gray-300">{formatDate(item.fecha)}</td>
-                                        <td className="p-3 text-gray-700 dark:text-gray-300">{item.hora}</td>
-                                        <td className="p-3">
-                                            <button
-                                                onClick={() => navigate(`/pacientes/${item.pacienteId}/historia-clinica`)}
-                                                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-all shadow-md transform hover:-translate-y-0.5"
-                                            >
-                                                Llenar Seguimiento Clínico
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <div className="flex justify-between items-center mt-4 px-2">
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                                Mostrando {noRegistrados.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, noRegistrados.length)} de {noRegistrados.length} registros
-                            </span>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${currentPage === 1
-                                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700 cursor-not-allowed'
-                                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm hover:shadow-md'
-                                        }`}
+            {hasAccess('dashboard_pacientes_no_registrados') && noRegistrados.length > 0 && (() => {
+                const doctoresUnicos = Array.from(
+                    new Set(noRegistrados.map((r: any) => r.doctorNombre?.trim()).filter(Boolean))
+                ).sort() as string[];
+                const filtered = selectedDoctor
+                    ? noRegistrados.filter((r: any) => r.doctorNombre?.trim() === selectedDoctor)
+                    : noRegistrados;
+                const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                return (
+                    <div className="mb-8">
+                        <h2 className="text-xl font-bold text-yellow-700 dark:text-yellow-400 mb-4 flex items-center gap-2">
+                            <span>⚠️</span> Pacientes Agendados (Atendidos) Sin Registro
+                        </h2>
+
+                        {/* Toolbar: Mostrando + Filter */}
+                        <div className="flex items-center justify-between mb-2 gap-4">
+                            <div className="text-gray-600 dark:text-gray-400 text-sm">
+                                Mostrando {filtered.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
+                                {selectedDoctor && <span className="ml-2 text-yellow-600 dark:text-yellow-400">(filtrado)</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">Filtrar por Doctor:</label>
+                                <select
+                                    value={selectedDoctor}
+                                    onChange={(e) => { setSelectedDoctor(e.target.value); setCurrentPage(1); }}
+                                    className="pl-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm"
                                 >
-                                    Anterior
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(noRegistrados.length / itemsPerPage)))}
-                                    disabled={currentPage === Math.ceil(noRegistrados.length / itemsPerPage)}
-                                    className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${currentPage === Math.ceil(noRegistrados.length / itemsPerPage)
-                                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700 cursor-not-allowed'
-                                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm hover:shadow-md'
-                                        }`}
-                                >
-                                    Siguiente
-                                </button>
+                                    <option value="">-- Todos --</option>
+                                    {doctoresUnicos.map((d) => (
+                                        <option key={d} value={d}>{d}</option>
+                                    ))}
+                                </select>
+                                {selectedDoctor && (
+                                    <button
+                                        onClick={() => { setSelectedDoctor(''); setCurrentPage(1); }}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-200 hover:bg-red-100 dark:bg-gray-600 dark:hover:bg-red-900/40 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 hover:shadow-md"
+                                        title="Limpiar filtro de doctor"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 20H7L3 16l10-10 7 7-1.5 1.5"/>
+                                            <path d="M6.5 17.5l4-4"/>
+                                            <line x1="18" y1="6" x2="6" y2="18"/>
+                                        </svg>
+                                        <span className="text-xs font-medium">Limpiar</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
+
+                        <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Paciente</th>
+                                        {!clinicaSeleccionada && <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clínica</th>}
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Doctor</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha (cita)</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Hora</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    {filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item: any, index: number) => (
+                                        <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                            <td className="p-3 text-gray-800 dark:text-gray-300">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                                            <td className="p-3 text-gray-800 dark:text-gray-300 font-medium">{item.nombre} {item.paterno} {item.materno}</td>
+                                            {!clinicaSeleccionada && (
+                                                <td className="p-3 text-gray-800 dark:text-gray-300 font-medium text-blue-600 dark:text-blue-400">
+                                                    {item.clinicaNombre || 'N/A'}
+                                                </td>
+                                            )}
+                                            <td className="p-3 text-gray-800 dark:text-gray-300">{item.doctorNombre?.trim() || '-'}</td>
+                                            <td className="p-3 text-gray-800 dark:text-gray-300">{formatDate(item.fecha)}</td>
+                                            <td className="p-3 text-gray-800 dark:text-gray-300">{item.hora?.substring(0, 5)}</td>
+                                            <td className="p-3">
+                                                <button
+                                                    onClick={() => navigate(`/pacientes/${item.pacienteId}/historia-clinica`)}
+                                                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-all shadow-md transform hover:-translate-y-0.5"
+                                                >
+                                                    Llenar Seguimiento Clínico
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filtered.length === 0 && (
+                                        <tr>
+                                            <td colSpan={clinicaSeleccionada ? 6 : 7} className="p-6 text-center text-gray-400 dark:text-gray-500">
+                                                No hay resultados para el doctor seleccionado.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {totalPages > 1 && (
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={(page) => setCurrentPage(page)}
+                            />
+                        )}
                     </div>
-                </div>
-            )}
+                );
+            })()}
+
 
             {/* Recordatorios Section */}
             {recordatorios.length > 0 && (

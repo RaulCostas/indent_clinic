@@ -68,7 +68,8 @@ export class DoctorsService {
 
     async findAll(search?: string, page: number = 1, limit: number = 5): Promise<any> {
         const skip = (page - 1) * limit;
-        const queryBuilder = this.doctorsRepository.createQueryBuilder('doctor');
+        const queryBuilder = this.doctorsRepository.createQueryBuilder('doctor')
+            .leftJoinAndSelect('doctor.especialidad', 'especialidad');
         if (search) {
             queryBuilder.where('(doctor.nombre ILIKE :search OR doctor.paterno ILIKE :search OR doctor.materno ILIKE :search)', { search: `%${search}%` });
         }
@@ -77,7 +78,10 @@ export class DoctorsService {
     }
 
     async findOne(id: number): Promise<Doctor> {
-        const doctor = await this.doctorsRepository.findOne({ where: { id } });
+        const doctor = await this.doctorsRepository.findOne({ 
+            where: { id },
+            relations: ['especialidad']
+        });
         if (!doctor) throw new NotFoundException(`Doctor con ID ${id} no encontrado`);
         return doctor;
     }

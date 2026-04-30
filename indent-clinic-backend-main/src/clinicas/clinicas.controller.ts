@@ -44,4 +44,26 @@ export class ClinicasController {
     remove(@Param('id', ParseIntPipe) id: number) {
         return this.clinicasService.remove(id);
     }
+
+    // --- Sucursales Endpoints ---
+
+    @Get(':id/sucursales')
+    findSucursales(@Param('id', ParseIntPipe) id: number) {
+        return this.clinicasService.findSucursales(id);
+    }
+
+    @Post(':id/sucursales')
+    createSucursal(@Param('id', ParseIntPipe) id: number, @Body() data: any) {
+        return this.clinicasService.createSucursal(id, data);
+    }
+
+    @Patch('sucursales/:id')
+    updateSucursal(@Param('id', ParseIntPipe) id: number, @Body() data: any) {
+        return this.clinicasService.updateSucursal(id, data);
+    }
+
+    @Delete('sucursales/:id')
+    removeSucursal(@Param('id', ParseIntPipe) id: number) {
+        return this.clinicasService.removeSucursal(id);
+    }
 }

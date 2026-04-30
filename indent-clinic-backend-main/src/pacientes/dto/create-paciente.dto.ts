@@ -65,6 +65,10 @@ export class CreatePacienteDto {
     @IsString()
     poliza: string;
 
+    @IsDateString()
+    @IsOptional()
+    fecha_vencimiento?: string;
+
 
 
     @IsString()

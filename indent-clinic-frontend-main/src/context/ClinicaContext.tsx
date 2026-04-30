@@ -6,11 +6,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 export interface Clinica {
     id: number;
     nombre: string;
-    direccion?: string;
-    telefono?: string;
     activo: boolean;
     monedaDefault?: string;
     logo?: string;
+    qr_pago?: string;
     fecha_cierre_caja?: string;
 }
 

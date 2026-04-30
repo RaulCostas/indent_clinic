@@ -73,6 +73,9 @@ export class Paciente {
     @Column()
     poliza: string;
 
+    @Column({ type: 'date', nullable: true })
+    fecha_vencimiento: string;
+
     @Column()
     responsable: string;
 

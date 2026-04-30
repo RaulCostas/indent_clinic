@@ -229,7 +229,7 @@ const AgendaView: React.FC = () => {
     };
 
     const handlePatientSelect = async (patient: Paciente) => {
-        setSearchTerm(`${patient.nombre} ${patient.paterno}`);
+        setSearchTerm(`${patient.nombre} ${patient.paterno} ${patient.materno || ''}`.trim());
         setShowPatientResults(false);
         setSelectedPatientForHistory(patient);
 
@@ -597,7 +597,7 @@ const AgendaView: React.FC = () => {
                                         onClick={() => handlePatientSelect(p)}
                                         className="p-2.5 cursor-pointer border-b border-gray-100 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm text-gray-800 dark:text-gray-200 flex flex-col"
                                     >
-                                        <strong className="text-blue-600 dark:text-blue-400">{p.nombre} {p.paterno}</strong>
+                                        <strong className="text-blue-600 dark:text-blue-400">{p.nombre} {p.paterno} {p.materno || ''}</strong>
                                     </div>
                                 ))}
                             </div>
@@ -848,14 +848,14 @@ const AgendaView: React.FC = () => {
                                                                                     {appointment.paciente ? (
                                                                                         <span
                                                                                             className="underline underline-offset-2 cursor-pointer hover:opacity-75 transition-opacity"
-                                                                                            title={`Ver perfil de ${appointment.paciente.nombre} ${appointment.paciente.paterno}`}
+                                                                                            title={`Ver perfil de ${appointment.paciente.nombre} ${appointment.paciente.paterno} ${appointment.paciente.materno || ''}`}
                                                                                             onClick={(e) => { e.stopPropagation(); navigate(`/pacientes/${appointment.paciente!.id}/ficha`); }}
                                                                                         >
                                                                                              <span className="hidden md:inline">
-                                                                                                {`${appointment.paciente.nombre} ${appointment.paciente.paterno} ${appointment.paciente.materno || ''} ${appointment.paciente.seguro_medico ? `(${appointment.paciente.seguro_medico})` : ''}`.trim()}
+                                                                                                {`${appointment.paciente.nombre} ${appointment.paciente.paterno} ${appointment.paciente.materno || ''} ${appointment.paciente.seguro_medico ? `(${appointment.paciente.seguro_medico}${appointment.paciente.fecha_vencimiento ? ` - Vence: ${formatDate(appointment.paciente.fecha_vencimiento)}` : ''})` : ''}`.trim()}
                                                                                              </span>
                                                                                              <span className="md:hidden">
-                                                                                                {`${appointment.paciente.nombre} ${appointment.paciente.paterno}`.trim()}
+                                                                                                {`${appointment.paciente.nombre} ${appointment.paciente.paterno} ${appointment.paciente.materno || ''} ${appointment.paciente.seguro_medico ? `(${appointment.paciente.seguro_medico}${appointment.paciente.fecha_vencimiento ? ` - ${formatDate(appointment.paciente.fecha_vencimiento)}` : ''})` : ''}`.trim()}
                                                                                              </span>
                                                                                          </span>
                                                                                     ) : (
@@ -876,10 +876,10 @@ const AgendaView: React.FC = () => {
                                                                                 )}
                                                                                 {appointment.sucursal && (
                                                                                     <div className={`mt-0.5 text-[10px] font-bold py-0.5 px-0.5 rounded inline-flex items-center gap-1 shadow-sm border border-white/20 w-fit
-                                                                                        ${appointment.sucursal?.toLowerCase()?.includes('arce') ? 'bg-indigo-600/60 text-white' :
-                                                                                        appointment.sucursal?.toLowerCase()?.includes('miguel') ? 'bg-emerald-600/60 text-white' :
+                                                                                        ${appointment.sucursal?.nombre?.toLowerCase()?.includes('arce') ? 'bg-indigo-600/60 text-white' :
+                                                                                        appointment.sucursal?.nombre?.toLowerCase()?.includes('miguel') ? 'bg-emerald-600/60 text-white' :
                                                                                         'bg-gray-600/60 text-white'}`}>
-                                                                                        <LocationIcon size={8} /> {appointment.sucursal}
+                                                                                        <LocationIcon size={8} /> {appointment.sucursal?.nombre}
                                                                                     </div>
                                                                                 )}
                                                                                 <div className="text-[9px] mt-1 font-bold uppercase opacity-90 flex items-center gap-1.5">
@@ -954,7 +954,7 @@ const AgendaView: React.FC = () => {
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
                         <div className="bg-white dark:bg-gray-800 w-[90%] max-w-4xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
                             <div className="p-5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-white m-0">📅 Historial de Citas: {selectedPatientForHistory.nombre} {selectedPatientForHistory.paterno}</h2>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-white m-0">📅 Historial de Citas: {selectedPatientForHistory.nombre} {selectedPatientForHistory.paterno} {selectedPatientForHistory.materno || ''}</h2>
                             </div>
                             <div className="p-0 overflow-y-auto flex-1 dark:bg-gray-800">
                                 {patientHistory.length === 0 ? (

@@ -10,18 +10,20 @@ import { Printer, Hospital } from 'lucide-react';
 import { getLogoUrl } from '../utils/formatters';
 
 
+interface Sucursal {
+    id: number;
+    nombre: string;
+    direccion: string;
+}
+
 interface Clinica {
     id: number;
     nombre: string;
-    direccion?: string;
-    telefono?: string;
-    codigoPaisCelular?: string;
-    celular?: string;
     activo: boolean;
-    horario_atencion?: string;
     createdAt?: string;
     logo?: string;
     qr_pago?: string;
+    sucursales?: Sucursal[];
 }
 
 
@@ -66,10 +68,7 @@ const ClinicasList: React.FC = () => {
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 all = all.filter(c =>
-                    c.nombre.toLowerCase().includes(term) ||
-                    (c.direccion || '').toLowerCase().includes(term) ||
-                    (c.telefono || '').includes(term) ||
-                    (c.celular || '').includes(term)
+                    c.nombre.toLowerCase().includes(term)
                 );
             }
 
@@ -141,8 +140,7 @@ const ClinicasList: React.FC = () => {
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 all = all.filter(c =>
-                    c.nombre.toLowerCase().includes(term) ||
-                    (c.direccion || '').toLowerCase().includes(term)
+                    c.nombre.toLowerCase().includes(term)
                 );
             }
 
@@ -192,9 +190,6 @@ const ClinicasList: React.FC = () => {
                             <tr>
                                 <th>#</th>
                                 <th>Nombre</th>
-                                <th>Dirección</th>
-                                <th>Teléfono</th>
-                                <th>Celular</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
@@ -203,9 +198,6 @@ const ClinicasList: React.FC = () => {
                                 <tr>
                                     <td>${index + 1}</td>
                                     <td>${c.nombre}</td>
-                                    <td>${c.direccion || '—'}</td>
-                                    <td>${c.telefono || '—'}</td>
-                                    <td>${c.codigoPaisCelular || ''} ${c.celular || '—'}</td>
                                     <td class="${c.activo ? 'status-active' : 'status-inactive'}">${c.activo ? 'Activo' : 'Inactivo'}</td>
                                 </tr>
                             `).join('')}
@@ -313,7 +305,7 @@ const ClinicasList: React.FC = () => {
                     <div className="relative flex-grow">
                         <input
                             type="text"
-                            placeholder="Buscar por nombre, dirección, teléfono..."
+                            placeholder="Buscar por nombre..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-800 dark:text-white bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400"
@@ -344,10 +336,7 @@ const ClinicasList: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Logo</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dirección</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Horario</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Teléfono</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Celular</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Sucursales</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">QR Pago</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Estado</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
@@ -373,21 +362,21 @@ const ClinicasList: React.FC = () => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-200">
                                     {c.nombre}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-200">
-                                    {c.direccion || <span className="text-gray-400 italic">—</span>}
+
+                                <td className="px-6 py-4 whitespace-normal text-sm text-gray-500 dark:text-gray-400">
+                                    {c.sucursales && c.sucursales.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1">
+                                            {c.sucursales.map(s => (
+                                                <span key={s.id} className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 text-xs px-2 py-1 rounded-full whitespace-nowrap border border-blue-200 dark:border-blue-800">
+                                                    {s.nombre}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-400 italic text-xs">Sin sucursales</span>
+                                    )}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-200">
-                                    {c.horario_atencion || <span className="text-gray-400 italic">—</span>}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                    {c.telefono || <span className="text-gray-400 italic">—</span>}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                                    {c.celular
-                                        ? <span>{c.codigoPaisCelular || '+591'} {c.celular}</span>
-                                        : <span className="text-gray-400 italic">—</span>
-                                    }
-                                </td>
+
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="w-12 h-12 rounded-lg bg-white dark:bg-gray-700 border dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-sm">
                                         {c.qr_pago ? (

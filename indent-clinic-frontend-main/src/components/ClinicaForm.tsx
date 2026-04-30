@@ -27,19 +27,38 @@ interface ClinicaFormProps {
     onSaveSuccess?: () => void;
 }
 
+interface Sucursal {
+    id?: number;
+    nombre: string;
+    direccion: string;
+    horario: string;
+    telefono: string;
+    latitud?: number;
+    longitud?: number;
+    google_maps_url?: string;
+    es_principal?: boolean;
+}
+
 const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSuccess }) => {
     const { recargarClinicas } = useClinica();
     const [loading, setLoading] = useState(false);
     const [showManual, setShowManual] = useState(false);
+    const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+    const [nuevaSucursal, setNuevaSucursal] = useState<Sucursal>({ 
+        nombre: '', 
+        direccion: '', 
+        horario: '', 
+        telefono: '',
+        latitud: 0,
+        longitud: 0,
+        google_maps_url: ''
+    } as Sucursal);
+    const [showSucursalForm, setShowSucursalForm] = useState(false);
+    const [editingSucursalId, setEditingSucursalId] = useState<number | null>(null);
 
     const [form, setForm] = useState({
         nombre: '',
-        direccion: '',
-        telefono: '',
-        codigoPaisCelular: '+591',
-        celular: '',
         monedaDefault: 'Bs.',
-        horario_atencion: '',
         logo: '',
         qr_pago: '',
     });
@@ -63,29 +82,21 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                     const c = res.data;
                     setForm({
                         nombre: c.nombre || '',
-                        direccion: c.direccion || '',
-                        telefono: c.telefono || '',
-                        codigoPaisCelular: c.codigoPaisCelular || '+591',
-                        celular: c.celular || '',
                         monedaDefault: c.monedaDefault || 'Bs.',
-                        horario_atencion: c.horario_atencion || '',
                         logo: c.logo || '',
                         qr_pago: c.qr_pago || '',
                     });
+                    cargarSucursales(id as number);
                 })
                 .catch(() => {
                     Swal.fire('Error', 'No se pudo cargar la clínica', 'error');
                     onClose();
                 });
         } else {
+            setSucursales([]);
             setForm({
                 nombre: '',
-                direccion: '',
-                telefono: '',
-                codigoPaisCelular: '+591',
-                celular: '',
                 monedaDefault: 'Bs.',
-                horario_atencion: '',
                 logo: '',
                 qr_pago: '',
             });
@@ -151,6 +162,71 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
         }
     };
 
+    const cargarSucursales = async (clinicaId: number) => {
+        try {
+            const res = await api.get(`/clinicas/${clinicaId}/sucursales`);
+            setSucursales(res.data);
+        } catch (error) {
+            console.error('Error cargando sucursales:', error);
+        }
+    };
+
+    const handleSaveSucursal = async () => {
+        if (!nuevaSucursal.nombre.trim()) {
+            Swal.fire('Aviso', 'El nombre de la sucursal es obligatorio', 'warning');
+            return;
+        }
+        try {
+            if (editingSucursalId) {
+                await api.patch(`/clinicas/sucursales/${editingSucursalId}`, nuevaSucursal);
+            } else {
+                await api.post(`/clinicas/${id}/sucursales`, nuevaSucursal);
+            }
+            cargarSucursales(id as number);
+            setShowSucursalForm(false);
+            setNuevaSucursal({ 
+                nombre: '', 
+                direccion: '', 
+                horario: '', 
+                telefono: '',
+                latitud: 0,
+                longitud: 0,
+                google_maps_url: ''
+            } as Sucursal);
+            setEditingSucursalId(null);
+            Swal.fire({ icon: 'success', title: 'Sucursal guardada', showConfirmButton: false, timer: 1000 });
+        } catch (error) {
+            Swal.fire('Error', 'No se pudo guardar la sucursal', 'error');
+        }
+    };
+
+    const handleEditSucursal = (s: Sucursal) => {
+        setNuevaSucursal(s);
+        setEditingSucursalId(s.id || null);
+        setShowSucursalForm(true);
+    };
+
+    const handleDeleteSucursal = async (sucursalId: number) => {
+        const result = await Swal.fire({
+            title: '¿Eliminar sucursal?',
+            text: 'Esta acción no se puede deshacer',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                await api.delete(`/clinicas/sucursales/${sucursalId}`);
+                cargarSucursales(id as number);
+                Swal.fire('Eliminado', 'La sucursal ha sido eliminada', 'success');
+            } catch (error) {
+                Swal.fire('Error', 'No se pudo eliminar la sucursal', 'error');
+            }
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -178,10 +254,10 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
 
                     <form onSubmit={handleSubmit}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            {/* Nombre */}
-                            <div>
+                            {/* Nombre de la Clínica */}
+                            <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Nombre
+                                    Nombre de la Clínica / Empresa
                                 </label>
                                 <div className="relative">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -192,90 +268,12 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                                         name="nombre"
                                         value={form.nombre}
                                         onChange={handleChange}
-                                        required
                                         className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 pr-3 pl-10 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         placeholder="Ej: Clínica Norte"
-
                                     />
                                 </div>
                             </div>
-                            {/* Dirección */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Dirección
-                                </label>
-                                <div className="relative">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                    <input
-                                        type="text"
-                                        name="direccion"
-                                        value={form.direccion}
-                                        onChange={handleChange}
-                                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 pr-3 pl-10 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Ej: Av. Principal #123..."
 
-                                    />
-                                </div>
-                            </div>
-                            {/* Teléfono */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Teléfono fijo
-                                </label>
-                                <div className="relative">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                    </svg>
-                                    <input
-                                        type="text"
-                                        name="telefono"
-                                        value={form.telefono}
-                                        onChange={handleChange}
-                                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 pr-3 pl-10 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Ej: 4-440000"
-
-                                    />
-                                </div>
-                            </div>
-                            {/* Celular con código de país */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Celular
-                                </label>
-                                <div className="flex gap-2">
-                                    <select
-                                        name="codigoPaisCelular"
-                                        value={form.codigoPaisCelular}
-                                        onChange={handleChange}
-                                        className="py-2 px-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="" disabled>-- Seleccione --</option>
-                                        {CODIGOS_PAIS.map(p => (
-                                            <option key={p.code} value={p.code}>
-                                                {p.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="relative flex-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
-                                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                                            <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                                        </svg>
-                                        <input
-                                            type="text"
-                                            name="celular"
-                                            value={form.celular}
-                                            onChange={handleChange}
-                                            className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 transition-colors"
-                                            placeholder="Ej: 70012345"
-
-                                        />
-                                    </div>
-                                </div>
-                            </div>
                             {/* Moneda Default */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -292,34 +290,217 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                                         onChange={handleChange}
                                         className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 pr-3 pl-10 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                                     >
-                                        <option value="Bs.">Bolivianos</option>
-                                        <option value="USD">Dólares</option>
+                                        <option value="Bs.">Bolivianos (Bs.)</option>
+                                        <option value="USD">Dólares (USD)</option>
                                     </select>
-                                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                    </div>
                                 </div>
                             </div>
-                            {/* Horario Atención */}
+
+                            {/* QR Pago */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Horario de Atención
+                                    Enlace QR Pago (Opcional)
                                 </label>
                                 <div className="relative">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                                     </svg>
                                     <input
                                         type="text"
-                                        name="horario_atencion"
-                                        value={form.horario_atencion}
+                                        name="qr_pago"
+                                        value={form.qr_pago}
                                         onChange={handleChange}
                                         className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 pr-3 pl-10 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Ej: Lunes a Viernes de 08:00 a 18:00"
+                                        placeholder="URL de imagen QR o enlace..."
                                     />
                                 </div>
                             </div>
                         </div>
+
+                        {/* Gestión de Sucursales (Solo en edición) */}
+                        {id && (
+                            <div className="mb-8 border-t dark:border-gray-700 pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                        Sucursales
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setNuevaSucursal({ 
+                                                nombre: '', 
+                                                direccion: '', 
+                                                horario: '', 
+                                                telefono: '',
+                                                latitud: 0,
+                                                longitud: 0,
+                                                google_maps_url: ''
+                                            } as Sucursal);
+                                            setEditingSucursalId(null);
+                                            setShowSucursalForm(true);
+                                        }}
+                                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-4 rounded-lg flex items-center gap-1.5 transform hover:-translate-y-0.5 transition-all shadow-md active:scale-95"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                        </svg>
+                                        Añadir Sucursal
+                                    </button>
+                                </div>
+
+                                {showSucursalForm && (
+                                    <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl mb-4 border border-blue-100 dark:border-blue-900/30 animate-fade-in">
+                                        <h4 className="text-sm font-bold mb-3 text-blue-600 dark:text-blue-400">
+                                            {editingSucursalId ? 'Editar Sucursal' : 'Nueva Sucursal'}
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                            <input
+                                                type="text"
+                                                placeholder="Nombre sucursal (Ej: San Miguel)"
+                                                value={nuevaSucursal.nombre}
+                                                onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, nombre: e.target.value })}
+                                                className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <input
+                                                type="text"
+                                                placeholder="Teléfono"
+                                                value={nuevaSucursal.telefono}
+                                                onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, telefono: e.target.value })}
+                                                className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <input
+                                                type="text"
+                                                placeholder="Dirección completa"
+                                                value={nuevaSucursal.direccion}
+                                                onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, direccion: e.target.value })}
+                                                className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
+                                            />
+                                            <input
+                                                type="text"
+                                                placeholder="Horario de atención"
+                                                value={nuevaSucursal.horario}
+                                                onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, horario: e.target.value })}
+                                                className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
+                                            />
+                                            {/* Campos de Ubicación */}
+                                            <div className="md:col-span-2 grid grid-cols-2 gap-3 mt-1">
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">LAT</span>
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        placeholder="Latitud"
+                                                        value={nuevaSucursal.latitud || ''}
+                                                        onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, latitud: parseFloat(e.target.value) })}
+                                                        className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded-lg py-2 pl-10 pr-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">LNG</span>
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        placeholder="Longitud"
+                                                        value={nuevaSucursal.longitud || ''}
+                                                        onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, longitud: parseFloat(e.target.value) })}
+                                                        className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded-lg py-2 pl-10 pr-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    placeholder="URL Google Maps (Opcional)"
+                                                    value={nuevaSucursal.google_maps_url || ''}
+                                                    onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, google_maps_url: e.target.value })}
+                                                    className="w-full text-[10px] border border-gray-300 dark:border-gray-600 rounded-lg py-1.5 px-3 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 md:col-span-2"
+                                                />
+                                                <div className="md:col-span-2 flex items-center gap-2 mt-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="es_principal"
+                                                        checked={nuevaSucursal.es_principal || false}
+                                                        onChange={(e) => setNuevaSucursal({ ...nuevaSucursal, es_principal: e.target.checked })}
+                                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                    />
+                                                    <label htmlFor="es_principal" className="text-xs font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
+                                                        Marcar como Sede Principal
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSucursalForm(false)}
+                                                className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-4 py-1.5 rounded-lg font-semibold transform hover:-translate-y-0.5 transition-all hover:bg-gray-300 dark:hover:bg-gray-600 shadow-sm active:scale-95"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveSucursal}
+                                                className="text-xs bg-blue-600 text-white px-5 py-1.5 rounded-lg font-bold transform hover:-translate-y-0.5 transition-all hover:bg-blue-700 shadow-md active:scale-95"
+                                            >
+                                                {editingSucursalId ? 'Actualizar' : 'Añadir'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-2">
+                                    {sucursales.length === 0 ? (
+                                        <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                                            No hay sucursales registradas aún.
+                                        </p>
+                                    ) : (
+                                        sucursales.map(s => (
+                                            <div key={s.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl hover:shadow-md transition-all group">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-bold text-gray-800 dark:text-white">{s.nombre}</p>
+                                                            {s.es_principal && (
+                                                                <span className="text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Principal</span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-500 dark:text-gray-400">{s.direccion}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 transition-all">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleEditSucursal(s)}
+                                                        className="p-2.5 bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-500 dark:hover:text-white rounded-xl transition-all shadow-sm border border-blue-200 dark:border-blue-800 active:scale-90 group/btn"
+                                                        title="Editar Sucursal"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transform group-hover/btn:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteSucursal(s.id!)}
+                                                        className="p-2.5 bg-red-100 text-red-700 hover:bg-red-600 hover:text-white dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-500 dark:hover:text-white rounded-xl transition-all shadow-sm border border-red-200 dark:border-red-800 active:scale-90 group/btn"
+                                                        title="Eliminar Sucursal"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transform group-hover/btn:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Logo Upload */}
                         <div className="mb-4">

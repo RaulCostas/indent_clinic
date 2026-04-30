@@ -144,6 +144,7 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                         <Field label="Estado Civil" value={paciente.estado_civil} />
                                         <Field label="C.I. / Documento" value={(paciente as any).ci} />
                                         <Field label="Seguro Médico" value={paciente.seguro_medico} />
+                                        <Field label="Vencimiento Seguro" value={paciente.fecha_vencimiento ? formatDate(paciente.fecha_vencimiento) : undefined} />
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Estado</span>
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold w-fit mt-0.5 ${

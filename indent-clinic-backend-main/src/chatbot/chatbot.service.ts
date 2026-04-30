@@ -9,6 +9,7 @@ import * as QRCode from 'qrcode';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Clinica } from '../clinicas/entities/clinica.entity';
+import { Sucursal } from '../clinicas/entities/sucursal.entity';
 import { PacientesService } from '../pacientes/pacientes.service';
 import { DoctorsService } from '../doctors/doctors.service';
 import { AgendaService } from '../agenda/agenda.service';
@@ -38,7 +39,7 @@ interface SessionState {
     intentionalDisconnect: boolean;
     initializationStartTime: number | null;
     initializationTimeout: NodeJS.Timeout | null;
-    userSessions: Map<string, { type: 'new' | 'registered' | 'waiting_cancellation_reason' | 'waiting_agenda_response', timestamp: number, citaId?: number }>;
+    userSessions: Map<string, { type: 'new' | 'registered' | 'waiting_cancellation_reason' | 'waiting_agenda_response' | 'waiting_branch_selection', timestamp: number, citaId?: number, branchAction?: 'DIRECCION' | 'HORARIO' }>;
     pollStore: Map<string, { message: any, citaId: number }>;
 }
 
@@ -63,6 +64,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         private readonly personalService: PersonalService,
         @InjectRepository(WhatsappSession)
         private readonly whatsappSessionRepository: Repository<WhatsappSession>,
+        @InjectRepository(Sucursal)
+        private readonly sucursalRepository: Repository<Sucursal>,
     ) { }
 
     private getSessionKey(clinicId: number, instance: number): string {
@@ -228,8 +231,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     const isLoggedOut = statusCode === DisconnectReason.loggedOut;
                     const isQrExpired = errorMsg.toLowerCase().includes('qr refs attempts') ||
                                         errorMsg.toLowerCase().includes('qr ref') ||
-                                        statusCode === 408 || // Connection Timed Out waiting for QR
-                                        statusCode === 515;   // Stream error / restart required
+                                        (statusCode === 408 && session.status === 'qr'); // Connection Timed Out waiting for QR
 
                     const shouldReconnect = !isLoggedOut && !isQrExpired;
 
@@ -477,253 +479,269 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     }
 
     async handleMessage(msg: any, clinicId: number, instance: number = 1) {
-        const session = this.getSession(clinicId, instance);
-        let remoteJid = msg.key?.remoteJid;
+        try {
+            const session = this.getSession(clinicId, instance);
+            let remoteJid = msg.key?.remoteJid;
 
-        // NEW: Normalize JID if the message comes from a Linked Device (@lid)
-        if (remoteJid?.endsWith('@lid') && msg.key.remoteJidAlt && msg.key.remoteJidAlt.endsWith('@s.whatsapp.net')) {
-            console.log(`[Chatbot] [Clinic ${clinicId}] Normalized @lid incoming message to: ${msg.key.remoteJidAlt}`);
-            remoteJid = msg.key.remoteJidAlt;
-        }
+            // NEW: Normalize JID if the message comes from a Linked Device (@lid)
+            if (remoteJid?.endsWith('@lid') && msg.key.remoteJidAlt && msg.key.remoteJidAlt.endsWith('@s.whatsapp.net')) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Normalized @lid incoming message to: ${msg.key.remoteJidAlt}`);
+                remoteJid = msg.key.remoteJidAlt;
+            }
 
-        if (!remoteJid) {
-            console.log(`[Chatbot] [Clinic ${clinicId}] No remoteJid found, skipping.`);
-            return;
-        }
-
-        let senderJid = msg.key.participant || remoteJid;
-
-        if (senderJid.endsWith('@lid') && msg.key.remoteJidAlt && msg.key.remoteJidAlt.endsWith('@s.whatsapp.net')) {
-            console.log(`[Chatbot] [Clinic ${clinicId}] Detected @lid JID (${senderJid}), falling back to remoteJidAlt: ${msg.key.remoteJidAlt}`);
-            senderJid = msg.key.remoteJidAlt;
-        }
-
-        const phonePart = senderJid.split('@')[0];
-        const phone = phonePart.split(':')[0];
-        const isGroup = remoteJid.endsWith('@g.us');
-
-        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-        const normalizedText = text.toLowerCase();
-
-        console.log(`[Chatbot] [Clinic ${clinicId}] New message from ${senderJid} in ${remoteJid}: "${text}"`);
-
-        // ─── PRIORIDAD 1: Sesiones de espera activas ─────
-        const currentSession = session.userSessions.get(remoteJid);
-
-        if (currentSession && currentSession.type === 'waiting_agenda_response' && currentSession.citaId) {
-            const respuesta = normalizedText.trim();
-
-            // Reconocer letra A / emoji ✅ / palabras de confirmación
-            const esConfirmar = respuesta === 'a' ||
-                respuesta.includes('✅') ||
-                respuesta.includes('si') || respuesta.includes('sí') ||
-                respuesta.includes('confirmo') || respuesta.includes('confirmar') ||
-                respuesta.includes('confirmed') || respuesta.includes('ok') ||
-                respuesta.includes('dale') || respuesta.includes('bueno') ||
-                respuesta.includes('perfecto');
-
-            // Reconocer letra B / emoji ❌ / palabras de cancelación
-            const esCancelar = respuesta === 'b' ||
-                respuesta.includes('❌') || respuesta.includes('🚫') ||
-                respuesta.includes('cancelar') || respuesta.includes('cancelo') ||
-                respuesta.includes('no puedo') || respuesta.includes('no voy') ||
-                respuesta.includes('cancel');
-
-            // Reconocer letra C / emoji 🔄 / palabras de reprogramación
-            const esReprogramar = respuesta === 'c' ||
-                respuesta.includes('🔄') || respuesta.includes('📅') ||
-                respuesta.includes('reprogramar') || respuesta.includes('reprogramo') ||
-                respuesta.includes('cambiar') || respuesta.includes('cambio') ||
-                respuesta.includes('otro dia') || respuesta.includes('otra fecha');
-
-            if (esConfirmar) {
-                try {
-                    await this.agendaService.update(currentSession.citaId, { estado: 'confirmado' } as any);
-                    await this.sendMessage(remoteJid, '¡Gracias! Tu cita ha sido confirmada satisfactoriamente. ✅', clinicId, instance);
-                } catch (err) {
-                    await this.sendMessage(remoteJid, 'Ocurrió un error al confirmar tu cita. Por favor, contáctanos directamente.', clinicId, instance);
-                }
-                session.userSessions.delete(remoteJid);
-                return;
-            } else if (esCancelar) {
-                try {
-                    await this.agendaService.update(currentSession.citaId, { estado: 'cancelado' } as any);
-                    await this.sendMessage(remoteJid, 'Por favor, comuníquese con la Clínica para agendar su cita en otra fecha y horario', clinicId, instance);
-                } catch (err) { }
-                session.userSessions.delete(remoteJid);
-                return;
-            } else if (esReprogramar) {
-                try {
-                    await this.agendaService.update(currentSession.citaId, { estado: 'cancelado', observacion: 'Paciente pidió reprogramar su cita' } as any);
-                } catch (err) {
-                    console.error('[Chatbot] Error updating cita to cancelado for reprogramar:', err);
-                }
-                await this.sendMessage(remoteJid, 'Por favor, comuníquese con la Clínica para agendar su cita en otra fecha y horario', clinicId, instance);
-                session.userSessions.delete(remoteJid);
-                return;
-            } else {
-                await this.sendMessage(remoteJid, 'Por favor responde *A (o ✅)* para confirmar, *B (o ❌)* para cancelar o *C (o 🔄)* para reprogramar tu cita.', clinicId, instance);
+            if (!remoteJid) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] No remoteJid found, skipping.`);
                 return;
             }
-        }
 
+            let senderJid = msg.key.participant || remoteJid;
 
-
-        // ─── PRIORIDAD 2: Detener si es un grupo ──────────────────────────────────
-        if (isGroup) return;
-
-        // ─── PRIORIDAD 3: Intents y lógica regular ────────────────────────────────
-        const intents = await this.intentosService.findAllActive();
-        let matchedIntent: ChatbotIntento | null = null;
-
-        let bestMatchKeyword = '';
-
-        for (const intent of intents) {
-            const keywords = intent.keywords.toLowerCase().split(',').map(k => k.trim());
-            const matchedKeyword = keywords.find(k => {
-                const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${safeK}\\b`, 'i');
-                return regex.test(normalizedText);
-            });
-
-            if (matchedKeyword && matchedKeyword.length > bestMatchKeyword.length) {
-                bestMatchKeyword = matchedKeyword;
-                matchedIntent = intent;
+            if (senderJid.endsWith('@lid') && msg.key.remoteJidAlt && msg.key.remoteJidAlt.endsWith('@s.whatsapp.net')) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Detected @lid JID (${senderJid}), falling back to remoteJidAlt: ${msg.key.remoteJidAlt}`);
+                senderJid = msg.key.remoteJidAlt;
             }
-        }
 
-        let actor: any = null;
-        let isDoctor = false;
+            const phonePart = senderJid.split('@')[0];
+            const phone = phonePart.split(':')[0];
+            const isGroup = remoteJid.endsWith('@g.us');
 
-        const phoneVariations = [
-            phone,
-            phone.startsWith('591') ? phone.substring(3) : '591' + phone,
-            '+' + phone,
-            phone.startsWith('591') ? '+' + phone : '+591' + phone
-        ];
+            const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+            const normalizedText = text.toLowerCase();
 
-        if (matchedIntent?.target === 'USUARIO') {
-            for (const p of phoneVariations) {
-                actor = await this.doctorsService.findByCelular(p);
-                if (actor) { isDoctor = true; break; }
+            // Extra normalization for JID to avoid multi-device conflicts
+            if (remoteJid && !remoteJid.endsWith('@g.us') && !remoteJid.endsWith('@lid')) {
+                remoteJid = remoteJid.split('@')[0].split(':')[0] + '@s.whatsapp.net';
             }
-            if (!actor) {
+
+            console.log(`[Chatbot] [Clinic ${clinicId}] New message from ${senderJid} in ${remoteJid}: "${text}"`);
+
+            const phoneVariations = [
+                phone,
+                phone.startsWith('591') ? phone.substring(3) : '591' + phone,
+                '+' + phone,
+                phone.startsWith('591') ? '+' + phone : '+591' + phone
+            ];
+
+            let actor: any = null;
+            let isDoctor = false;
+
+            try {
+                // Búsqueda inicial de actor (paciente o personal) con protección de error
                 for (const p of phoneVariations) {
-                    actor = await this.personalService.findByCelular(p);
-                    if (actor) break;
+                    actor = await this.doctorsService.findByCelular(p);
+                    if (actor) { isDoctor = true; break; }
+                }
+                if (!actor) {
+                    for (const p of phoneVariations) {
+                        actor = await this.personalService.findByCelular(p);
+                        if (actor) break;
+                    }
+                }
+                if (!actor) {
+                    for (const p of phoneVariations) {
+                        actor = await this.pacientesService.findByCelular(p);
+                        if (actor) break;
+                    }
+                }
+            } catch (identError) {
+                console.error(`[Chatbot] [Clinic ${clinicId}] Error identifying user ${senderJid}:`, identError);
+            }
+
+            // Detectar si es un saludo o comando de reinicio para limpiar sesiones trabadas
+            const esSaludo = /^(hola|buenos|buenas|menu|menú|inicio|comenzar|reset|reiniciar|o\?|hola\?)$/i.test(normalizedText.trim());
+            if (esSaludo) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Greeting detected from ${remoteJid}. Resetting session.`);
+                session.userSessions.delete(remoteJid);
+                await this.sendMenu(remoteJid, actor, clinicId, instance);
+                return;
+            }
+
+            // ─── PRIORIDAD 1: Sesiones de espera activas (Recuperar estado fresco) ─────
+            const freshSession = session.userSessions.get(remoteJid);
+            
+            if (freshSession && freshSession.type === 'waiting_agenda_response' && freshSession.citaId) {
+                const respuesta = normalizedText.trim();
+
+                // Reconocer letra A / emoji ✅ / palabras de confirmación
+                const esConfirmar = /^(a|✅)$/i.test(respuesta) || 
+                    respuesta.startsWith('a ') || respuesta.startsWith('a\n') ||
+                    /\b(si|sí|confirmo|confirmar|ok|dale|bueno|perfecto)\b/i.test(respuesta) ||
+                    respuesta.includes('✅');
+
+                // Reconocer letra B / emoji ❌ / palabras de cancelación
+                const esCancelar = /^(b|❌|🚫)$/i.test(respuesta) || 
+                    respuesta.startsWith('b ') || respuesta.startsWith('b\n') ||
+                    /\b(cancelar|cancelo|cancel)\b/i.test(respuesta) ||
+                    respuesta.includes('no puedo') || respuesta.includes('no voy') ||
+                    respuesta.includes('❌') || respuesta.includes('🚫');
+
+                // Reconocer letra C / emoji 🔄 / palabras de reprogramación
+                const esReprogramar = /^(c|🔄|📅)$/i.test(respuesta) || 
+                    respuesta.startsWith('c ') || respuesta.startsWith('c\n') ||
+                    /\b(reprogramar|reprogramo|cambiar|cambio)\b/i.test(respuesta) ||
+                    respuesta.includes('otro dia') || respuesta.includes('otra fecha') ||
+                    respuesta.includes('🔄') || respuesta.includes('📅');
+
+                if (esConfirmar) {
+                    try {
+                        await this.agendaService.update(freshSession.citaId, { estado: 'confirmado' } as any);
+                        await this.sendMessage(remoteJid, '¡Gracias! Tu cita ha sido confirmada satisfactoriamente. ✅', clinicId, instance);
+                    } catch (err) {
+                        await this.sendMessage(remoteJid, 'Ocurrió un error al confirmar tu cita. Por favor, contáctanos directamente.', clinicId, instance);
+                    }
+                    session.userSessions.delete(remoteJid);
+                    return;
+                } else if (esCancelar) {
+                    try {
+                        await this.agendaService.update(freshSession.citaId, { estado: 'cancelado' } as any);
+                        await this.sendMessage(remoteJid, 'Por favor, comuníquese con la Clínica para agendar su cita en otra fecha y horario', clinicId, instance);
+                    } catch (err) { }
+                    session.userSessions.delete(remoteJid);
+                    return;
+                } else if (esReprogramar) {
+                    try {
+                        await this.agendaService.update(freshSession.citaId, { estado: 'cancelado', observacion: 'Paciente pidió reprogramar su cita' } as any);
+                    } catch (err) {
+                        console.error('[Chatbot] Error updating cita to cancelado for reprogramar:', err);
+                    }
+                    await this.sendMessage(remoteJid, 'Por favor, comuníquese con la Clínica para agendar su cita en otra fecha y horario', clinicId, instance);
+                    session.userSessions.delete(remoteJid);
+                    return;
+                } else {
+                    await this.sendMessage(remoteJid, 'Por favor responde con una letra:\n*A* Confirmar Cita\n*B* Cancelar Cita\n*C* Deseo reprogramar', clinicId, instance);
+                    return;
                 }
             }
-            if (!actor) {
+
+            if (freshSession && freshSession.type === 'waiting_branch_selection') {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Processing branch selection for ${remoteJid}. Action: ${freshSession.branchAction}`);
+                const sucursales = await this.sucursalRepository.find({ where: { clinicaId: clinicId } });
+                const choice = normalizedText.trim();
+                const index = parseInt(choice) - 1;
+
+                if (!isNaN(index) && index >= 0 && index < sucursales.length) {
+                    const s = sucursales[index];
+                    const action = freshSession.branchAction;
+                    if (action === 'DIRECCION') {
+                        await this.sendMessage(remoteJid, `Nuestra sucursal *${s.nombre}* se encuentra en:\n📍 ${s.direccion}`, clinicId, instance);
+                        if (s.latitud && s.longitud) {
+                            await this.sendLocation(remoteJid, Number(s.latitud), Number(s.longitud), s.nombre, s.direccion, clinicId, instance);
+                        }
+                    } else {
+                        await this.sendMessage(remoteJid, `El horario de atención de nuestra sucursal *${s.nombre}* es:\n⏰ ${s.horario}`, clinicId, instance);
+                    }
+                    session.userSessions.delete(remoteJid);
+                } else {
+                    await this.sendMessage(remoteJid, "Opción no válida. Por favor responde con el número de la sucursal.", clinicId, instance);
+                }
+                return;
+            }
+
+            // ─── PRIORIDAD 2: Detener si es un grupo ──────────────────────────────────
+            if (isGroup) return;
+
+            // ─── PRIORIDAD 3: Intents y lógica regular ────────────────────────────────
+            const intents = await this.intentosService.findAllActive();
+            let matchedIntent: ChatbotIntento | null = null;
+
+            let bestMatchKeyword = '';
+
+            for (const intent of intents) {
+                const keywords = intent.keywords.toLowerCase().split(',').map(k => k.trim());
+                const matchedKeyword = keywords.find(k => {
+                    const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(`\\b${safeK}\\b`, 'i');
+                    return regex.test(normalizedText);
+                });
+
+                if (matchedKeyword && matchedKeyword.length > bestMatchKeyword.length) {
+                    bestMatchKeyword = matchedKeyword;
+                    matchedIntent = intent;
+                }
+            }
+
+            if (matchedIntent?.target === 'USUARIO' && !isDoctor && !actor) {
                 await this.sendMessage(remoteJid, 'Lo siento, esta función está reservada para el personal de la clínica.', clinicId, instance);
                 return;
             }
-        } else {
-            for (const p of phoneVariations) {
-                actor = await this.pacientesService.findByCelular(p);
-                if (actor) break;
+
+            const options = ['a', 'b', 'c', '1', '2', '3'];
+            const isOption = options.includes(normalizedText);
+            const menuType = freshSession?.type;
+
+            if (isOption && freshSession && (menuType === 'new' || menuType === 'registered')) {
+                if (Date.now() - freshSession.timestamp < 300000) {
+                    await this.handleMenuOption(remoteJid, normalizedText, actor, menuType as 'new' | 'registered', clinicId, instance);
+                    return;
+                } else {
+                    session.userSessions.delete(remoteJid);
+                }
             }
-        }
 
-        const menuSession = session.userSessions.get(remoteJid);
-        const options = ['a', 'b', 'c', '1', '2', '3'];
-        const isOption = options.includes(normalizedText);
-
-        if (isOption && menuSession && (menuSession.type === 'new' || menuSession.type === 'registered')) {
-            if (Date.now() - menuSession.timestamp < 300000) {
-                await this.handleMenuOption(remoteJid, normalizedText, actor, menuSession.type as 'new' | 'registered', clinicId, instance);
-                return;
-            } else {
-                session.userSessions.delete(remoteJid);
-            }
-        }
-
-        if (matchedIntent) {
-            try {
-                switch (matchedIntent.action) {
-                    case 'MENU_PRINCIPAL' as any:
-                        await this.sendMenu(remoteJid, actor, clinicId, instance);
-                        break;
-                    case 'CONSULTAR_SALDO':
-                        if (!isDoctor) {
-                            if (!actor) {
-                                break;
-                            } else {
-                                await this.executeConsultarSaldo(actor, remoteJid, clinicId, instance);
-                            }
-                        }
-                        break;
-                    case 'CONSULTAR_CITA':
-                        if (!actor) {
+            if (matchedIntent) {
+                try {
+                    switch (matchedIntent.action) {
+                        case 'MENU_PRINCIPAL' as any:
+                            await this.sendMenu(remoteJid, actor, clinicId, instance);
                             break;
-                        }
-                        if (isDoctor) {
-                            await this.checkDoctorAppointments(actor, remoteJid, clinicId, instance);
-                        } else {
-                            await this.checkAppointments(actor, remoteJid, clinicId, instance);
-                        }
-                        break;
-                    case 'CONSULTAR_CITA_HOY':
-                        if (isDoctor && actor) {
-                            await this.checkDoctorAppointmentsToday(actor, remoteJid, clinicId, instance);
-                        }
-                        break;
-                    case 'TEXTO_LIBRE':
-                        if (matchedIntent.replyTemplate) {
-                            await this.sendMessage(remoteJid, matchedIntent.replyTemplate, clinicId, instance);
-                        }
-                        break;
-                    case 'CONSULTAR_PRESUPUESTO':
-                        if (!isDoctor) {
+                        case 'CONSULTAR_SALDO':
+                            if (!isDoctor) {
+                                if (!actor) {
+                                    break;
+                                } else {
+                                    await this.executeConsultarSaldo(actor, remoteJid, clinicId, instance);
+                                }
+                            }
+                            break;
+                        case 'CONSULTAR_CITA':
                             if (!actor) {
                                 break;
-                            } else {
-                                await this.executeConsultarPresupuesto(actor, remoteJid, clinicId, instance);
                             }
-                        }
-                        break;
-                    case 'CONSULTAR_DIRECCION':
-                        const cliDir = await this.clinicaRepository.findOne({ where: { id: clinicId } });
-                        const direccionTxt = cliDir?.direccion || 'la Av. Principal #123';
-                        await this.sendMessage(remoteJid, `Nos encontramos en: ${direccionTxt}`, clinicId, instance);
-                        await this.sendLocation(remoteJid, -16.541344, -68.080647, cliDir?.nombre || 'Clínica', direccionTxt, clinicId, instance);
-                        break;
-                    case 'CONSULTAR_HORARIO':
-                        const cli = await this.clinicaRepository.findOne({ where: { id: clinicId } });
-                        const horarioConfig = cli?.horario_atencion || 'de Lunes a Viernes de 8:00 a 18:00';
-                        await this.sendMessage(remoteJid, `Nuestro horario de atención es ${horarioConfig}.`, clinicId, instance);
-                        break;
-                    case 'CONSULTAR_INVENTARIO' as any:
-                        await this.handleConsultarInventario(remoteJid, normalizedText, clinicId, instance);
-                        break;
-                }
-            } catch (error: any) {
-                // Log the full error with stack so we can diagnose in production
-                console.error(`[Chatbot] Error processing intent "${matchedIntent.action}" for ${remoteJid}:`, error?.message || error);
-                console.error(`[Chatbot] Stack:`, error?.stack || '(no stack)');
-
-                // Don't send the error message if the error is infrastructure-related
-                // (e.g. WhatsApp disconnected, DB connection lost) — only for actual logic errors
-                const isInfraError = (
-                    error?.message?.includes('no está conectado') ||
-                    error?.message?.includes('Not connected') ||
-                    error?.message?.includes('ECONNREFUSED') ||
-                    error?.message?.includes('ETIMEDOUT') ||
-                    error?.code === 'ECONNREFUSED'
-                );
-
-                if (!isInfraError) {
-                    try {
-                        // Deactivated by request: No error message sent to patient
-                        // await this.sendMessage(remoteJid, 'Lo siento, ocurrió un error al procesar tu solicitud.', clinicId, instance);
-                    } catch (sendErr: any) {
-                        console.error(`[Chatbot] Also failed to send error message to ${remoteJid}:`, sendErr?.message);
+                            if (isDoctor) {
+                                await this.checkDoctorAppointments(actor, remoteJid, clinicId, instance);
+                            } else {
+                                await this.checkAppointments(actor, remoteJid, clinicId, instance);
+                            }
+                            break;
+                        case 'CONSULTAR_CITA_HOY':
+                            if (isDoctor && actor) {
+                                await this.checkDoctorAppointmentsToday(actor, remoteJid, clinicId, instance);
+                            }
+                            break;
+                        case 'TEXTO_LIBRE':
+                            if (matchedIntent.replyTemplate) {
+                                await this.sendMessage(remoteJid, matchedIntent.replyTemplate, clinicId, instance);
+                            }
+                            break;
+                        case 'CONSULTAR_PRESUPUESTO':
+                            if (!isDoctor) {
+                                if (!actor) {
+                                    break;
+                                } else {
+                                    await this.executeConsultarPresupuesto(actor, remoteJid, clinicId, instance);
+                                }
+                            }
+                            break;
+                        case 'CONSULTAR_DIRECCION':
+                            await this.handleBranchInfoRequest(remoteJid, 'DIRECCION', clinicId, instance);
+                            break;
+                        case 'CONSULTAR_HORARIO':
+                            await this.handleBranchInfoRequest(remoteJid, 'HORARIO', clinicId, instance);
+                            break;
+                        case 'CONSULTAR_INVENTARIO' as any:
+                            await this.handleConsultarInventario(remoteJid, normalizedText, clinicId, instance);
+                            break;
                     }
+                } catch (error: any) {
+                    console.error(`[Chatbot] Error processing intent "${matchedIntent.action}" for ${remoteJid}:`, error?.message || error);
+                }
+            } else {
+                if (actor && !isDoctor && (normalizedText.includes('cita') || normalizedText.includes('cuando') || normalizedText.includes('agend'))) {
+                    await this.checkAppointments(actor, remoteJid, clinicId, instance);
                 }
             }
-        } else {
-            if (actor && !isDoctor && (normalizedText.includes('cita') || normalizedText.includes('cuando') || normalizedText.includes('agend'))) {
-                await this.checkAppointments(actor, remoteJid, clinicId, instance);
-            }
+        } catch (globalError) {
+            console.error(`[Chatbot] [Clinic ${clinicId}] CRITICAL ERROR in handleMessage:`, globalError);
         }
     }
 
@@ -755,8 +773,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 `Por favor, responde con el número de la opción que desees.`;
         }
 
-        await this.sendMessage(remoteJid, message, clinicId, instance);
         session.userSessions.set(remoteJid, { type: menuType, timestamp: Date.now() });
+        await this.sendMessage(remoteJid, message, clinicId, instance);
     }
 
     async handleMenuOption(remoteJid: string, option: string, actor: any, type: 'new' | 'registered', clinicId: number, instance: number = 1) {
@@ -765,16 +783,11 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
         switch (opt) {
             case 'A':
-                const clinicaDirOpt = await this.clinicaRepository.findOne({ where: { id: clinicId } });
-                const dir = clinicaDirOpt?.direccion || 'la Av. Principal #123';
-                await this.sendMessage(remoteJid, `Nos encontramos en: ${dir}`, clinicId, instance);
-                await this.sendLocation(remoteJid, -16.541344, -68.080647, clinicaDirOpt?.nombre || 'Clínica', dir, clinicId, instance);
-                break;
+                await this.handleBranchInfoRequest(remoteJid, 'DIRECCION', clinicId, instance);
+                return;
             case 'B':
-                const clinicaOpt = await this.clinicaRepository.findOne({ where: { id: clinicId } });
-                const hor = clinicaOpt?.horario_atencion || 'de Lunes a Viernes de 8:00 a 18:00';
-                await this.sendMessage(remoteJid, `Nuestro horario de atención es ${hor}.`, clinicId, instance);
-                break;
+                await this.handleBranchInfoRequest(remoteJid, 'HORARIO', clinicId, instance);
+                return;
             case '1':
                 if (type === 'registered') {
                     await this.checkAppointments(actor, remoteJid, clinicId, instance);
@@ -1114,7 +1127,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         const session = this.getSession(clinicId, instance);
         const clinica = await this.clinicaRepository.findOne({ where: { id: clinicId } });
         const nomClinica = clinica?.nombre || 'la Clínica';
-        const menuTexto = `${mensajeIntro}\n\nPor favor responde con *una letra*:\n*A* Confirmar Cita\n*B* Cancelar Cita\n*C* Deseo reprogramar\n\n⚠️ IMPORTANTE:\n- Si presenta resfrío o una enfermedad de riesgo no podremos brindarle la atención para evitar contagios del personal de la clínica y pacientes en general. Para ello deberá informar y se reprogramará la cita cuando se haya recuperado.\n\n📌 Por favor guarda nuestro número para recibir tus recordatorios.`;
+        const menuTexto = `${mensajeIntro}\n\nPor favor responde con una letra:\n*A* Confirmar Cita\n*B* Cancelar Cita\n*C* Deseo reprogramar\n\n⚠️ IMPORTANTE: - Si presenta resfrío o una enfermedad de riesgo no podremos brindarle la atención para evitar contagios del personal de la clínica y pacientes en general. Para ello deberá informar y se reprogramará la cita cuando se haya recuperado.\n\n📌 Por favor guarda nuestro número para recibir tus recordatorios.`;
         await this.sendMessage(jid, menuTexto, clinicId, instance);
         session.userSessions.set(jid, {
             type: 'waiting_agenda_response' as any,
@@ -1305,5 +1318,46 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         }
 
         return { success: true, message: 'Mensaje enviado correctamente' };
+    }
+
+    private async handleBranchInfoRequest(remoteJid: string, action: 'DIRECCION' | 'HORARIO', clinicId: number, instance: number = 1) {
+        const session = this.getSession(clinicId, instance);
+        const sucursales = await this.sucursalRepository.find({ where: { clinicaId: clinicId } });
+
+        if (sucursales.length === 0) {
+            if (action === 'DIRECCION') {
+                await this.sendMessage(remoteJid, `Por el momento no tenemos sucursales registradas.`, clinicId, instance);
+            } else {
+                await this.sendMessage(remoteJid, `Consulte nuestro horario directamente con nuestro personal.`, clinicId, instance);
+            }
+            return;
+        }
+
+        if (sucursales.length === 1) {
+            const s = sucursales[0];
+            if (action === 'DIRECCION') {
+                await this.sendMessage(remoteJid, `Nuestra sucursal *${s.nombre}* se encuentra en:\n📍 ${s.direccion}`, clinicId, instance);
+                if (s.latitud && s.longitud) {
+                    await this.sendLocation(remoteJid, Number(s.latitud), Number(s.longitud), s.nombre, s.direccion, clinicId, instance);
+                }
+            } else {
+                await this.sendMessage(remoteJid, `El horario de atención de nuestra sucursal *${s.nombre}* es:\n⏰ ${s.horario}`, clinicId, instance);
+            }
+            return;
+        }
+
+        let menu = `Contamos con ${sucursales.length} sucursales. ¿De cuál deseas consultar la *${action === 'DIRECCION' ? 'dirección' : 'horario'}*?\n\n`;
+        sucursales.forEach((s, i) => {
+            menu += `*${i + 1}* ${s.nombre}\n`;
+        });
+        menu += `\nResponde con el número de la sucursal.`;
+
+        console.log(`[Chatbot] [Clinic ${clinicId}] Setting waiting_branch_selection for ${remoteJid}`);
+        session.userSessions.set(remoteJid, {
+            type: 'waiting_branch_selection',
+            timestamp: Date.now(),
+            branchAction: action
+        });
+        await this.sendMessage(remoteJid, menu, clinicId, instance);
     }
 }

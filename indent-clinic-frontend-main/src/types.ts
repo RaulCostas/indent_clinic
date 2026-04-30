@@ -9,6 +9,19 @@ export interface Clinica {
     logo?: string;
 }
 
+export interface Sucursal {
+    id: number;
+    nombre: string;
+    direccion: string;
+    horario: string;
+    telefono: string;
+    latitud?: number;
+    longitud?: number;
+    google_maps_url?: string;
+    es_principal?: boolean;
+    clinicaId?: number;
+}
+
 export interface SeguimientoTrabajo {
     id: number;
     envio_retorno: 'Envio' | 'Retorno';
@@ -231,6 +244,7 @@ export interface Paciente {
     sexo: string;
     seguro_medico: string;
     poliza: string;
+    fecha_vencimiento?: string;
     recomendado: string;
     responsable: string;
     parentesco: string;
@@ -374,7 +388,8 @@ export interface Agenda {
     estado: string;
     tratamiento?: string;
     observacion?: string;
-    sucursal?: string;
+    sucursalId?: number;
+    sucursal?: Sucursal;
     motivoCancelacion?: string;
     doctorDerivaId?: number;
     doctorDeriva?: Doctor;

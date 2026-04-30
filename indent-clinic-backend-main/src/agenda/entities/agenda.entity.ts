@@ -4,6 +4,7 @@ import { Doctor } from '../../doctors/entities/doctor.entity';
 import { Proforma } from '../../proformas/entities/proforma.entity';
 import { User } from '../../users/entities/user.entity';
 import { Clinica } from '../../clinicas/entities/clinica.entity';
+import { Sucursal } from '../../clinicas/entities/sucursal.entity';
 
 @Entity('agenda')
 export class Agenda {
@@ -67,8 +68,12 @@ export class Agenda {
     @Column({ type: 'text', nullable: true })
     motivoCancelacion: string;
 
-    @Column({ type: 'varchar', length: 100, nullable: true })
-    sucursal: string;
+    @Column({ nullable: true })
+    sucursalId: number;
+
+    @ManyToOne(() => Sucursal, { nullable: true })
+    @JoinColumn({ name: 'sucursalId' })
+    sucursal: Sucursal;
 
     @Column({ type: 'boolean', default: false })
     recordatorioEnviado: boolean;

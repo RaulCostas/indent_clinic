@@ -18,10 +18,11 @@ import { WhatsappSession } from './entities/whatsapp-session.entity';
 import { PersonalModule } from '../personal/personal.module';
 
 import { Clinica } from '../clinicas/entities/clinica.entity';
+import { Sucursal } from '../clinicas/entities/sucursal.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([ChatbotIntento, Clinica, WhatsappSession]),
+        TypeOrmModule.forFeature([ChatbotIntento, Clinica, Sucursal, WhatsappSession]),
         PacientesModule,
         forwardRef(() => AgendaModule),
         PagosModule,

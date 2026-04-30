@@ -52,6 +52,7 @@ const PublicPacienteForm: React.FC = () => {
         parentesco: '',
         direccion_responsable: '',
         telefono_responsable: '',
+        fecha_vencimiento: '',
 
         ci: '',
         lugar_residencia: '',
@@ -419,7 +420,7 @@ const PublicPacienteForm: React.FC = () => {
                     <legend className="font-bold px-2 text-gray-600">Datos Personales</legend>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Paterno:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Paterno: <span className="text-red-500">*</span></label>
                              <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -443,7 +444,7 @@ const PublicPacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Nombre:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Nombre: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -455,7 +456,7 @@ const PublicPacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Fecha Nacimiento:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Fecha Nacimiento: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -467,7 +468,7 @@ const PublicPacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Sexo:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Sexo: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
                                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -483,7 +484,7 @@ const PublicPacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Estado Civil:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Estado Civil: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
                                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -511,7 +512,7 @@ const PublicPacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Seguro:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Seguro: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
                                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
@@ -548,6 +549,18 @@ const PublicPacienteForm: React.FC = () => {
                                         <option value="PRIVADO">PRIVADO</option>
                                     )}
                                 </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Vencimiento Seguro:</label>
+                            <div className="relative">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                                <input type="date" name="fecha_vencimiento" value={formData.fecha_vencimiento} onChange={handleChange} className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             </div>
                         </div>
                     </div>

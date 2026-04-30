@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, Logger, BadRequestException, OnModuleIni
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Clinica } from './entities/clinica.entity';
+import { Sucursal } from './entities/sucursal.entity';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
 import { UpdateClinicaDto } from './dto/update-clinica.dto';
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
@@ -20,6 +21,8 @@ export class ClinicasService {
     constructor(
         @InjectRepository(Clinica)
         private clinicasRepository: Repository<Clinica>,
+        @InjectRepository(Sucursal)
+        private sucursalRepository: Repository<Sucursal>,
         private readonly storageService: SupabaseStorageService,
     ) { }
     
@@ -67,7 +70,10 @@ export class ClinicasService {
     }
 
     findAll(): Promise<Clinica[]> {
-        return this.clinicasRepository.find({ order: { nombre: 'ASC' } });
+        return this.clinicasRepository.find({ 
+            order: { nombre: 'ASC' },
+            relations: ['sucursales']
+        });
     }
 
     async findOne(id: number): Promise<Clinica> {
@@ -127,5 +133,42 @@ export class ClinicasService {
         const clinica = await this.findOne(id);
         clinica.activo = false;
         await this.clinicasRepository.save(clinica);
+    }
+
+    // --- Sucursales Methods ---
+
+    async findSucursales(clinicaId: number): Promise<Sucursal[]> {
+        return this.sucursalRepository.find({ 
+            where: { clinicaId },
+            order: { nombre: 'ASC' }
+        });
+    }
+
+    async findOneSucursal(id: number): Promise<Sucursal> {
+        const sucursal = await this.sucursalRepository.findOne({ where: { id } });
+        if (!sucursal) throw new NotFoundException(`Sucursal #${id} no encontrada`);
+        return sucursal;
+    }
+
+    async createSucursal(clinicaId: number, data: any): Promise<Sucursal> {
+        if (data.es_principal) {
+            await this.sucursalRepository.update({ clinicaId }, { es_principal: false });
+        }
+        const sucursal = this.sucursalRepository.create({ ...data, clinicaId } as Partial<Sucursal>);
+        return this.sucursalRepository.save(sucursal);
+    }
+
+    async updateSucursal(id: number, data: any): Promise<Sucursal> {
+        const sucursal = await this.findOneSucursal(id);
+        if (data.es_principal) {
+            await this.sucursalRepository.update({ clinicaId: sucursal.clinicaId }, { es_principal: false });
+        }
+        Object.assign(sucursal, data);
+        return this.sucursalRepository.save(sucursal);
+    }
+
+    async removeSucursal(id: number): Promise<void> {
+        const sucursal = await this.findOneSucursal(id);
+        await this.sucursalRepository.remove(sucursal);
     }
 }

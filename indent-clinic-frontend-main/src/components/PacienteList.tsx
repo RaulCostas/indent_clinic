@@ -209,6 +209,7 @@ const PacienteList: React.FC = () => {
                 'Fecha de nacimiento': formatDate(p.fecha_nacimiento),
                 Celular: p.celular,
                 Seguro: p.seguro_medico || '-',
+                'Vencimiento Seguro': p.fecha_vencimiento ? formatDate(p.fecha_vencimiento) : '-',
                 Direccion: p.direccion || '-',
                 Correo: p.email || '-',
                 Estado: p.estado === 'activo' ? 'Activo' : 'Inactivo'
@@ -242,12 +243,13 @@ const PacienteList: React.FC = () => {
 
             const doc = new jsPDF();
             doc.text("Lista de Pacientes", 20, 10);
-            const tableColumn = ["Paciente", "Fecha de nacimiento", "Celular", "Seguro", "Dirección", "Correo", "Estado"];
+            const tableColumn = ["Paciente", "Fecha de nacimiento", "Celular", "Seguro", "Venc. Seguro", "Dirección", "Correo", "Estado"];
             const tableRows = allPacientes.map((p: any) => [
                 `${p.paterno} ${p.materno} ${p.nombre}`,
                 formatDate(p.fecha_nacimiento),
                 p.celular,
                 p.seguro_medico || '-',
+                p.fecha_vencimiento ? formatDate(p.fecha_vencimiento) : '-',
                 p.direccion || '-',
                 p.email || '-',
                 p.estado === 'activo' ? 'Activo' : 'Inactivo'
@@ -690,6 +692,7 @@ const PacienteList: React.FC = () => {
                                 <div class="field"><span class="label">Estado Civil</span><div class="value">${fullPaciente.estado_civil}</div></div>
                                 <div class="field"><span class="label">Carnet Identidad</span><div class="value">${(fullPaciente as any).ci || '-'}</div></div>
                                 <div class="field"><span class="label">Seguro Médico / Póliza</span><div class="value">${fullPaciente.seguro_medico || '-'} ${fullPaciente.poliza ? `(${fullPaciente.poliza})` : ''}</div></div>
+                                <div class="field"><span class="label">Vencimiento Seguro</span><div class="value">${fullPaciente.fecha_vencimiento ? formatDate(fullPaciente.fecha_vencimiento) : '-'}</div></div>
                             </div>
 
                             <h2 style="margin-top: 15px;">Contacto</h2>

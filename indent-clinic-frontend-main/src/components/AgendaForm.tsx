@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { Agenda, Paciente, Doctor, Proforma } from '../types';
+import type { Agenda, Paciente, Doctor, Proforma, Sucursal } from '../types';
+import { formatDate } from '../utils/dateUtils';
 
 interface AgendaFormProps {
     isOpen: boolean;
@@ -32,6 +33,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
     const [tratamientos, setTratamientos] = useState<any[]>([]);
     const [isQuickPatientOpen, setIsQuickPatientOpen] = useState(false);
     const [isNonPatientEvent, setIsNonPatientEvent] = useState(false);
+    const [sucursales, setSucursales] = useState<Sucursal[]>([]);
 
     const [formData, setFormData] = useState({
         fecha: defaultDate,
@@ -46,7 +48,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
         motivoCancelacion: '',
         clinicaId: defaultClinicaId || clinicaSeleccionada || 0,
         observacion: '',
-        sucursal: 'San Miguel',
+        sucursalId: 0,
         doctorDerivaId: 0
     });
 
@@ -166,7 +168,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 tratamiento: '',
                 motivoCancelacion: '',
                 observacion: '',
-                sucursal: 'San Miguel',
+                sucursalId: 0,
                 doctorDerivaId: 0
             }));
             setIsNonPatientEvent(false);
@@ -179,8 +181,8 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
     }, [isOpen, initialData, defaultDate, defaultTime, defaultConsultorio, defaultClinicaId, clinicaSeleccionada, defaultPacienteId]);
 
     useEffect(() => {
-        fetchCatalogs();
-    }, [clinicaSeleccionada]);
+        fetchCatalogs(formData.clinicaId);
+    }, [formData.clinicaId]);
 
     useEffect(() => {
         if (initialData) {
@@ -197,7 +199,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 motivoCancelacion: initialData.motivoCancelacion || '',
                 clinicaId: initialData.clinicaId || clinicaSeleccionada || 0,
                 observacion: initialData.observacion || '',
-                sucursal: initialData.sucursal || '',
+                sucursalId: initialData.sucursalId || 0,
                 doctorDerivaId: initialData.doctorDerivaId || 0
             });
 
@@ -222,7 +224,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 tratamiento: '',
                 clinicaId: clinicaSeleccionada || 0,
                 observacion: '',
-                sucursal: 'San Miguel'
+                sucursalId: 0
             }));
             if (defaultPacienteId && defaultPacienteId > 0) {
                 fetchProformasByPaciente(defaultPacienteId);
@@ -235,20 +237,32 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
         }
     }, [initialData, clinicaSeleccionada, defaultPacienteId]);
 
-    const fetchCatalogs = async () => {
+    const fetchCatalogs = async (targetClinicaId?: number) => {
         try {
-            const patientsUrl = clinicaSeleccionada 
-                ? `/pacientes?limit=1000&clinicaId=${clinicaSeleccionada}&estado=activo` 
+            const currentClinicaId = targetClinicaId || formData.clinicaId || clinicaSeleccionada;
+            const patientsUrl = currentClinicaId 
+                ? `/pacientes?limit=1000&clinicaId=${currentClinicaId}&estado=activo` 
                 : '/pacientes?limit=1000&estado=activo';
             
-            const [doctorsRes, pacientesRes] = await Promise.all([
+            const [doctorsRes, pacientesRes, sucursalesRes] = await Promise.all([
                 api.get('/doctors?limit=1000'),
-                api.get(patientsUrl)
+                api.get(patientsUrl),
+                currentClinicaId ? api.get(`/clinicas/${currentClinicaId}/sucursales`) : Promise.resolve({ data: [] })
             ]);
             const activeDoctors = (doctorsRes.data.data || []).filter((doctor: any) => doctor.estado === 'activo');
             const activePatients = (pacientesRes.data.data || []); // Status filter is now in API
+            const fetchedSucursales = sucursalesRes.data || [];
+            setSucursales(fetchedSucursales);
             setDoctors(activeDoctors);
             setPacientes(activePatients);
+
+            // Auto-select principal branch if it's a new appointment and no branch is selected yet
+            if (!initialData && fetchedSucursales.length > 0) {
+                const principal = fetchedSucursales.find((s: any) => s.es_principal);
+                if (principal) {
+                    setFormData(prev => ({ ...prev, sucursalId: principal.id }));
+                }
+            }
         } catch (error) {
             console.error('Error fetching catalogs:', error);
         }
@@ -397,6 +411,18 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 icon: 'warning',
                 title: 'Campo Requerido',
                 text: 'Por favor ingrese una descripción para el evento',
+                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+            });
+            return;
+        }
+
+        // Validate sucursal
+        if (!formData.sucursalId || formData.sucursalId <= 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campo Requerido',
+                text: 'Por favor seleccione una sucursal',
                 background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
                 color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
             });
@@ -566,15 +592,17 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                                     <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
                                 </svg>
                                 <select
-                                    name="sucursal"
-                                    value={formData.sucursal}
+                                    name="sucursalId"
+                                    value={formData.sucursalId}
                                     onChange={handleChange}
                                     disabled={isRestricted}
+                                    required
                                     className="w-full pl-9 p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none disabled:opacity-75 disabled:cursor-not-allowed"
                                 >
-                                    <option value="">-- Seleccione Sucursal --</option>
-                                    <option value="Av. Arce">Av. Arce</option>
-                                    <option value="San Miguel">San Miguel</option>
+                                    <option value={0} disabled>-- Seleccione Sucursal --</option>
+                                    {sucursales.map(s => (
+                                        <option key={s.id} value={s.id}>{s.nombre} {s.es_principal ? '(PRINCIPAL)' : ''}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
@@ -657,11 +685,17 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                                 <label className="block mb-1 font-bold text-sm">Paciente:</label>
                                 <div className="flex gap-2.5">
                                     <SearchableSelect
-                                        options={pacientes.map(p => ({
-                                            id: p.id,
-                                            label: `${p.nombre} ${p.paterno} ${p.materno}`.trim(),
-                                            subLabel: p.celular ? `Cel: ${p.celular}` : undefined
-                                        }))}
+                                        options={pacientes.map(p => {
+                                            const cel = p.celular || '';
+                                            const match = cel.match(/^(\+\d{1,3})(\d+)$/);
+                                            const formattedCel = match ? `(${match[1]})${match[2]}` : cel;
+                                            
+                                            return {
+                                                id: p.id,
+                                                label: `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
+                                                subLabel: `Cel: ${formattedCel}${p.fecha_vencimiento ? ` | Venc: ${formatDate(p.fecha_vencimiento)}` : ''}`
+                                            };
+                                        })}
                                         value={formData.pacienteId}
                                         disabled={isRestricted}
                                         onChange={(val) => {

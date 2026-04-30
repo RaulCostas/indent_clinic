@@ -81,10 +81,11 @@ export class AgendaService {
 
             const jid = `${celular}@s.whatsapp.net`;
             const horaStr = cita.hora ? cita.hora.substring(0, 5) : 'la hora acordada';
-            const nombrePaciente = [cita.paciente.nombre, cita.paciente.paterno, cita.paciente.materno].filter(Boolean).join(' ');
-            const nomClinica = cita.clinica?.nombre || 'el Centro Odontológico';
+            const nombrePaciente = [cita.paciente.nombre, cita.paciente.paterno, cita.paciente.materno].filter(Boolean).join(' ').trim();
+            const nomClinica = (cita.clinica?.nombre || 'Selec Dental').trim();
+            const sucursalNombre = (cita.sucursal?.nombre || cita.clinica?.nombre || 'nuestra clínica').trim();
 
-            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana a las *${horaStr}*.`;
+            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana:\n\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
 
             await this.chatbotService.sendAgendaMenu(
                 jid,
@@ -123,10 +124,11 @@ export class AgendaService {
 
                 const jid = `${celular}@s.whatsapp.net`;
                 const horaStr = cita.hora ? cita.hora.substring(0, 5) : 'la hora acordada';
-                const nombrePaciente = [cita.paciente.nombre, cita.paciente.paterno, cita.paciente.materno].filter(Boolean).join(' ');
-                const nomClinica = cita.clinica?.nombre || 'el Centro Odontológico';
+                const nombrePaciente = [cita.paciente.nombre, cita.paciente.paterno, cita.paciente.materno].filter(Boolean).join(' ').trim();
+                const nomClinica = (cita.clinica?.nombre || 'Selec Dental').trim();
+                const sucursalNombre = (cita.sucursal?.nombre || cita.clinica?.nombre || 'nuestra clínica').trim();
 
-                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana a las *${horaStr}*.\n\n📌 Hola, somos ${nomClinica}, por favor guarda nuestro número para recibir tus recordatorios.`;
+                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana:\n\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
 
                 await this.chatbotService.sendAgendaMenu(
                     jid,
@@ -273,6 +275,7 @@ export class AgendaService {
             .leftJoinAndSelect('agenda.doctor', 'doctor')
             .leftJoinAndSelect('agenda.proforma', 'proforma')
             .leftJoinAndSelect('agenda.clinica', 'clinica')
+            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
             .leftJoinAndSelect('agenda.usuario', 'usuario')
             .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
             .where("agenda.estado != 'eliminado'"); // Filter out deleted
@@ -317,7 +320,7 @@ export class AgendaService {
     async findAllByPaciente(pacienteId: number): Promise<Agenda[]> {
         return await this.agendaRepository.find({
             where: { pacienteId }, // Return all history for this patient
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva'],
+            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva', 'sucursal'],
             order: { fecha: 'DESC', hora: 'ASC' }
         });
     }
@@ -325,7 +328,7 @@ export class AgendaService {
     async findOne(id: number): Promise<Agenda> {
         const cita = await this.agendaRepository.findOne({
             where: { id },
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva']
+            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva', 'sucursal', 'clinica']
         });
         if (!cita) {
             throw new NotFoundException(`Cita #${id} not found`);
@@ -373,6 +376,11 @@ export class AgendaService {
             (cita as any).doctorDeriva = null;
         }
 
+        if (updateDto.sucursalId !== undefined && (updateDto as any).sucursalId !== cita.sucursalId) {
+            console.log(`[AgendaService] Sucursal change detected: ${cita.sucursalId} -> ${(updateDto as any).sucursalId}. Clearing relation object.`);
+            (cita as any).sucursal = null;
+        }
+
         this.agendaRepository.merge(cita, updateDto);
         const saved = await this.agendaRepository.save(cita);
         console.log(`[AgendaService] Appointment #${id} saved. New clinicaId:`, saved.clinicaId, 'New pacienteId:', saved.pacienteId);
@@ -395,7 +403,7 @@ export class AgendaService {
                 doctorId, 
                 estado: In(['agendado', 'confirmado', 'sala de espera'])
             } as any,
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'clinica', 'doctorDeriva'],
+            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'clinica', 'doctorDeriva', 'sucursal'],
             order: { fecha: 'ASC', hora: 'ASC' }
         });
     }

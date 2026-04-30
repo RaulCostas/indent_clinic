@@ -174,7 +174,6 @@ const PacientePerfil: React.FC = () => {
                                 {paciente.fecha_nacimiento && <span>🎂 {calcEdad(paciente.fecha_nacimiento)}</span>}
                                 {paciente.celular && (() => {
                                     const cel = paciente.celular;
-                                    // Match country code (+591, +54, +1, etc.) followed by the local number
                                     const match = cel.match(/^(\+\d{1,3})(\d+)$/);
                                     const formatted = match ? `(${match[1]}) ${match[2]}` : cel;
                                     return <span>📱 {formatted}</span>;
@@ -185,8 +184,13 @@ const PacientePerfil: React.FC = () => {
                                         🏥 {paciente.seguro_medico}
                                     </span>
                                 )}
+                                {paciente.fecha_vencimiento && (
+                                    <span className="px-2 py-0.5 bg-white/20 rounded-full font-bold">
+                                        📅 Vence: {new Date(paciente.fecha_vencimiento).toLocaleDateString()}
+                                    </span>
+                                )}
                                 <span className={`px-2 py-0.5 rounded-full font-bold ${
-                                    paciente.estado === 'activo' ? 'bg-emerald-500/30' : 'bg-red-500/30'
+                                    paciente.estado === 'activo' ? 'bg-emerald-500/30 text-emerald-300' : 'bg-red-500/30 text-red-300'
                                 }`}>
                                     {paciente.estado === 'activo' ? '● Activo' : '● Inactivo'}
                                 </span>

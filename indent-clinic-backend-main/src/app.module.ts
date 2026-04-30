@@ -109,6 +109,7 @@ import { FirmasModule } from './firmas/firmas.module';
 import { FirmaDigital } from './firmas/entities/firma-digital.entity';
 import { ClinicasModule } from './clinicas/clinicas.module';
 import { Clinica } from './clinicas/entities/clinica.entity';
+import { Sucursal } from './clinicas/entities/sucursal.entity';
 import { StorageModule } from './common/storage/storage.module';
 import { WhatsappSession } from './chatbot/entities/whatsapp-session.entity';
 import { OtrosIngresosModule } from './otros-ingresos/otros-ingresos.module';
@@ -193,6 +194,7 @@ import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-prod
         Contacto,
         FirmaDigital,
         Clinica,
+        Sucursal,
         WhatsappSession,
         OtrosIngresos,
         ProductoComercial,

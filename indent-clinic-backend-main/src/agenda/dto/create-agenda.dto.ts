@@ -51,8 +51,8 @@ export class CreateAgendaDto {
     observacion?: string;
 
     @IsOptional()
-    @IsString()
-    sucursal?: string;
+    @IsNumber()
+    sucursalId?: number;
 
     @IsOptional()
     @IsNumber()

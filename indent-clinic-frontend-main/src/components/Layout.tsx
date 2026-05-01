@@ -115,7 +115,7 @@ const Layout: React.FC = () => {
     };
 
     // --- LOGICA DE BLOQUEO DE CLINICA ---
-    const isTodasLasClinicas = clinicaSeleccionada === null || clinicaSeleccionada === undefined || clinicaSeleccionada === '';
+    const isTodasLasClinicas = clinicaSeleccionada === null || clinicaSeleccionada === undefined;
     
     // Lista de rutas donde sí se permite visualizar globalmente "Todas las clínicas"
     const allowedGlobalRoutes = [

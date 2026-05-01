@@ -102,6 +102,9 @@ export class HistoriaClinica {
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
 
+    @OneToMany('PagosDetalleDoctores', (p: any) => p.historiaClinica)
+    pagosDetalleDoctores: any[];
+
     @CreateDateColumn()
     createdAt: Date;
 

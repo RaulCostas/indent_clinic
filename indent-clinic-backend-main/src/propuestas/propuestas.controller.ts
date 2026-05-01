@@ -15,9 +15,9 @@ export class PropuestasController {
     @Post(':id/convertir')
     convertToProforma(
         @Param('id') id: string,
-        @Body() body: { letra: string, usuarioId: number }
+        @Body() body: { letra: string, usuarioId: number, clinicaId?: number }
     ) {
-        return this.propuestasService.convertToProforma(+id, body.letra, body.usuarioId);
+        return this.propuestasService.convertToProforma(+id, body.letra, body.usuarioId, body.clinicaId);
     }
 
     @Get()

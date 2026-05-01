@@ -14,6 +14,7 @@ import * as path from 'path';
 import { HistoriaClinica } from '../historia_clinica/entities/historia_clinica.entity';
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 import { getBoliviaDate } from '../common/utils/date.utils';
+import { Paciente } from '../pacientes/entities/paciente.entity';
 
 @Injectable()
 export class ProformasService {
@@ -50,6 +51,11 @@ export class ProformasService {
       proforma.usuarioId = createProformaDto.usuarioId;
       proforma.numero = nextNumero;
       proforma.nota = createProformaDto.nota || '';
+      
+      // Get patient to find their clinic if not provided
+      const patient = await queryRunner.manager.findOne(Paciente as any, { where: { id: proforma.pacienteId } });
+      proforma.clinicaId = createProformaDto.clinicaId || (patient as any)?.clinicaId || null;
+
       // Use provided fecha or default to current date
       proforma.fecha = createProformaDto.fecha
         ? createProformaDto.fecha.split('T')[0]
@@ -57,8 +63,6 @@ export class ProformasService {
 
       // Totals calculation
       proforma.total = createProformaDto.detalles.reduce((sum, item) => item.posible ? sum : sum + Number(item.total), 0);
-
-      proforma.clinicaId = createProformaDto.clinicaId ?? null;
 
       const savedProforma = await queryRunner.manager.save(proforma);
 
@@ -115,7 +119,7 @@ export class ProformasService {
     const proformas = await this.proformaRepository.find({
       where,
       relations: ['usuario', 'detalles', 'detalles.arancel'],
-      order: { numero: 'ASC' }
+      order: { numero: 'DESC' }
     });
 
     // We need to include the estadoPresupuesto from HistoriaClinica

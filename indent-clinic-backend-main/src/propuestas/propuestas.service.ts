@@ -20,7 +20,7 @@ export class PropuestasService {
         private readonly proformasService: ProformasService,
     ) { }
 
-    async convertToProforma(id: number, letra: string, usuarioId: number) {
+    async convertToProforma(id: number, letra: string, usuarioId: number, clinicaId?: number) {
         const propuesta = await this.findOne(id);
 
         // Filter details by the selected letter (tab)
@@ -30,6 +30,9 @@ export class PropuestasService {
             throw new NotFoundException(`No hay items en la Propuesta ${letra}`);
         }
 
+        // Use passed clinicaId or proposal's clinicaId or patient's clinicaId
+        const finalClinicaId = clinicaId || propuesta.clinicaId || (propuesta.paciente ? propuesta.paciente.clinicaId : null);
+
         // Discounts are no longer used per user request
         const globalDiscountPct = 0;
         const sub_total = activeDetails.reduce((sum, d) => sum + Number(d.total), 0);
@@ -38,18 +41,19 @@ export class PropuestasService {
         const createProformaDto: CreateProformaDto = {
             pacienteId: propuesta.pacienteId,
             usuarioId: usuarioId,
+            clinicaId: finalClinicaId || undefined,
             nota: `Generado desde Propuesta #${propuesta.numero} (Opción ${letra}). ${propuesta.nota || ''}`,
             fecha: getBoliviaDate(),
-            total: total,
+            total: Number(total),
             detalles: activeDetails.map(d => ({
                 arancelId: d.arancelId,
-                precioUnitario: d.precioUnitario,
+                precioUnitario: Number(d.precioUnitario),
                 tc: 1, // Static fallback for ProformaDetalle
                 piezas: d.piezas,
                 cantidad: d.cantidad,
-                subTotal: d.total, // Static mapping for ProformaDetalle
+                subTotal: Number(d.total), // Static mapping for ProformaDetalle
                 descuento: 0, // Individual discounts are cleared in favor of the global one
-                total: d.total, // Before global discount, individual total is just subtotal
+                total: Number(d.total), // Before global discount, individual total is just subtotal
                 posible: d.posible
             }))
         };
@@ -125,7 +129,7 @@ export class PropuestasService {
         return this.propuestaRepository.find({
             where: { pacienteId },
             relations: ['usuario', 'detalles', 'detalles.arancel'],
-            order: { numero: 'ASC' }
+            order: { numero: 'DESC' }
         });
     }
 
@@ -155,6 +159,7 @@ export class PropuestasService {
             if (updatePropuestaDto.nota !== undefined) propuesta.nota = updatePropuestaDto.nota;
             if (updatePropuestaDto.fecha) propuesta.fecha = updatePropuestaDto.fecha.split('T')[0];
             if (updatePropuestaDto.usuarioId) propuesta.usuarioId = updatePropuestaDto.usuarioId;
+            if (updatePropuestaDto.clinicaId !== undefined) propuesta.clinicaId = updatePropuestaDto.clinicaId;
 
 
             // Recalculate total if details are provided

@@ -388,16 +388,23 @@ export class HistoriaClinicaService {
         console.log(`[PAGOS_REBALANCE][${timestamp}] >>> INICIO REBALANCEO SMART FIFO <<< Proforma #${proformaId}`);
         
         try {
-            // 1. Obtener los recursos (Efectivo Global y Descuentos Vinculados)
+            // 1. Obtener los recursos (Efectivo Específico y Descuentos)
             const pagosDeProforma = await this.pagoRepository.find({
                 where: { proformaId }
             });
 
+            const directCash: Map<number, number> = new Map();
             let globalCashPool = 0;
             const directDiscounts: Map<number | string, number> = new Map();
 
             pagosDeProforma.forEach(p => {
-                globalCashPool += Number(p.monto || 0);
+                const amount = Number(p.monto || 0);
+                if (p.historiaClinicaId) {
+                    directCash.set(p.historiaClinicaId, (directCash.get(p.historiaClinicaId) || 0) + amount);
+                } else {
+                    globalCashPool += amount;
+                }
+
                 if (Number(p.descuento || 0) > 0) {
                     const key = p.historiaClinicaId || 'global';
                     directDiscounts.set(key, (directDiscounts.get(key) || 0) + Number(p.descuento));
@@ -439,13 +446,25 @@ export class HistoriaClinicaService {
                     globalDiscountPool -= extra;
                 }
 
-                // C. APLICAR EFECTIVO GLOBAL
+                // C. APLICAR PAGOS DIRECTOS Y EFECTIVO GLOBAL
                 let costRemaining = basePrice - groupDiscount;
-                let appliedCash = 0;
+                
+                // Sumamos pagos directos vinculados a CUALQUIER seguimiento de este grupo
+                let groupDirectCash = 0;
+                items.forEach(t => {
+                    groupDirectCash += (directCash.get(t.id) || 0);
+                });
+
+                // 1. Prioridad: Dinero que entró por botones de este tratamiento
+                let appliedDirect = Math.min(costRemaining, groupDirectCash);
+                costRemaining -= appliedDirect;
+
+                // 2. Secundario: Dinero del pozo global (pagos sin HC vinculado)
+                let appliedGlobal = 0;
                 if (costRemaining > 0 && globalCashPool > 0) {
-                    appliedCash = Math.min(costRemaining, globalCashPool);
-                    globalCashPool -= appliedCash;
-                    costRemaining -= appliedCash;
+                    appliedGlobal = Math.min(costRemaining, globalCashPool);
+                    globalCashPool -= appliedGlobal;
+                    costRemaining -= appliedGlobal;
                 }
 
                 const isCancelado = costRemaining <= 0.05;
@@ -460,7 +479,7 @@ export class HistoriaClinicaService {
                     });
                 }
                 
-                console.log(`[PAGOS_REBALANCE] Grupo ${key}: Base ${basePrice}, Desc ${groupDiscount}, Pagado ${appliedCash}, Cancelado: ${isCancelado}`);
+                console.log(`[PAGOS_REBALANCE] Grupo ${key}: Base ${basePrice}, Desc ${groupDiscount}, Directo ${appliedDirect}, Global ${appliedGlobal}, Cancelado: ${isCancelado}`);
             }
             console.log(`[PAGOS_REBALANCE][${timestamp}] >>> FIN REBALANCEO EXITOSO <<<`);
         } catch (error) {

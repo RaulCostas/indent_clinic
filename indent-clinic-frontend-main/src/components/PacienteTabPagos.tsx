@@ -19,6 +19,8 @@ const PacienteTabPagos: React.FC = () => {
     const [proformas, setProformas] = useState<Proforma[]>([]);
     const [historias, setHistorias] = useState<HistoriaClinica[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const [isModalPagoOpen, setIsModalPagoOpen] = useState(false);
     const [selectedProformaId, setSelectedProformaId] = useState<number | null>(null);
@@ -124,6 +126,13 @@ const PacienteTabPagos: React.FC = () => {
 
         pagos.forEach(p => {
             const monto = Number(p.monto);
+            // 1. Prioridad: Pagos vinculados específicamente a un ID de historia clínica
+            if (p.historiaClinicaId) {
+                const numId = Number(p.historiaClinicaId);
+                explicitPaidMap[numId] = (explicitPaidMap[numId] || 0) + monto;
+                return;
+            }
+
             if ((p as any).historiaClinicaIds && (p as any).historiaClinicaIds.length > 0) {
                 let ids: string[] = [];
                 if (Array.isArray((p as any).historiaClinicaIds)) ids = (p as any).historiaClinicaIds.map(String);
@@ -458,6 +467,17 @@ const PacienteTabPagos: React.FC = () => {
         return result;
     }, [pagos, historias]);
 
+    const totalPages = Math.ceil(flatTableRows.length / itemsPerPage);
+    const paginatedRows = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return flatTableRows.slice(start, start + itemsPerPage);
+    }, [flatTableRows, currentPage, itemsPerPage]);
+
+    // Reset to page 1 if data changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [flatTableRows.length]);
+
     const handlePrintSummary = () => {
         try {
             const iframe = document.createElement('iframe');
@@ -687,8 +707,9 @@ const PacienteTabPagos: React.FC = () => {
                                             #{deuda.proforma?.numero}
                                             <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white max-w-[200px] truncate" title={deuda.tratamiento.tratamiento}>
-                                            {deuda.tratamiento.tratamiento}
+                                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white max-w-[200px] truncate" title={deuda.tratamiento.tratamiento}>
+                                            <div className="font-semibold">{deuda.tratamiento.tratamiento}</div>
+                                            <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
                                         <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
                                         <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {deuda.paid.toFixed(2)}</td>
@@ -748,6 +769,7 @@ const PacienteTabPagos: React.FC = () => {
                                                     {deuda.tratamiento.estadoTratamiento.replace('_', ' ')}
                                                 </span>
                                             </div>
+                                            <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
                                         <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
                                         <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {deuda.paid.toFixed(2)}</td>
@@ -785,8 +807,14 @@ const PacienteTabPagos: React.FC = () => {
                     <p className="text-gray-500 dark:text-gray-400 font-medium">Sin pagos registrados para este paciente</p>
                 </div>
             ) : (
-                <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <>
+                    <div className="flex justify-between items-center mb-3">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                            Mostrando {Math.min(flatTableRows.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(flatTableRows.length, currentPage * itemsPerPage)} de {flatTableRows.length} registros
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
                                 {['Fecha', 'Plan', 'Tratamiento', 'Precio', 'Descuento', 'Total (Abono)', 'Forma Pago', 'Recibo', 'Factura', 'Acciones'].map(h => (
@@ -795,7 +823,7 @@ const PacienteTabPagos: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {flatTableRows.map((row) => (
+                            {paginatedRows.map((row) => (
                                 <tr key={row.rowId} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                     <td className="px-4 py-3 text-sm font-semibold text-gray-800 dark:text-gray-200">{formatDate(row.fecha)}</td>
                                     <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400">{row.proforma ? `#${row.proforma.numero}` : '—'}</td>
@@ -866,6 +894,49 @@ const PacienteTabPagos: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-2 mt-6">
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className={`p-2 rounded-lg border ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300 shadow-sm'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        
+                        <div className="flex items-center gap-1">
+                            {[...Array(totalPages)].map((_, i) => {
+                                const page = i + 1;
+                                // Simple logic to show current, first, last and neighbors
+                                if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`w-10 h-10 rounded-lg font-bold transition-all ${currentPage === page ? 'bg-blue-600 text-white shadow-md' : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'}`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                } else if (page === currentPage - 2 || page === currentPage + 2) {
+                                    return <span key={page} className="px-1">...</span>;
+                                }
+                                return null;
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            className={`p-2 rounded-lg border ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300 shadow-sm'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+                )}
+                </>
             )}
 
             <PagosForm 

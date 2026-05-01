@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { formatDate } from '../utils/dateUtils';
-import { FileText, Calendar, User, Hash, DollarSign } from 'lucide-react';
+import { FileText, Calendar, User, Hash, DollarSign, ArrowRightCircle } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import { useClinica } from '../context/ClinicaContext';
 
 interface PropuestaViewModalProps {
     isOpen: boolean;
@@ -18,9 +21,66 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
     propuestaId,
     pacienteNombre,
 }) => {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
     const [propuesta, setPropuesta] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [activeLetra, setActiveLetra] = useState<string>('A');
+    const { clinicaSeleccionada } = useClinica();
+
+    const handleConvertToBudget = async () => {
+        if (!propuestaId) return;
+
+        const result = await Swal.fire({
+            title: 'Convertir a Plan de Tratamiento',
+            text: `¿Crear un nuevo plan de tratamiento con los items de la Propuesta ${activeLetra}?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, crear',
+            cancelButtonText: 'Cancelar',
+            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+            color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const userStr = localStorage.getItem('user');
+                const usuarioId = userStr ? JSON.parse(userStr).id : 1;
+                
+                const response = await api.post(`/propuestas/${propuestaId}/convertir`, {
+                    letra: activeLetra,
+                    usuarioId: usuarioId,
+                    clinicaId: clinicaSeleccionada
+                });
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Creado!',
+                    text: 'El plan de tratamiento ha sido creado.',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                });
+
+                onClose();
+                navigate(`/pacientes/${id}/presupuestos`);
+
+            } catch (error: any) {
+                console.error('Error converting to budget:', error);
+                const errorMessage = error.response?.data?.message || 'Error al crear el plan de tratamiento';
+                Swal.fire({
+                    title: 'Error',
+                    text: errorMessage,
+                    icon: 'error',
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                });
+            }
+        }
+    };
 
     useEffect(() => {
         if (isOpen && propuestaId) {
@@ -163,8 +223,9 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
                                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                             <thead className="bg-gray-50 dark:bg-gray-700">
                                                 <tr>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tratamiento</th>
                                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pieza(s)</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Descripción</th>
                                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
                                                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">P.U.</th>
                                                     {detallesFiltrados.some((d: any) => d.descuento > 0) && (
@@ -176,8 +237,9 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
                                             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
                                                 {detallesFiltrados.map((detalle: any, i: number) => (
                                                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                                                        <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">{detalle.piezas || '—'}</td>
+                                                        <td className="px-4 py-3 text-sm text-center text-gray-500 dark:text-gray-400 font-medium">{i + 1}</td>
                                                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{detalle.arancel?.detalle || '—'}</td>
+                                                        <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">{detalle.piezas || '—'}</td>
                                                         <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300">{detalle.cantidad}</td>
                                                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{Number(detalle.precioUnitario).toFixed(2)}</td>
                                                         {detallesFiltrados.some((d: any) => d.descuento > 0) && (
@@ -243,7 +305,15 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end flex-shrink-0 bg-gray-50 dark:bg-gray-800/50">
+                <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center flex-shrink-0 bg-gray-50 dark:bg-gray-800/50">
+                    <button
+                        onClick={handleConvertToBudget}
+                        disabled={loading || !propuesta || detallesFiltrados.length === 0}
+                        className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold transition-all transform hover:-translate-y-0.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <ArrowRightCircle size={18} />
+                        Pasar a Plan de Tratamiento
+                    </button>
                     <button
                         onClick={onClose}
                         className="flex items-center gap-2 px-5 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-semibold transition-all transform hover:-translate-y-0.5 shadow-md"

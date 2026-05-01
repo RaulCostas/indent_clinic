@@ -444,7 +444,7 @@ const HistoriaClinica: React.FC = () => {
             <SeguimientoClinicoModal
                 isOpen={showSeguimientoModal}
                 onClose={() => setShowSeguimientoModal(false)}
-                historia={historia}
+                historia={filteredHistoria}
                 pacienteNombre={paciente ? `${paciente.nombre} ${paciente.paterno}` : ''}
                 proformas={proformas}
             />

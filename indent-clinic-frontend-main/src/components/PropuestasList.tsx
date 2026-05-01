@@ -8,7 +8,7 @@ import autoTable from 'jspdf-autotable';
 import { formatDateSpanish, numberToWords } from '../utils/formatters';
 import { formatDate } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
-import { Printer } from 'lucide-react';
+import { Printer, ArrowRightCircle } from 'lucide-react';
 import { useClinica } from '../context/ClinicaContext';
 import PropuestaViewModal from './PropuestaViewModal';
 
@@ -20,7 +20,7 @@ const PropuestasList: React.FC = () => {
     const [propuestas, setPropuestas] = useState<Propuesta[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [showManual, setShowManual] = useState(false);
-    const { clinicaActual } = useClinica();
+    const { clinicaActual, clinicaSeleccionada } = useClinica();
     const [showViewModal, setShowViewModal] = useState(false);
     const [selectedViewId, setSelectedViewId] = useState<number | null>(null);
 
@@ -110,6 +110,57 @@ const PropuestasList: React.FC = () => {
             });
         }
     };
+    const handleConvertToBudget = async (propuestaId: number, letra: string) => {
+        const result = await Swal.fire({
+            title: 'Convertir a Plan de Tratamiento',
+            text: `¿Crear un nuevo plan de tratamiento con los items de la Propuesta ${letra}?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, crear',
+            cancelButtonText: 'Cancelar',
+            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+            color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const userStr = localStorage.getItem('user');
+                const usuarioId = userStr ? JSON.parse(userStr).id : 1;
+                
+                const response = await api.post(`/propuestas/${propuestaId}/convertir`, {
+                    letra: letra,
+                    usuarioId: usuarioId,
+                    clinicaId: clinicaSeleccionada // Pass the current clinic filter
+                });
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Creado!',
+                    text: 'El plan de tratamiento ha sido creado.',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                });
+
+                navigate(`/pacientes/${id}/presupuestos`);
+
+            } catch (error: any) {
+                console.error('Error converting to budget:', error);
+                const errorMessage = error.response?.data?.message || 'Error al crear el plan de tratamiento';
+                Swal.fire({
+                    title: 'Error',
+                    text: errorMessage,
+                    icon: 'error',
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                });
+            }
+        }
+    };
+
 
     const generatePDF = (propuesta: Propuesta, action: 'print' | 'download', letra?: string) => {
         const doc = new jsPDF();
@@ -415,15 +466,24 @@ const PropuestasList: React.FC = () => {
                                         return (
                                             <td key={letra} className="px-5 py-4 whitespace-nowrap text-sm text-center">
                                                 {total > 0 ? (
-                                                    <div className="flex flex-col items-center gap-1">
+                                                    <div className="flex flex-col items-center gap-2">
                                                         <span className="font-bold text-gray-800 dark:text-gray-200">{total.toFixed(2)}</span>
-                                                                                                                <button
-                                                            onClick={() => generatePDF(propuesta, 'print', letra)}
-                                                            className="p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
-                                                            title={`Imprimir Opción ${letra}`}
-                                                        >
-                                                            <Printer size={18} />
-                                                        </button>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => generatePDF(propuesta, 'print', letra)}
+                                                                className="p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                                title={`Imprimir Opción ${letra}`}
+                                                            >
+                                                                <Printer size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleConvertToBudget(propuesta.id, letra)}
+                                                                className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                                title={`Pasar a Plan de Tratamiento - Opción ${letra}`}
+                                                            >
+                                                                <ArrowRightCircle size={18} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <span className="text-gray-400 dark:text-gray-600">-</span>

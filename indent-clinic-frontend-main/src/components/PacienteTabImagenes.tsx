@@ -103,8 +103,8 @@ const PacienteTabImagenes: React.FC = () => {
                         <Upload size={18} className="text-blue-500" /> Subir Imágenes — Plan #{selectedPF.numero}
                     </h2>
                     <button onClick={() => { setIsUploadingMode(false); setFilesToUpload([]); }}
-                        className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium transition-colors text-sm">
-                        Cancelar
+                        className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm">
+                        <X size={16} /> Cancelar
                     </button>
                 </div>
                 <div className="space-y-3 max-h-[50vh] overflow-y-auto">
@@ -148,7 +148,7 @@ const PacienteTabImagenes: React.FC = () => {
                 <div className="flex items-center justify-between mb-4 border-b dark:border-gray-700 pb-4">
                     <div className="flex items-center gap-3">
                         <button onClick={() => { setSelectedPF(null); setImages([]); }}
-                            className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium">
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm">
                             <ArrowLeft size={16} /> Volver a planes
                         </button>
                         <span className="text-gray-300 dark:text-gray-600">|</span>

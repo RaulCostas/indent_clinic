@@ -304,9 +304,9 @@ const PacienteImagenesModal: React.FC<PacienteImagenesModalProps> = ({ isOpen, o
                         <div className="mt-5 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-600 pt-4">
                             <button
                                 onClick={() => { setIsUploadingMode(false); setFilesToUpload([]); }}
-                                className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium transition-colors"
+                                className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm"
                             >
-                                Cancelar
+                                <X size={16} /> Cancelar
                             </button>
                             <button
                                 onClick={handleUploadAll}

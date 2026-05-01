@@ -246,7 +246,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="fecha"
                             value={formData.fecha}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                         />
                     </div>
@@ -336,7 +336,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="idprecios_laboratorios"
                             value={formData.idprecios_laboratorios}
                             onChange={handlePrecioSelect}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                             disabled={!formData.idLaboratorio}
                         ><option value={0}>Seleccione Trabajo</option>
@@ -362,7 +362,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="idHistoriaClinica"
                             value={formData.idHistoriaClinica || 0}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             disabled={!formData.idPaciente}
                         >
                             <option value={0}>Ninguno / Otros</option>
@@ -397,7 +397,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             value={formData.pieza}
                             onChange={handleChange}
                             placeholder="Ej. 11, 12..."
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                 </div>
@@ -416,7 +416,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             value={formData.cantidad}
                             onChange={handleChange}
                             placeholder="1"
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             min="1"
                         />
                     </div>
@@ -437,7 +437,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             value={formData.color}
                             onChange={handleChange}
                             placeholder="Ej: A2, B1"
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                 </div>
@@ -457,7 +457,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="fecha_pedido"
                             value={formData.fecha_pedido}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             required
                         />
                     </div>
@@ -475,7 +475,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="estado"
                             value={formData.estado}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="" disabled>-- Seleccione --</option><option value="no terminado">No Terminado</option>
                             <option value="terminado">Terminado</option>
@@ -499,7 +499,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                                 name="fecha_terminado"
                                 value={formData.fecha_terminado || ''}
                                 onChange={handleChange}
-                                className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
                     </div>
@@ -516,7 +516,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="resaltar"
                             value={formData.resaltar}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="" disabled>-- Seleccione --</option><option value="no">No</option>
                             <option value="si">Si</option>
@@ -536,7 +536,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="cita"
                             value={formData.cita}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="" disabled>-- Seleccione --</option><option value="no">No</option>
                             <option value="si">Si</option>
@@ -556,7 +556,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             name="idCubeta"
                             value={formData.idCubeta || ''}
                             onChange={handleChange}
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="">Seleccione Cubeta (Solo DENTRO)</option>
                             {cubetas.map(c => (
@@ -582,7 +582,7 @@ const TrabajosLaboratoriosForm: React.FC = () => {
                             value={formData.observacion}
                             onChange={handleChange}
                             placeholder="Ingrese una descripción..."
-                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            className="w-full border dark:border-gray-600 p-2 pl-10 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             rows={3}
                         />
                     </div>

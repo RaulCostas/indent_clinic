@@ -114,6 +114,27 @@ const Layout: React.FC = () => {
         setIsSidebarOpen(false);
     };
 
+    // --- LOGICA DE BLOQUEO DE CLINICA ---
+    const isTodasLasClinicas = clinicaSeleccionada === null || clinicaSeleccionada === undefined || clinicaSeleccionada === '';
+    
+    // Lista de rutas donde sí se permite visualizar globalmente "Todas las clínicas"
+    const allowedGlobalRoutes = [
+        '/',
+        '/agenda',
+        '/hoja-diaria',
+        '/dashboard',
+        '/reportes',
+        '/estadisticas/pacientes-nuevos'
+    ];
+
+    // Verificar si la ruta actual es permitida o empieza por alguna permitida
+    const isAllowedGlobalRoute = allowedGlobalRoutes.some(route => 
+        location.pathname === route || (route !== '/' && location.pathname.startsWith(`${route}/`))
+    );
+
+    const shouldBlock = isTodasLasClinicas && !isAllowedGlobalRoute;
+    // ------------------------------------
+
     return (
         <div className="dashboard-container">
             {/* Mobile Overlay */}
@@ -1119,8 +1140,30 @@ const Layout: React.FC = () => {
                         </div>
                     </div>
                 </header>
-                <main className="content-area">
-                    <Outlet />
+                <main className="content-area relative">
+                    {shouldBlock ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm z-50 p-6 text-center">
+                            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-lg w-full border border-red-100 dark:border-red-900/30 transform transition-all scale-100 opacity-100">
+                                <div className="w-24 h-24 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Selección de Clínica Requerida</h2>
+                                <p className="text-gray-600 dark:text-gray-300 text-lg mb-8 leading-relaxed">
+                                    Actualmente tiene seleccionada la opción <strong className="text-gray-800 dark:text-white">"Todas las clínicas"</strong>. Para visualizar o registrar datos en este módulo, debe seleccionar una clínica específica en el menú superior.
+                                </p>
+                                <div className="animate-bounce mt-2 text-blue-500 font-bold flex flex-col items-center gap-2">
+                                    <span className="text-sm uppercase tracking-wider">Seleccione arriba</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <Outlet />
+                    )}
                 </main>
             </div>
             <ChatWidget />

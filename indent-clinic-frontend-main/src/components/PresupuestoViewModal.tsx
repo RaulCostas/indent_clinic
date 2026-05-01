@@ -204,8 +204,9 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                         <thead className="bg-gray-50 dark:bg-gray-700">
                                             <tr>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tratamiento</th>
                                                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pieza(s)</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Descripción</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
                                                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">P.U.</th>
                                                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total</th>
@@ -226,8 +227,8 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                                     : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                                                         }`}
                                                     >
-                                                        <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">
-                                                            {detalle.piezas || '—'}
+                                                        <td className="px-4 py-3 text-sm text-center text-gray-500 dark:text-gray-400 font-medium">
+                                                            {i + 1}
                                                         </td>
                                                         <td className="px-4 py-3 text-sm font-medium">
                                                             <span className={completed ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-900 dark:text-white'}>
@@ -236,6 +237,9 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                             {detalle.posible && (
                                                                 <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400 italic">(posible)</span>
                                                             )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">
+                                                            {detalle.piezas || '—'}
                                                         </td>
                                                         <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300">{detalle.cantidad}</td>
                                                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{Number(detalle.precioUnitario).toFixed(2)}</td>

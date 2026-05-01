@@ -7,7 +7,7 @@ import Swal from 'sweetalert2';
 // import './Login.css'; // Removed for pure Tailwind design
 import { useChat } from '../context/ChatContext';
 import { useClinica } from '../context/ClinicaContext';
-import { Building2, Mail, Lock } from 'lucide-react';
+import { Building2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -17,6 +17,7 @@ const Login: React.FC = () => {
     const navigate = useNavigate();
     const { loginUser } = useChat();
     const { recargarClinicas } = useClinica();
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -135,13 +136,20 @@ const Login: React.FC = () => {
                                     <Lock className="h-5 w-5" strokeWidth={2} />
                                 </span>
                                 <input
-                                    type="password"
+                                    type={showPassword ? "text" : "password"}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 dark:text-white shadow-sm transition-all"
+                                    className="w-full pl-10 pr-10 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 dark:text-white shadow-sm transition-all"
                                     required
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none bg-transparent border-none shadow-none"
+                                >
+                                    {showPassword ? <EyeOff className="h-5 w-5" strokeWidth={2} /> : <Eye className="h-5 w-5" strokeWidth={2} />}
+                                </button>
                             </div>
                         </div>
 

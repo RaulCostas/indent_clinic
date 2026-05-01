@@ -61,7 +61,10 @@ const AgendaView: React.FC = () => {
     const [recordatoriosEnviadosHoy, setRecordatoriosEnviadosHoy] = useState(false);
 
     const [doctors, setDoctors] = useState<Doctor[]>([]);
-    const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+    const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(() => {
+        const saved = sessionStorage.getItem('selectedDoctorId');
+        return saved ? Number(saved) : null;
+    });
     const [isRestricted, setIsRestricted] = useState(false);
 
 
@@ -171,6 +174,14 @@ const AgendaView: React.FC = () => {
     useEffect(() => {
         fetchDoctors();
     }, []);
+
+    useEffect(() => {
+        if (selectedDoctorId !== null) {
+            sessionStorage.setItem('selectedDoctorId', selectedDoctorId.toString());
+        } else {
+            sessionStorage.removeItem('selectedDoctorId');
+        }
+    }, [selectedDoctorId]);
 
 
 

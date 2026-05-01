@@ -364,6 +364,36 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!formData.doctorId || formData.doctorId === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campo Obligatorio',
+                text: 'Debe seleccionar un Doctor para este seguimiento.',
+                confirmButtonColor: '#3085d6',
+            });
+            return;
+        }
+
+        if (!formData.diagnostico || formData.diagnostico.trim() === '') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campo Obligatorio',
+                text: 'Debe ingresar el Diagnóstico del tratamiento.',
+                confirmButtonColor: '#3085d6',
+            });
+            return;
+        }
+
+        if (!formData.observaciones || formData.observaciones.trim() === '') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campo Obligatorio',
+                text: 'Debe ingresar la Descripción/Observaciones del tratamiento realizado.',
+                confirmButtonColor: '#3085d6',
+            });
+            return;
+        }
+
         // Si intentan poner "terminado" a todo el plan
         if (formData.estadoPresupuesto === 'terminado') {
             if (formData.proformaId && currentProformaDetails.length > 0) {
@@ -593,7 +623,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
 
                     {/* Doctor */}
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Doctor</label>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Doctor <span className="text-red-500">*</span></label>
                                 <SearchableSelect
                                     options={doctors.map(d => ({
                                         id: d.id,
@@ -615,7 +645,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
 
                     {/* Diagnostico */}
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Diagnóstico</label>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Diagnóstico <span className="text-red-500">*</span></label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -631,8 +661,9 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                                 name="diagnostico"
                                 value={formData.diagnostico}
                                 onChange={handleChange}
-                                placeholder="Escriba un diagnóstico (opcional)"
+                                placeholder="Escriba un diagnóstico..."
                                 className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100"
+                                required
                             />
                         </div>
                     </div>
@@ -641,7 +672,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
 
                     {/* Descripción */}
                     <div className="md:col-span-4">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Descripción del Tratamiento Realizado</label>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Descripción del Tratamiento Realizado <span className="text-red-500">*</span></label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 pt-3 pointer-events-none">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -659,6 +690,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                                 rows={3}
                                 placeholder="Detalle observaciones o procedimientos adicionales..."
                                 className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100"
+                                required
                             />
                         </div>
                     </div>

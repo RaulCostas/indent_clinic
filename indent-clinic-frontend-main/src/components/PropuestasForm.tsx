@@ -76,18 +76,13 @@ const PropuestasForm: React.FC = () => {
         {
             title: 'Pestañas A-F',
             content: 'Use las pestañas para organizar hasta 6 propuestas diferentes. Agregue tratamientos a cada pestaña según las opciones que desea ofrecer al paciente.'
-        },
-        {
-            title: 'Pasar a Plan de Tratamiento',
-            content: 'Una vez que el paciente elija una propuesta, puede convertirla en plan de tratamiento oficial usando el botón "Pasar a Plan de Tratamiento".'
-        }];
+        }
+    ];
 
-    // State for editing an item
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
     useEffect(() => {
         if (!isClinica2 || !hasAlianza || !selectedArancelId) return;
-        // Auto-select the patient's insurance price when a treatment is selected
         if (isAlianzaGold) setTipoPrecio('gold');
         else if (isAlianzaSilver) setTipoPrecio('silver');
         else if (isAlianzaOdonto) setTipoPrecio('odontologico');
@@ -285,6 +280,7 @@ const PropuestasForm: React.FC = () => {
         try {
             const payload = {
                 pacienteId: paciente.id,
+                clinicaId: clinicaId, // Added clinicaId
                 usuarioId: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).id : 1,
                 nota,
                 letra: letraHeader,
@@ -340,54 +336,7 @@ const PropuestasForm: React.FC = () => {
         }
     };
 
-    const handleConvertToBudget = async () => {
-        if (!propuestaId) return;
 
-        const result = await Swal.fire({
-            title: 'Convertir a Plan de Tratamiento',
-            text: `¿Crear un nuevo plan de tratamiento con los items de la Propuesta ${activeTab}?`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, crear',
-            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-            color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-        });
-
-        if (result.isConfirmed) {
-            try {
-                const usuarioId = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).id : 1;
-                const response = await api.post(`/propuestas/${propuestaId}/convertir`, {
-                    letra: activeTab,
-                    usuarioId: usuarioId
-                });
-
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Creado!',
-                    text: 'El plan de tratamiento ha sido creado.',
-                    showConfirmButton: false,
-                    timer: 1500,
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-                });
-
-                navigate(`/pacientes/${id}/presupuestos/edit/${response.data.id}`);
-
-            } catch (error: any) {
-                console.error('Error converting to budget:', error);
-                const errorMessage = error.response?.data?.message || 'Error al crear el plan de tratamiento';
-                Swal.fire({
-                    title: 'Error',
-                    text: errorMessage,
-                    icon: 'error',
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-                });
-            }
-        }
-    };
 
     return (
         <div className="content-card max-w-[1400px] mx-auto text-gray-800 dark:text-white bg-white dark:bg-gray-800">
@@ -840,21 +789,11 @@ const PropuestasForm: React.FC = () => {
                                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                                         <polyline points="7 3 7 8 15 8"></polyline>
                                     </svg>
-                                    Guardar
+                                    {propuestaId ? 'Actualizar' : 'Guardar'}
                                 </button>
                             )}
 
-                            {propuestaId && (
-                                <button
-                                    onClick={handleConvertToBudget}
-                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Pasar a Plan de Tratamiento
-                                </button>
-                            )}
+
 
                             <button
                                 onClick={() => navigate(`/pacientes/${id}/propuestas`)}

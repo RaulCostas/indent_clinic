@@ -217,7 +217,7 @@ const CalificacionForm: React.FC<CalificacionFormProps> = ({ isOpen, onClose, id
                                             value={formData.personalId}
                                             onChange={handleChange}
                                             required
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         ><option value={0}>-- Seleccione Personal --</option>
                                             {personal.filter(p => p.estado === 'activo').map(p => (
                                                 <option key={p.id} value={p.id}>
@@ -244,7 +244,7 @@ const CalificacionForm: React.FC<CalificacionFormProps> = ({ isOpen, onClose, id
                                             value={formData.pacienteId}
                                             onChange={handleChange}
                                             required
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         ><option value={0}>-- Seleccione Paciente --</option>
                                             {pacientes.filter(p => p.estado === 'activo').map(p => (
                                                 <option key={p.id} value={p.id}>
@@ -274,7 +274,7 @@ const CalificacionForm: React.FC<CalificacionFormProps> = ({ isOpen, onClose, id
                                             min={1}
                                             max={5}
                                             required
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                             placeholder="Ingrese número de consultorio (1-5)"
 
                                         />
@@ -298,7 +298,7 @@ const CalificacionForm: React.FC<CalificacionFormProps> = ({ isOpen, onClose, id
                                             value={formData.fecha}
                                             onChange={handleChange}
                                             required
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -362,7 +362,7 @@ const CalificacionForm: React.FC<CalificacionFormProps> = ({ isOpen, onClose, id
                                     value={formData.observaciones}
                                     onChange={handleChange}
                                     rows={4}
-                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     placeholder="Comentarios adicionales..."
 
                                 />

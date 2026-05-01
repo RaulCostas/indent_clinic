@@ -83,6 +83,12 @@ const PacienteList: React.FC = () => {
 
 
     useEffect(() => {
+        // Resetear a la página 1 cuando se cambia la clínica desde el selector global
+        setCurrentPage(1);
+        sessionStorage.setItem('pacientes_page', '1');
+    }, [clinicaSeleccionada]);
+
+    useEffect(() => {
         fetchPacientes();
     }, [searchTerm, currentPage, clinicaSeleccionada]);
 

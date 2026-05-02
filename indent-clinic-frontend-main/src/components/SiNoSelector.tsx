@@ -3,15 +3,15 @@ import { Check, X } from 'lucide-react';
 
 interface SiNoSelectorProps {
     name: string;
-    value: boolean | string | undefined;
+    value: boolean | string | number | undefined;
     onChange: (name: string, value: boolean) => void;
     label: string;
 }
 
 const SiNoSelector: React.FC<SiNoSelectorProps> = ({ name, value, onChange, label }) => {
     // Determine if the value is "true" or truthy
-    const isSi = value === true || value === 'true' || value === 1;
-    const isNo = value === false || value === 'false' || value === 0;
+    const isSi = value === true || value === 'true' || Number(value) === 1;
+    const isNo = value === false || value === 'false' || (value !== undefined && value !== null && Number(value) === 0);
 
     return (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2.5 border-b border-gray-50 dark:border-gray-800/10 gap-3 group">

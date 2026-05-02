@@ -127,6 +127,16 @@ export class PacientesService {
         }
 
         const paciente = this.pacientesRepository.create({
+            direccion: '',
+            lugar_residencia: '',
+            telefono: '',
+            email: '',
+            profesion: '',
+            estado_civil: 'Soltero',
+            responsable: '',
+            parentesco: '',
+            direccion_responsable: '',
+            telefono_responsable: '',
             ...dto,
             fecha: getBoliviaDate(),
             fecha_nacimiento: getBoliviaDate(), // Default to today if not provided

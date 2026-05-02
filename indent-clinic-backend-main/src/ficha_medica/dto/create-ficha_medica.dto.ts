@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
 
 export class CreateFichaMedicaDto {
     @IsString() @IsOptional() ultima_visita_odontologo?: string;
@@ -53,4 +53,5 @@ export class CreateFichaMedicaDto {
     @IsBoolean() @IsOptional() consume_citricos?: boolean;
 
     @IsString() @IsOptional() observaciones?: string;
+    @IsOptional() @IsNumber() usuarioId?: number;
 }

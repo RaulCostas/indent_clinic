@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
 import { PacientesService } from './pacientes.service';
 import { CreatePacienteDto } from './dto/create-paciente.dto';
 import { UpdatePacienteDto } from './dto/update-paciente.dto';
@@ -8,7 +8,13 @@ export class PacientesController {
     constructor(private readonly pacientesService: PacientesService) { }
 
     @Post()
-    create(@Body() createPacienteDto: CreatePacienteDto) {
+    create(@Body() createPacienteDto: CreatePacienteDto, @Req() req: any) {
+        if (req.user && req.user.id) {
+            createPacienteDto.usuarioId = req.user.id;
+            if (createPacienteDto.fichaMedica) {
+                createPacienteDto.fichaMedica.usuarioId = req.user.id;
+            }
+        }
         return this.pacientesService.create(createPacienteDto);
     }
 

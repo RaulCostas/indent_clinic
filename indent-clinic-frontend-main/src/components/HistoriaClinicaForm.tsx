@@ -308,6 +308,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
 
     const handleSave = async (firmaData?: string) => {
         try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
             const payload: any = {
                 ...formData,
                 pacienteId: Number(pacienteId),
@@ -317,6 +318,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                 proformaDetalleId: formData.proformaDetalleId > 0 ? Number(formData.proformaDetalleId) : null,
                 precio: isNaN(Number(formData.precio)) ? 0 : Number(formData.precio),
                 cantidad: isNaN(Number(formData.cantidad)) ? 1 : Number(formData.cantidad),
+                usuarioId: user.id || undefined
             };
 
             if (firmaData) {

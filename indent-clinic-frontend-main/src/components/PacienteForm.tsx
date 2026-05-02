@@ -8,6 +8,7 @@ import SignatureModal from './SignatureModal';
 import { getLocalDateString } from '../utils/dateUtils';
 import { Plus } from 'lucide-react';
 import { useClinica } from '../context/ClinicaContext';
+import SiNoSelector from './SiNoSelector';
 
 
 const PacienteForm: React.FC = () => {
@@ -15,9 +16,21 @@ const PacienteForm: React.FC = () => {
     const location = useLocation();
     const { id } = useParams<{ id: string }>();
     const isEditing = !!id;
-    const { clinicaSeleccionada } = useClinica();
+    const { clinicaSeleccionada, clinicaActual } = useClinica();
     const [showManual, setShowManual] = useState(false);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
+
+    const calculateAge = (birthDate: string) => {
+        if (!birthDate) return 0;
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+        }
+        return age;
+    };
 
     useEffect(() => {
         if (location.state?.openSignature) {
@@ -248,13 +261,32 @@ const PacienteForm: React.FC = () => {
         }
     };
 
+    const handleSiNoChange = (name: string, value: boolean) => {
+        if (name.startsWith('fichaMedica.')) {
+            const field = name.split('.')[1];
+            setFormData(prev => ({
+                ...prev,
+                fichaMedica: {
+                    ...prev.fichaMedica,
+                    [field]: value
+                }
+            }));
+        }
+    };
+
     const handleSaveAndSign = async () => {
         try {
             const finalCelular = countryCode === '+0' ? localCelular : `${countryCode}${localCelular}`;
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
             const payload = { 
                 ...formData, 
                 celular: finalCelular,
-                clinicaId: isEditing ? formData.clinicaId : (clinicaSeleccionada || undefined)
+                clinicaId: isEditing ? formData.clinicaId : (clinicaSeleccionada || undefined),
+                usuarioId: user.id,
+                fichaMedica: {
+                    ...formData.fichaMedica,
+                    usuarioId: user.id
+                }
             };
 
             if (isEditing) {
@@ -291,11 +323,16 @@ const PacienteForm: React.FC = () => {
         try {
             const finalCelular = countryCode === '+0' ? localCelular : `${countryCode}${localCelular}`;
 
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
             const payload = {
                 ...formData,
                 celular: finalCelular,
-                clinicaId: isEditing ? formData.clinicaId : (clinicaSeleccionada || undefined)
-                // idCategoria: formData.idCategoria === 0 ? null : formData.idCategoria
+                clinicaId: isEditing ? formData.clinicaId : (clinicaSeleccionada || undefined),
+                usuarioId: user.id,
+                fichaMedica: {
+                    ...formData.fichaMedica,
+                    usuarioId: user.id
+                }
             };
             console.log('Submitting payload:', payload);
 
@@ -352,6 +389,9 @@ const PacienteForm: React.FC = () => {
                     ?
                 </button>
             </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed italic bg-blue-50/30 dark:bg-blue-900/10 p-4 rounded-lg">
+                "Toda la información proporcionada en este documento es confidencial y de uso exclusivo de la clínica <strong>{clinicaActual?.nombre || 'la clínica'}</strong> para fines terapéuticos."
+            </p>
 
             <form onSubmit={handleSubmit} className="grid gap-5">
                 {/* Datos Personales */}
@@ -438,14 +478,16 @@ const PacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Carnet de Identidad (CI):</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">
+                                C.I. {calculateAge(formData.fecha_nacimiento) >= 18 && <span className="text-red-500">*</span>}:
+                            </label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                                     <line x1="16" y1="2" x2="16" y2="6"></line>
                                     <line x1="8" y1="2" x2="8" y2="6"></line>
                                 </svg>
-                                <input type="text" name="ci" value={formData.ci} onChange={handleChange} placeholder="Ej: 1234567"
+                                <input type="text" name="ci" value={formData.ci} onChange={handleChange} required={calculateAge(formData.fecha_nacimiento) >= 18} placeholder="Cédula de Identidad..."
                                     className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
                                 />
                             </div>
@@ -510,13 +552,13 @@ const PacienteForm: React.FC = () => {
                     <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Contacto</legend>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-3">
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Dirección:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Dirección: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                                     <circle cx="12" cy="10" r="3"></circle>
                                 </svg>
-                                <input type="text" name="direccion" value={formData.direccion} onChange={handleChange} placeholder="Dirección completa..."
+                                <input type="text" name="direccion" value={formData.direccion} onChange={handleChange} required placeholder="Dirección completa..."
                                     className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
                                 />
                             </div>
@@ -534,7 +576,7 @@ const PacienteForm: React.FC = () => {
                                 </div>
                             </div>
                             <div>
-                                <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Celular:</label>
+                                <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Celular: <span className="text-red-500">*</span></label>
                                 <div className="flex gap-2">
                                     <select
                                         value={countryCode}
@@ -556,6 +598,7 @@ const PacienteForm: React.FC = () => {
                                             name="celular"
                                             value={localCelular}
                                             onChange={(e) => setLocalCelular(e.target.value)}
+                                            required
                                             placeholder="Ej: 70012345"
                                             className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 transition-colors"
                                         />
@@ -576,25 +619,25 @@ const PacienteForm: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Lugar de Residencia:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Lugar de Residencia: <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                                     <circle cx="12" cy="10" r="3"></circle>
                                 </svg>
-                                <input type="text" name="lugar_residencia" value={formData.lugar_residencia} onChange={handleChange} placeholder="Ej: Cochabamba"
+                                <input type="text" name="lugar_residencia" value={formData.lugar_residencia} onChange={handleChange} required placeholder="Ej: Cochabamba"
                                     className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
                                 />
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Profesión:</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Profesión u ocupación <span className="text-red-500">*</span>:</label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">
                                     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
                                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
                                 </svg>
-                                <input type="text" name="profesion" value={formData.profesion} onChange={handleChange} placeholder="Ej: Arquitecto"
+                                <input type="text" name="profesion" value={formData.profesion} onChange={handleChange} required placeholder="Ej: Arquitecto"
                                     className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
                                 />
                             </div>
@@ -606,7 +649,7 @@ const PacienteForm: React.FC = () => {
 
                 {/* Responsable */}
                 <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg mt-4">
-                    <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Responsable</legend>
+                    <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Responsable <span className="text-sm font-normal text-gray-500 ml-1">(En caso de ser menor de 18 años)</span></legend>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Nombre Responsable:</label>
@@ -660,77 +703,18 @@ const PacienteForm: React.FC = () => {
                     </div>
                 </fieldset>
 
-                <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg mt-4 bg-gray-50/30 dark:bg-gray-800/10 shadow-sm">
-                    <legend className="font-bold px-2 text-gray-800 dark:text-white">Clasificación</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">
-                                Clasificación del Paciente (Letra):
-                            </label>
-                            <div className="flex gap-4">
-                                {['A', 'B', 'C'].map((cat) => (
-                                    <label key={cat} className={`flex-1 flex items-center justify-center py-2 px-4 rounded-lg border-2 cursor-pointer transition-all ${formData.clasificacion.charAt(0) === cat
-                                        ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                        : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300'
-                                        }`}>
-                                        <input
-                                            type="radio"
-                                            name="clasificacion_letra"
-                                            value={cat}
-                                            checked={formData.clasificacion.charAt(0) === cat}
-                                            onChange={(e) => {
-                                                const num = formData.clasificacion.substring(1) || '0';
-                                                setFormData(prev => ({ ...prev, clasificacion: e.target.value + num }));
-                                            }}
-                                            className="hidden"
-                                        />
-                                        <span className="text-lg font-bold">{cat}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300 flex items-center justify-between">
-                                <span>
-                                    Nivel (0-10):
-                                </span>
-                                <span className="text-lg font-bold px-3 py-1 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
-                                    {formData.clasificacion.substring(1)} / 10
-                                </span>
-                            </label>
-                            <input
-                                type="range"
-                                name="clasificacion_numero"
-                                min="0"
-                                max="10"
-                                step="1"
-                                value={formData.clasificacion.substring(1)}
-                                onChange={(e) => {
-                                    const letra = formData.clasificacion.charAt(0) || 'A';
-                                    setFormData(prev => ({ ...prev, clasificacion: letra + e.target.value }));
-                                }}
-                                className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                            />
-                            <div className="flex justify-between mt-1 text-xs text-gray-500">
-                                <span>0</span>
-                                <span>10</span>
-                            </div>
-                        </div>
-                    </div>
-                </fieldset>
 
                 {/* Historial y Motivo de Consulta */}
                 <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg mt-4">
                     <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Consulta</legend>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
-                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">¿Cúando fue la última vez que visitó al odontólogo, y cuál fue el motivo?</label>
+                            <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">¿Cuándo fue su última visita al odontólogo? <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-3 text-gray-500 dark:text-gray-400">
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                                 </svg>
-                                <textarea name="fichaMedica.ultima_visita_odontologo" value={formData.fichaMedica.ultima_visita_odontologo} onChange={handleChange} className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Ej: Hace 6 meses..."></textarea>
+                                <textarea name="fichaMedica.ultima_visita_odontologo" value={formData.fichaMedica.ultima_visita_odontologo} onChange={handleChange} required className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Ej: Hace 6 meses..."></textarea>
                             </div>
                         </div>
                         <div className="md:col-span-2">
@@ -741,6 +725,60 @@ const PacienteForm: React.FC = () => {
                                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                 </svg>
                                 <textarea name="fichaMedica.motivo_consulta" value={formData.fichaMedica.motivo_consulta} onChange={handleChange} required className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Ingrese una descripción..."></textarea>
+                            </div>
+                        </div>
+
+                        {/* Clasificación moved here */}
+                        <div className="md:col-span-2 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+                                        Clasificación del Paciente (Letra):
+                                    </label>
+                                    <div className="flex gap-4">
+                                        {['A', 'B', 'C'].map((cat) => (
+                                            <label key={cat} className={`flex-1 flex items-center justify-center py-2 px-4 rounded-lg border-2 cursor-pointer transition-all ${formData.clasificacion.charAt(0) === cat
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300'
+                                                }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="clasificacion_letra"
+                                                    value={cat}
+                                                    checked={formData.clasificacion.charAt(0) === cat}
+                                                    onChange={(e) => {
+                                                        const num = formData.clasificacion.substring(1) || '0';
+                                                        setFormData(prev => ({ ...prev, clasificacion: e.target.value + num }));
+                                                    }}
+                                                    className="hidden"
+                                                />
+                                                <span className="text-lg font-bold">{cat}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300 flex items-center justify-between">
+                                        <span>Nivel (0-10):</span>
+                                        <span className="text-lg font-bold px-3 py-1 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
+                                            {formData.clasificacion.substring(1)} / 10
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        name="clasificacion_numero"
+                                        min="0"
+                                        max="10"
+                                        step="1"
+                                        value={formData.clasificacion.substring(1)}
+                                        onChange={(e) => {
+                                            const letra = formData.clasificacion.charAt(0) || 'A';
+                                            setFormData(prev => ({ ...prev, clasificacion: letra + e.target.value }));
+                                        }}
+                                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -758,47 +796,87 @@ const PacienteForm: React.FC = () => {
                         </svg>
                         Ficha Médica
                     </h3>
-                    <p className="text-sm text-gray-500 mt-1">Llene el historial médico y cuestionario del paciente.</p>
                 </div>
                 <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg">
                     <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Antecedentes Patológicos Personales</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                        <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                            <input type="checkbox" name="fichaMedica.bruxismo" checked={formData.fichaMedica.bruxismo} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Tiene Bruxismo / Aprieta los dientes?
-                        </label>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.alergia_medicamento" checked={formData.fichaMedica.alergia_medicamento} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Es Alérgico a algún medicamento?
-                            </label>
+                    <div className="space-y-4 mt-2">
+                        {/* Bruxismo */}
+                        <SiNoSelector
+                            name="fichaMedica.bruxismo"
+                            value={formData.fichaMedica.bruxismo}
+                            onChange={handleSiNoChange}
+                            label="- ¿Ha sido diagnosticado antes con bruxismo? (Acto repetitivo de apretar y/o rechinar los dientes)."
+                        />
+
+                        {/* Alergias */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.alergia_medicamento"
+                                value={formData.fichaMedica.alergia_medicamento}
+                                onChange={handleSiNoChange}
+                                label="- ¿Tiene alergia a algún medicamento?"
+                            />
                             {formData.fichaMedica.alergia_medicamento && (
-                                <input type="text" name="fichaMedica.alergia_medicamento_detalle" placeholder="Indique cuál" value={formData.fichaMedica.alergia_medicamento_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="ml-4 mt-2 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                    <input type="text" name="fichaMedica.alergia_medicamento_detalle" placeholder="Especifique..." value={formData.fichaMedica.alergia_medicamento_detalle} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.medicamento_72h" checked={formData.fichaMedica.medicamento_72h} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Tomó algún medicamento en las últimas 72 horas?
-                            </label>
+
+                        {/* Medicamento 72h */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.medicamento_72h"
+                                value={formData.fichaMedica.medicamento_72h}
+                                onChange={handleSiNoChange}
+                                label="- ¿Ha tomado algún medicamento en las últimas 72 horas?"
+                            />
                             {formData.fichaMedica.medicamento_72h && (
-                                <input type="text" name="fichaMedica.medicamento_72h_detalle" placeholder="Especifique medicamento y motivo" value={formData.fichaMedica.medicamento_72h_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="ml-4 mt-2 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                    <input type="text" name="fichaMedica.medicamento_72h_detalle" placeholder="Medicamento y motivo..." value={formData.fichaMedica.medicamento_72h_detalle} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.tratamiento_medico" checked={formData.fichaMedica.tratamiento_medico} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Se encuentra actualmente bajo Tratamiento Médico?
-                            </label>
+
+                        {/* Tratamiento Médico */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.tratamiento_medico"
+                                value={formData.fichaMedica.tratamiento_medico}
+                                onChange={handleSiNoChange}
+                                label="- ¿Actualmente está con algún tratamiento médico?"
+                            />
                             {formData.fichaMedica.tratamiento_medico && (
-                                <input type="text" name="fichaMedica.tratamiento_medico_detalle" placeholder="¿Por qué motivo?" value={formData.fichaMedica.tratamiento_medico_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="ml-4 mt-2 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                    <input type="text" name="fichaMedica.tratamiento_medico_detalle" placeholder="¿Por qué motivo?..." value={formData.fichaMedica.tratamiento_medico_detalle} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
-                        <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                            <input type="checkbox" name="fichaMedica.anestesiado_anteriormente" checked={formData.fichaMedica.anestesiado_anteriormente} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Ha sido Anestesiado Anteriormente?
-                        </label>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.reaccion_anestesia" checked={formData.fichaMedica.reaccion_anestesia} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Tuvo alguna reacción a la Anestesia?
-                            </label>
+
+                        {/* Anestesia Anterior */}
+                        <SiNoSelector
+                            name="fichaMedica.anestesiado_anteriormente"
+                            value={formData.fichaMedica.anestesiado_anteriormente}
+                            onChange={handleSiNoChange}
+                            label="- ¿Ha sido anestesiado anteriormente en consultorio odontológico?"
+                        />
+
+                        {/* Reacción Anestesia */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.reaccion_anestesia"
+                                value={formData.fichaMedica.reaccion_anestesia}
+                                onChange={handleSiNoChange}
+                                label="- ¿Tuvo alguna reacción desfavorable al ser anestesiado?"
+                            />
                             {formData.fichaMedica.reaccion_anestesia && (
-                                <input type="text" name="fichaMedica.reaccion_anestesia_detalle" placeholder="Indique cuál" value={formData.fichaMedica.reaccion_anestesia_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="ml-4 mt-2 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                    <input type="text" name="fichaMedica.reaccion_anestesia_detalle" placeholder="Especifique..." value={formData.fichaMedica.reaccion_anestesia_detalle} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
                     </div>
@@ -807,141 +885,252 @@ const PacienteForm: React.FC = () => {
                 <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg mt-4">
                     <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Enfermedades</legend>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Marque y especifique si padece de alguna de las siguientes:</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
-                        {/* Neurológicas */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_neurologicas" checked={formData.fichaMedica.enf_neurologicas} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Neurológicas
-                            </label>
-                            {formData.fichaMedica.enf_neurologicas && (
-                                <input type="text" name="fichaMedica.enf_neurologicas_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_neurologicas_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Pulmonares */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_pulmonares" checked={formData.fichaMedica.enf_pulmonares} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Pulmonares
-                            </label>
-                            {formData.fichaMedica.enf_pulmonares && (
-                                <input type="text" name="fichaMedica.enf_pulmonares_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_pulmonares_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Cardíacas */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_cardiacas" checked={formData.fichaMedica.enf_cardiacas} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Cardíacas
-                            </label>
-                            {formData.fichaMedica.enf_cardiacas && (
-                                <input type="text" name="fichaMedica.enf_cardiacas_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_cardiacas_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Hígado */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_higado" checked={formData.fichaMedica.enf_higado} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Del Hígado
-                            </label>
-                            {formData.fichaMedica.enf_higado && (
-                                <input type="text" name="fichaMedica.enf_higado_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_higado_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Gástricas */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_gastricas" checked={formData.fichaMedica.enf_gastricas} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Gástricas e Intestinales
-                            </label>
-                            {formData.fichaMedica.enf_gastricas && (
-                                <input type="text" name="fichaMedica.enf_gastricas_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_gastricas_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Venéreas */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_venereas" checked={formData.fichaMedica.enf_venereas} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Venéreas
-                            </label>
-                            {formData.fichaMedica.enf_venereas && (
-                                <input type="text" name="fichaMedica.enf_venereas_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_venereas_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Renales */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.enf_renales" checked={formData.fichaMedica.enf_renales} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Renales
-                            </label>
-                            {formData.fichaMedica.enf_renales && (
-                                <input type="text" name="fichaMedica.enf_renales_detalle" placeholder="Indique cuál" value={formData.fichaMedica.enf_renales_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Articulaciones */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.articulaciones" checked={formData.fichaMedica.articulaciones} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> De las Articulaciones
-                            </label>
-                            {formData.fichaMedica.articulaciones && (
-                                <input type="text" name="fichaMedica.articulaciones_detalle" placeholder="Indique cuál" value={formData.fichaMedica.articulaciones_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Diabetes */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.diabetes" checked={formData.fichaMedica.diabetes} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Diabetes
-                            </label>
-                            {formData.fichaMedica.diabetes && (
-                                <input type="text" name="fichaMedica.diabetes_detalle" placeholder="Indique qué tipo / tratamiento" value={formData.fichaMedica.diabetes_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Anemia */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.anemia" checked={formData.fichaMedica.anemia} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Hemorragias / Anemia
-                            </label>
-                            {formData.fichaMedica.anemia && (
-                                <input type="text" name="fichaMedica.anemia_detalle" placeholder="Indique cuál" value={formData.fichaMedica.anemia_detalle} onChange={handleChange} className="w-full px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
-                            )}
-                        </div>
-                        {/* Presión Arterial */}
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.hipertension" checked={formData.fichaMedica.hipertension} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Presión Alta (Hipertensión)
-                            </label>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.hipotension" checked={formData.fichaMedica.hipotension} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Presión Baja (Hipotensión)
-                            </label>
-                        </div>
-                    </div>
+                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                        <p className="font-bold text-gray-700 dark:text-gray-300 mb-4">- ¿Padece o ha padecido alguna de las siguientes enfermedades?</p>
 
-                    <div className="mt-6 flex flex-col md:flex-row items-baseline gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300 font-bold">
-                            <input type="checkbox" name="fichaMedica.prueba_vih" checked={formData.fichaMedica.prueba_vih} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Requirió o requiere Prueba de VIH?
-                        </label>
-                        {formData.fichaMedica.prueba_vih && (
-                            <select name="fichaMedica.prueba_vih_resultado" value={formData.fichaMedica.prueba_vih_resultado || ''} onChange={handleChange} className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700">
-                                <option value="">-- Seleccione Resultado --</option>
-                                <option value="Positivo">Positivo</option>
-                                <option value="Negativo">Negativo</option>
-                            </select>
-                        )}
+                        <div className="grid grid-cols-1 gap-y-2 ml-4">
+                            {/* Neurológicas */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_neurologicas"
+                                    value={formData.fichaMedica.enf_neurologicas}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades neurológicas?"
+                                />
+                                {formData.fichaMedica.enf_neurologicas && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_neurologicas_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_neurologicas_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Pulmonares */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_pulmonares"
+                                    value={formData.fichaMedica.enf_pulmonares}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades pulmonares?"
+                                />
+                                {formData.fichaMedica.enf_pulmonares && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_pulmonares_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_pulmonares_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Cardíacas */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_cardiacas"
+                                    value={formData.fichaMedica.enf_cardiacas}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades cardiacas?"
+                                />
+                                {formData.fichaMedica.enf_cardiacas && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_cardiacas_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_cardiacas_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Hígado */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_higado"
+                                    value={formData.fichaMedica.enf_higado}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades en el hígado?"
+                                />
+                                {formData.fichaMedica.enf_higado && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_higado_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_higado_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Gástricas */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_gastricas"
+                                    value={formData.fichaMedica.enf_gastricas}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades gástricas?"
+                                />
+                                {formData.fichaMedica.enf_gastricas && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_gastricas_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_gastricas_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Venéreas */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_venereas"
+                                    value={formData.fichaMedica.enf_venereas}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades venéreas?"
+                                />
+                                {formData.fichaMedica.enf_venereas && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_venereas_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_venereas_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Renales */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.enf_renales"
+                                    value={formData.fichaMedica.enf_renales}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Enfermedades renales?"
+                                />
+                                {formData.fichaMedica.enf_renales && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.enf_renales_detalle" placeholder="Especifique..." value={formData.fichaMedica.enf_renales_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Articulaciones */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.articulaciones"
+                                    value={formData.fichaMedica.articulaciones}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Problemas con las articulaciones?"
+                                />
+                                {formData.fichaMedica.articulaciones && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.articulaciones_detalle" placeholder="Especifique..." value={formData.fichaMedica.articulaciones_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Diabetes */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.diabetes"
+                                    value={formData.fichaMedica.diabetes}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Diabetes?"
+                                />
+                                {formData.fichaMedica.diabetes && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.diabetes_detalle" placeholder="Tipo / tratamiento..." value={formData.fichaMedica.diabetes_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Anemia */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.anemia"
+                                    value={formData.fichaMedica.anemia}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Anemia?"
+                                />
+                                {formData.fichaMedica.anemia && (
+                                    <div className="ml-4 mt-2 p-2 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500">
+                                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cuál:</label>
+                                        <input type="text" name="fichaMedica.anemia_detalle" placeholder="Especifique..." value={formData.fichaMedica.anemia_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Hipertensión */}
+                            <SiNoSelector
+                                name="fichaMedica.hipertension"
+                                value={formData.fichaMedica.hipertension}
+                                onChange={handleSiNoChange}
+                                label="- ¿Hipertensión arterial? (Presión Arterial Alta)"
+                            />
+
+                            {/* Hipotensión */}
+                            <SiNoSelector
+                                name="fichaMedica.hipotension"
+                                value={formData.fichaMedica.hipotension}
+                                onChange={handleSiNoChange}
+                                label="- ¿Hipotensión arterial? (Presión Arterial Baja)"
+                            />
+
+                            {/* VIH */}
+                            <div className="flex flex-col">
+                                <SiNoSelector
+                                    name="fichaMedica.prueba_vih"
+                                    value={formData.fichaMedica.prueba_vih}
+                                    onChange={handleSiNoChange}
+                                    label="- ¿Alguna vez le hicieron la prueba del VIH?"
+                                />
+                                {formData.fichaMedica.prueba_vih && (
+                                    <div className="ml-4 mt-2 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-l-4 border-blue-500 flex items-center gap-4">
+                                        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tighter">*Resultado de prueba:</label>
+                                        <select name="fichaMedica.prueba_vih_resultado" value={formData.fichaMedica.prueba_vih_resultado || ''} onChange={handleChange} className="px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="">-- Seleccione --</option>
+                                            <option value="Positivo">Positivo</option>
+                                            <option value="Negativo">Negativo</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </fieldset>
 
                 <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg mt-4">
-                    <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Antecedentes Gineco / Obstétricos</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.anticonceptivo_hormonal" checked={formData.fichaMedica.anticonceptivo_hormonal} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Consume algún método Anticonceptivo Hormonal?
-                            </label>
+                    <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Antecedentes ginecológicos</legend>
+                    <div className="space-y-2 mt-2">
+                        {/* Anticonceptivo */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.anticonceptivo_hormonal"
+                                value={formData.fichaMedica.anticonceptivo_hormonal}
+                                onChange={handleSiNoChange}
+                                label="- ¿Usa algún método anticonceptivo hormonal?"
+                            />
                             {formData.fichaMedica.anticonceptivo_hormonal && (
-                                <input type="text" name="fichaMedica.anticonceptivo_hormonal_detalle" placeholder="Especifique cuál" value={formData.fichaMedica.anticonceptivo_hormonal_detalle} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="ml-4 mt-2 p-3 bg-pink-50/50 dark:bg-pink-900/10 rounded-lg border-l-4 border-pink-500">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique cual:</label>
+                                    <input type="text" name="fichaMedica.anticonceptivo_hormonal_detalle" placeholder="Especifique..." value={formData.fichaMedica.anticonceptivo_hormonal_detalle} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.posibilidad_embarazo" checked={formData.fichaMedica.posibilidad_embarazo} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Existe la posibilidad de que esté embarazada?
-                            </label>
-                            {formData.fichaMedica.posibilidad_embarazo && (
-                                <input type="text" name="fichaMedica.semana_gestacion" placeholder="Semanas de gestación (si aplica)" value={formData.fichaMedica.semana_gestacion} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+                        {/* Embarazo */}
+                        <SiNoSelector
+                            name="fichaMedica.posibilidad_embarazo"
+                            value={formData.fichaMedica.posibilidad_embarazo}
+                            onChange={handleSiNoChange}
+                            label="- ¿Existe la posibilidad de que actualmente esté embarazada?"
+                        />
+
+                        {/* Semana Gestación */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.esta_gestando"
+                                value={!!formData.fichaMedica.semana_gestacion}
+                                onChange={(name, val) => {
+                                    if (!val) setFormData(prev => ({ ...prev, fichaMedica: { ...prev.fichaMedica, semana_gestacion: '' } }));
+                                    else setFormData(prev => ({ ...prev, fichaMedica: { ...prev.fichaMedica, semana_gestacion: '1' } }));
+                                }}
+                                label="- ¿En qué semana de gestación se encuentra?"
+                            />
+                            {formData.fichaMedica.semana_gestacion && (
+                                <div className="ml-4 mt-2 p-3 bg-pink-50/50 dark:bg-pink-900/10 rounded-lg border-l-4 border-pink-500">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*Indique semana:</label>
+                                    <input type="text" name="fichaMedica.semana_gestacion" placeholder="Semana..." value={formData.fichaMedica.semana_gestacion} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
                     </div>
@@ -949,37 +1138,52 @@ const PacienteForm: React.FC = () => {
 
                 <fieldset className="border border-gray-300 dark:border-gray-700 p-4 rounded-lg mt-4">
                     <legend className="font-bold px-2 text-gray-700 dark:text-gray-300">Hábitos</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                        <div>
-                            <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">¿Cuántas veces al día se cepilla los dientes?</label>
-                            <input type="text" name="fichaMedica.cepillado_veces" value={formData.fichaMedica.cepillado_veces} onChange={handleChange} placeholder="Ej. 2 a 3 veces" className="w-full pr-3 py-2 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div className="space-y-2 mt-2">
+                        {/* Cepillado */}
+                        <div className="py-2 border-b border-gray-100 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <label className="text-sm text-gray-700 dark:text-gray-300">- ¿Cuántas veces al día se cepilla los dientes?</label>
+                            <input type="text" name="fichaMedica.cepillado_veces" value={formData.fichaMedica.cepillado_veces} onChange={handleChange} placeholder="Ej. 2 a 3 veces" className="w-full md:w-48 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
 
-                        <div>
-                            <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">¿Utiliza otros métodos de Higiene Bucal?</label>
-                            <div className="flex flex-col gap-2">
-                                <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                    <input type="checkbox" name="fichaMedica.usa_hilo_dental" checked={formData.fichaMedica.usa_hilo_dental} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Hilo / Cinta Dental
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                    <input type="checkbox" name="fichaMedica.usa_enjuague" checked={formData.fichaMedica.usa_enjuague} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> Enjuague Bucal
-                                </label>
-                            </div>
-                        </div>
+                        {/* Hilo Dental */}
+                        <SiNoSelector
+                            name="fichaMedica.usa_hilo_dental"
+                            value={formData.fichaMedica.usa_hilo_dental}
+                            onChange={handleSiNoChange}
+                            label="- ¿Usa hilo dental?"
+                        />
 
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.fuma" checked={formData.fichaMedica.fuma} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Fuma?
-                            </label>
+                        {/* Enjuague */}
+                        <SiNoSelector
+                            name="fichaMedica.usa_enjuague"
+                            value={formData.fichaMedica.usa_enjuague}
+                            onChange={handleSiNoChange}
+                            label="- ¿Usa enjuague bucal?"
+                        />
+
+                        {/* Fuma */}
+                        <div className="flex flex-col">
+                            <SiNoSelector
+                                name="fichaMedica.fuma"
+                                value={formData.fichaMedica.fuma}
+                                onChange={handleSiNoChange}
+                                label="- ¿Fuma?"
+                            />
                             {formData.fichaMedica.fuma && (
-                                <input type="text" name="fichaMedica.fuma_cantidad" placeholder="¿Cuántos cigarrillos al día?" value={formData.fichaMedica.fuma_cantidad} onChange={handleChange} className="w-full px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <div className="ml-4 mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border-l-4 border-gray-400">
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-1 uppercase">*¿Cuántos cigarrillos al día o semana?:</label>
+                                    <input type="text" name="fichaMedica.fuma_cantidad" placeholder="Especifique..." value={formData.fichaMedica.fuma_cantidad} onChange={handleChange} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
-                                <input type="checkbox" name="fichaMedica.consume_citricos" checked={formData.fichaMedica.consume_citricos} onChange={handleChange} className="accent-blue-500 w-4 h-4 cursor-pointer" /> ¿Acostumbra chupar limón, naranjas / frutas cítricas?
-                            </label>
-                        </div>
+
+                        {/* Cítricos */}
+                        <SiNoSelector
+                            name="fichaMedica.consume_citricos"
+                            value={formData.fichaMedica.consume_citricos}
+                            onChange={handleSiNoChange}
+                            label="- ¿Consume alimentos cítricos/ácidos a diario o más de 3 veces por semana?"
+                        />
                     </div>
                 </fieldset>
 
@@ -1040,14 +1244,14 @@ const PacienteForm: React.FC = () => {
                     isOpen={showSignatureModal}
                     onClose={() => setShowSignatureModal(false)}
                     tipoDocumento="historia_clinica"
-                    documentoId={parseInt(id)}
+                    documentoId={parseInt(id || '0')}
                     rolFirmante="paciente"
                     hideHistory={true}
                     closeOnSuccess={true}
                     onSuccess={() => navigate('/pacientes')}
                 />
             )}
-        </div >
+        </div>
     );
 };
 

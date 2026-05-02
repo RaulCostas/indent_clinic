@@ -3,18 +3,15 @@ import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToOne
 import { FichaMedica } from '../../ficha_medica/entities/ficha_medica.entity';
 import { HistoriaClinica } from '../../historia_clinica/entities/historia_clinica.entity';
 import { Clinica } from '../../clinicas/entities/clinica.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('pacientes')
 export class Paciente {
     @PrimaryGeneratedColumn()
     id: number;
 
-
     @Column({ type: 'date', default: () => 'CURRENT_DATE' })
     fecha: string;
-
-    @Column({ nullable: true })
-    access_id: string;
 
     @Column()
     paterno: string;
@@ -31,7 +28,7 @@ export class Paciente {
     @Column()
     direccion: string;
 
-    @Column({ nullable: true })
+    @Column()
     lugar_residencia: string;
 
     @Column()
@@ -47,19 +44,10 @@ export class Paciente {
     email: string;
 
     @Column()
-    casilla: string;
-
-    @Column()
     profesion: string;
 
     @Column()
     estado_civil: string;
-
-    @Column()
-    direccion_oficina: string;
-
-    @Column()
-    telefono_oficina: string;
 
     @Column({ type: 'date' })
     fecha_nacimiento: string;
@@ -69,9 +57,6 @@ export class Paciente {
 
     @Column()
     seguro_medico: string;
-
-    @Column()
-    poliza: string;
 
     @Column({ type: 'date', nullable: true })
     fecha_vencimiento: string;
@@ -93,13 +78,20 @@ export class Paciente {
 
     @Column({ nullable: true })
     clasificacion: string;
-    
+
     @Column({ nullable: true })
     clinicaId: number;
-    
+
     @ManyToOne(() => Clinica, { nullable: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ nullable: true })
+    usuarioId: number;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'usuarioId' })
+    usuario: User;
 
     @OneToOne(() => FichaMedica, (ficha) => ficha.paciente, { cascade: true })
     @JoinColumn({ name: 'fichaMedicaId' })

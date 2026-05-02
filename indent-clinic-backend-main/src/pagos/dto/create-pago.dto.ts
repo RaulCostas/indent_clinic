@@ -65,6 +65,10 @@ export class CreatePagoDto {
 
     @IsOptional()
     @IsNumber()
+    usuarioId?: number;
+
+    @IsOptional()
+    @IsNumber()
     idUsuario?: number;
 
     @IsOptional()

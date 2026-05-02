@@ -20,7 +20,6 @@ export class Agenda {
     @Column({ type: 'int' })
     duracion: number;
 
-
     @Column({ nullable: true })
     pacienteId: number;
 

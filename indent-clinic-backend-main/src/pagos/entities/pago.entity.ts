@@ -4,6 +4,7 @@ import { Proforma } from '../../proformas/entities/proforma.entity';
 import { ComisionTarjeta } from '../../comision_tarjeta/entities/comision_tarjeta.entity';
 import { FormaPago } from '../../forma_pago/entities/forma_pago.entity';
 import { Clinica } from '../../clinicas/entities/clinica.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('pagos')
 export class Pago {
@@ -53,10 +54,8 @@ export class Pago {
     @Column({ type: 'text', nullable: true })
     observaciones: string;
 
-
     @Column({ nullable: true })
     historiaClinicaId: number;
-
 
     @Column({
         type: 'enum',
@@ -74,6 +73,13 @@ export class Pago {
     @ManyToOne(() => Clinica)
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ nullable: true })
+    usuarioId: number;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'usuarioId' })
+    usuario: User;
 
     @CreateDateColumn()
     createdAt: Date;

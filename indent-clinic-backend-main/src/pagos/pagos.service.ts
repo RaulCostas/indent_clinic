@@ -38,6 +38,11 @@ export class PagosService {
                 }
             }
 
+            // Map idUsuario to usuarioId if needed (backward compatibility)
+            if (createDto.idUsuario && !createDto.usuarioId) {
+                createDto.usuarioId = createDto.idUsuario;
+            }
+
             const results: Pago[] = [];
 
             // Case 1: Bulk assignments from frontend

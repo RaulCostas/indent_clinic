@@ -1,5 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('ficha_medica')
 export class FichaMedica {
@@ -153,4 +154,11 @@ export class FichaMedica {
 
     @OneToOne(() => Paciente, (paciente) => paciente.fichaMedica)
     paciente: Paciente;
+
+    @Column({ nullable: true })
+    usuarioId: number;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'usuarioId' })
+    usuario: User;
 }

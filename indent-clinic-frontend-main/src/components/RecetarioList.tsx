@@ -130,12 +130,6 @@ const RecetarioList: React.FC = () => {
                     <td>${d.indicacion}</td>
                 </tr>
             `).join('');
-        } else if (receta.medicamentos) {
-            medicationRows = `
-                <tr>
-                    <td colspan="3">${receta.medicamentos}</td>
-                </tr>
-            `;
         }
 
         const printContent = `
@@ -311,12 +305,6 @@ const RecetarioList: React.FC = () => {
                     </tbody>
                 </table>
                 
-                ${receta.indicaciones ? `
-                    <div class="section-title">INDICACIONES GENERALES / OBSERVACIONES</div>
-                    <div style="font-size: 11px; line-height: 1.5; color: #555;">
-                        ${receta.indicaciones.replace(/\n/g, '<br>')}
-                    </div>
-                ` : ''}
                 
                 <div class="signature-box">
                     ${doctorSignature ? `
@@ -528,7 +516,7 @@ const RecetarioList: React.FC = () => {
                                 <td className="p-3 text-gray-700 dark:text-gray-300 max-w-xs truncate">
                                     {receta.detalles && receta.detalles.length > 0
                                         ? `${receta.detalles.length} medicamento${receta.detalles.length !== 1 ? 's' : ''} (${receta.detalles[0].medicamento}...)`
-                                        : receta.medicamentos}
+                                        : 'N/A'}
                                 </td>
                                 <td className="p-3 flex gap-2">
                                     <button

@@ -130,47 +130,6 @@ export class RecetaPdfService {
                         paddingTop: () => 8,
                         paddingBottom: () => 8
                     },
-                    margin: [0, 0, 0, 20]
-                });
-            } else {
-                // Legacy Text Support
-                content.push({
-                    text: 'MEDICAMENTOS:',
-                    bold: true,
-                    fontSize: 10,
-                    margin: [0, 0, 0, 5]
-                });
-                content.push({
-                    text: receta.medicamentos || 'No especificado',
-                    fontSize: 10,
-                    margin: [0, 0, 0, 20]
-                });
-            }
-
-            // General Indications / Observations
-            if (receta.indicaciones) {
-                content.push({
-                    text: 'INDICACIONES GENERALES / OBSERVACIONES',
-                    fontSize: 10,
-                    bold: true,
-                    color: '#2c3e50',
-                    margin: [0, 0, 0, 5],
-                    decoration: 'underline', // Optional styling
-                    decorationColor: '#eeeeee' // Actually borderline
-                });
-                // Add bottom border line for title manually if needed, or just text
-                content.push({
-                    canvas: [
-                        { type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#eeeeee' }
-                    ],
-                    margin: [0, 0, 0, 5]
-                });
-
-                content.push({
-                    text: receta.indicaciones,
-                    fontSize: 10,
-                    color: '#555555',
-                    margin: [0, 0, 0, 20]
                 });
             }
 

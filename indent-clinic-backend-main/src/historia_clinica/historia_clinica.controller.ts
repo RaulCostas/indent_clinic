@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, HttpException, HttpStatus, Req } from '@nestjs/common';
 import { HistoriaClinicaService } from './historia_clinica.service';
 import { CreateHistoriaClinicaDto } from './dto/create-historia_clinica.dto';
 import { UpdateHistoriaClinicaDto } from './dto/update-historia_clinica.dto';
@@ -14,7 +14,10 @@ export class HistoriaClinicaController {
     ) { }
 
     @Post()
-    create(@Body() createDto: CreateHistoriaClinicaDto) {
+    create(@Body() createDto: CreateHistoriaClinicaDto, @Req() req: any) {
+        if (req.user && req.user.id) {
+            createDto.usuarioId = req.user.id;
+        }
         return this.historiaClinicaService.create(createDto);
     }
 

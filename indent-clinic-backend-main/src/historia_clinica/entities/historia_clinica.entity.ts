@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { Doctor } from '../../doctors/entities/doctor.entity';
 import { Especialidad } from '../../especialidad/entities/especialidad.entity';
@@ -51,7 +52,6 @@ export class HistoriaClinica {
     @JoinColumn({ name: 'doctorId' })
     doctor: Doctor;
 
-
     @Column({ type: 'text', nullable: true })
     diagnostico: string;
 
@@ -74,7 +74,6 @@ export class HistoriaClinica {
     @Column({ default: false, name: 'Caso_Clinico' })
     casoClinico: boolean;
 
-
     @Column({ default: 'NO' })
     pagado: string; // 'SI' | 'NO' (pago al doctor)
 
@@ -90,10 +89,8 @@ export class HistoriaClinica {
     @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
     precioConDescuento: number;
 
-
     @Column({ type: 'text', nullable: true })
     firmaPaciente: string;
-
 
     @Column({ nullable: true })
     clinicaId: number;
@@ -101,6 +98,13 @@ export class HistoriaClinica {
     @ManyToOne(() => Clinica, { nullable: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ nullable: true })
+    usuarioId: number;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'usuarioId' })
+    usuario: User;
 
     @OneToMany('PagosDetalleDoctores', (p: any) => p.historiaClinica)
     pagosDetalleDoctores: any[];

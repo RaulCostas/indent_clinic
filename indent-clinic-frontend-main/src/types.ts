@@ -235,15 +235,11 @@ export interface Paciente {
     telefono: string;
     celular: string;
     email: string;
-    casilla: string;
     profesion: string;
     estado_civil: string;
-    direccion_oficina: string;
-    telefono_oficina: string;
     fecha_nacimiento: string;
     sexo: string;
     seguro_medico: string;
-    poliza: string;
     fecha_vencimiento?: string;
     recomendado: string;
     responsable: string;
@@ -631,8 +627,7 @@ export interface Receta {
     userId: number;
     user?: { id: number; name: string };
     fecha: string;
-    medicamentos: string;
-    indicaciones: string;
+    clinicaId?: number;
     detalles?: RecetaDetalle[];
 }
 

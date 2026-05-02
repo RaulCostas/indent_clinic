@@ -192,8 +192,8 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                         <FileText size={14} /> Consulta
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Field label="¿Cuándo fue la última vez que visitó al odontólogo, y cuál fue el motivo?" value={`${(paciente as any).fichaMedica?.ultima_visita_odontologo || 'No especificado'} - ${(paciente as any).fichaMedica?.motivo_consulta || 'Sin motivo'}`} />
-                                        <Field label="Motivo de Consulta" value={paciente.motivo} />
+                                        <Field label="¿Cuándo fue su última visita al odontólogo?" value={(paciente as any).fichaMedica?.ultima_visita_odontologo} />
+                                        <Field label="Motivo de Consulta" value={(paciente as any).fichaMedica?.motivo_consulta || paciente.motivo} />
                                     </div>
                                 </section>
                             </div>
@@ -206,14 +206,53 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                         <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-3">
                                             <AlertCircle size={14} /> Antecedentes Patológicos
                                         </h3>
-                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                                            <CheckItem label="Bruxismo" value={ficha.bruxismo} />
-                                            <CheckItem label="Alergia a Medicamento" value={ficha.alergia_medicamento} />
-                                            <CheckItem label="Medicamento últimas 72h" value={ficha.medicamento_72h} />
-                                            <CheckItem label="Tratamiento Médico" value={ficha.tratamiento_medico} />
-                                            <CheckItem label="De las Articulaciones" value={ficha.articulaciones} />
-                                            <CheckItem label="Anestesiado Anteriormente" value={ficha.anestesiado_anteriormente} />
-                                            <CheckItem label="Reacción a Anestesia" value={ficha.reaccion_anestesia} />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <div className="space-y-1">
+                                                <CheckItem label="Bruxismo" value={ficha.bruxismo} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Alergia a Medicamento" value={ficha.alergia_medicamento} />
+                                                {ficha.alergia_medicamento && ficha.alergia_medicamento_detalle && (
+                                                    <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                        <Field label="Detalle Alergia" value={ficha.alergia_medicamento_detalle} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Medicamento últimas 72h" value={ficha.medicamento_72h} />
+                                                {ficha.medicamento_72h && ficha.medicamento_72h_detalle && (
+                                                    <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                        <Field label="Detalle Medicamento" value={ficha.medicamento_72h_detalle} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Tratamiento Médico" value={ficha.tratamiento_medico} />
+                                                {ficha.tratamiento_medico && ficha.tratamiento_medico_detalle && (
+                                                    <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                        <Field label="Detalle Tratamiento" value={ficha.tratamiento_medico_detalle} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="De las Articulaciones" value={ficha.articulaciones} />
+                                                {ficha.articulaciones && ficha.articulaciones_detalle && (
+                                                    <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                        <Field label="Detalle Articulaciones" value={ficha.articulaciones_detalle} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Anestesiado Anteriormente" value={ficha.anestesiado_anteriormente} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Reacción a Anestesia" value={ficha.reaccion_anestesia} />
+                                                {ficha.reaccion_anestesia && ficha.reaccion_anestesia_detalle && (
+                                                    <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                        <Field label="Detalle Reacción" value={ficha.reaccion_anestesia_detalle} />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </section>
 
@@ -222,21 +261,48 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                         <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-3">
                                             <Heart size={14} /> Enfermedades
                                         </h3>
-                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                                            <CheckItem label="Neurológicas" value={ficha.enf_neurologicas} />
-                                            <CheckItem label="Pulmonares" value={ficha.enf_pulmonares} />
-                                            <CheckItem label="Cardíacas" value={ficha.enf_cardiacas} />
-                                            <CheckItem label="Hígado" value={ficha.enf_higado} />
-                                            <CheckItem label="Gástricas" value={ficha.enf_gastricas} />
-                                            <CheckItem label="Venéreas" value={ficha.enf_venereas} />
-                                            <CheckItem label="Renales" value={ficha.enf_renales} />
-                                            <CheckItem label="Diabetes" value={ficha.diabetes} />
-                                            <CheckItem label="Hemorragias / Anemia" value={ficha.anemia} />
-                                            <CheckItem label="Presión Alta (Hipertensión)" value={ficha.hipertension} />
-                                            <CheckItem label="Presión Baja (Hipotensión)" value={ficha.hipotension} />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <div className="space-y-1">
+                                                <CheckItem label="Neurológicas" value={ficha.enf_neurologicas} />
+                                                {ficha.enf_neurologicas && ficha.enf_neurologicas_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_neurologicas_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Pulmonares" value={ficha.enf_pulmonares} />
+                                                {ficha.enf_pulmonares && ficha.enf_pulmonares_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_pulmonares_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Cardíacas" value={ficha.enf_cardiacas} />
+                                                {ficha.enf_cardiacas && ficha.enf_cardiacas_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_cardiacas_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Hígado" value={ficha.enf_higado} />
+                                                {ficha.enf_higado && ficha.enf_higado_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_higado_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Gástricas" value={ficha.enf_gastricas} />
+                                                {ficha.enf_gastricas && ficha.enf_gastricas_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_gastricas_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Venéreas" value={ficha.enf_venereas} />
+                                                {ficha.enf_venereas && ficha.enf_venereas_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_venereas_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Renales" value={ficha.enf_renales} />
+                                                {ficha.enf_renales && ficha.enf_renales_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.enf_renales_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Diabetes" value={ficha.diabetes} />
+                                                {ficha.diabetes && ficha.diabetes_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.diabetes_detalle} /></div>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <CheckItem label="Anemia" value={ficha.anemia} />
+                                                {ficha.anemia && ficha.anemia_detalle && <div className="pl-4 border-l-2 border-red-200 ml-2"><Field label="Detalle" value={ficha.anemia_detalle} /></div>}
+                                            </div>
+                                            <CheckItem label="Hipertensión arterial (Presión Arterial Alta)" value={ficha.hipertension} />
+                                            <CheckItem label="Hipotensión arterial (Presión Arterial Baja)" value={ficha.hipotension} />
                                         </div>
                                         <div className="mt-3">
-                                            <Field label="¿Requirió o requiere Prueba de VIH?" value={ficha.prueba_vih ? `SÍ (${ficha.prueba_vih_resultado || 'Sin especificar'})` : 'NO'} />
+                                            <Field label="¿Alguna vez le hicieron la prueba del VIH?" value={ficha.prueba_vih ? `SÍ (${ficha.prueba_vih_resultado || 'Sin especificar'})` : 'NO'} />
                                         </div>
                                     </section>
 
@@ -246,9 +312,23 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                             <Heart size={14} /> Antecedentes Gineco / Obstétricos
                                         </h3>
                                         {paciente.sexo === 'Femenino' ? (
-                                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                                                <CheckItem label="Antic. Hormonal" value={ficha.anticonceptivo_hormonal} />
-                                                <CheckItem label="Posible Embarazo" value={ficha.posibilidad_embarazo} />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <CheckItem label="Antic. Hormonal" value={ficha.anticonceptivo_hormonal} />
+                                                    {ficha.anticonceptivo_hormonal && ficha.anticonceptivo_hormonal_detalle && (
+                                                        <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                            <Field label="Detalle" value={ficha.anticonceptivo_hormonal_detalle} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <CheckItem label="Posible Embarazo" value={ficha.posibilidad_embarazo} />
+                                                    {ficha.posibilidad_embarazo && ficha.semana_gestacion && (
+                                                        <div className="pl-4 border-l-2 border-red-200 ml-2">
+                                                            <Field label="Semana de Gestación" value={ficha.semana_gestacion} />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="text-sm text-gray-500 italic px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">

@@ -697,7 +697,7 @@ const PacienteList: React.FC = () => {
                                 <div class="field"><span class="label">Sexo</span><div class="value">${fullPaciente.sexo}</div></div>
                                 <div class="field"><span class="label">Estado Civil</span><div class="value">${fullPaciente.estado_civil}</div></div>
                                 <div class="field"><span class="label">Carnet Identidad</span><div class="value">${(fullPaciente as any).ci || '-'}</div></div>
-                                <div class="field"><span class="label">Seguro Médico / Póliza</span><div class="value">${fullPaciente.seguro_medico || '-'} ${fullPaciente.poliza ? `(${fullPaciente.poliza})` : ''}</div></div>
+                                <div class="field"><span class="label">Seguro Médico</span><div class="value">${fullPaciente.seguro_medico || '-'}</div></div>
                                 <div class="field"><span class="label">Vencimiento Seguro</span><div class="value">${fullPaciente.fecha_vencimiento ? formatDate(fullPaciente.fecha_vencimiento) : '-'}</div></div>
                             </div>
 
@@ -721,8 +721,8 @@ const PacienteList: React.FC = () => {
 
                             <h2 style="margin-top: 15px;">Consulta</h2>
                             <div class="info-grid">
-                                <div class="field" style="grid-column: span 2;"><span class="label">¿Cuándo fue la última vez que visitó al odontólogo, y cuál fue el motivo?</span><div class="value">${ficha?.ultima_visita_odontologo || 'No especificado'} - ${ficha?.motivo_consulta || 'Sin motivo'}</div></div>
-                                <div class="field" style="grid-column: span 2;"><span class="label">Motivo de Consulta</span><div class="value">${fullPaciente.motivo || '-'}</div></div>
+                                <div class="field" style="grid-column: span 2;"><span class="label">¿Cuándo fue su última visita al odontólogo?</span><div class="value">${ficha?.ultima_visita_odontologo || 'No especificado'}</div></div>
+                                <div class="field" style="grid-column: span 2;"><span class="label">Motivo de Consulta</span><div class="value">${ficha?.motivo_consulta || fullPaciente.motivo || '-'}</div></div>
                             </div>
                         </div>
 
@@ -746,27 +746,27 @@ const PacienteList: React.FC = () => {
                                     <h2>Antecedentes Patológicos Personales</h2>
                                     <div class="checkbox-grid">
                                         <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.bruxismo)}</span> Bruxismo</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.alergia_medicamento)}</span> Alergia a Medicamento</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.medicamento_72h)}</span> Medicamento 72h</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.tratamiento_medico)}</span> Tratamiento Médico</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anestesiado_anteriormente)}</span> Anestesiado Antes</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.reaccion_anestesia)}</span> Reacción Anestesia</div>
+                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.alergia_medicamento)}</span> Alergia a Medicamento ${ficha.alergia_medicamento_detalle ? `(${ficha.alergia_medicamento_detalle})` : ''}</div>
+                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.medicamento_72h)}</span> Medicamento últimas 72h ${ficha.medicamento_72h_detalle ? `(${ficha.medicamento_72h_detalle})` : ''}</div>
+                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.tratamiento_medico)}</span> Tratamiento Médico ${ficha.tratamiento_medico_detalle ? `(${ficha.tratamiento_medico_detalle})` : ''}</div>
+                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anestesiado_anteriormente)}</span> Anestesiado Anteriormente</div>
+                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.reaccion_anestesia)}</span> Reacción Anestesia ${ficha.reaccion_anestesia_detalle ? `(${ficha.reaccion_anestesia_detalle})` : ''}</div>
                                     </div>
                                 <h2>Enfermedades</h2>
                                 <div class="checkbox-grid">
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_neurologicas)}</span> Neurológicas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_pulmonares)}</span> Pulmonares</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_cardiacas)}</span> Cardíacas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_higado)}</span> Hígado</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_gastricas)}</span> Gástricas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_venereas)}</span> Venéreas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_renales)}</span> Renales</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.articulaciones)}</span> Articulaciones</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.diabetes)}</span> Diabetes</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anemia)}</span> Hemorragias/Anemia</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.hipertension)}</span> Presión Alta</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.hipotension)}</span> Presión Baja</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.prueba_vih)}</span> Prueba VIH</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_neurologicas)}</span> Neurológicas ${ficha.enf_neurologicas_detalle ? `(${ficha.enf_neurologicas_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_pulmonares)}</span> Pulmonares ${ficha.enf_pulmonares_detalle ? `(${ficha.enf_pulmonares_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_cardiacas)}</span> Cardíacas ${ficha.enf_cardiacas_detalle ? `(${ficha.enf_cardiacas_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_higado)}</span> Hígado ${ficha.enf_higado_detalle ? `(${ficha.enf_higado_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_gastricas)}</span> Gástricas ${ficha.enf_gastricas_detalle ? `(${ficha.enf_gastricas_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_venereas)}</span> Venéreas ${ficha.enf_venereas_detalle ? `(${ficha.enf_venereas_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_renales)}</span> Renales ${ficha.enf_renales_detalle ? `(${ficha.enf_renales_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.articulaciones)}</span> Articulaciones ${ficha.articulaciones_detalle ? `(${ficha.articulaciones_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.diabetes)}</span> Diabetes ${ficha.diabetes_detalle ? `(${ficha.diabetes_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anemia)}</span> Anemia ${ficha.anemia_detalle ? `(${ficha.anemia_detalle})` : ''}</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.hipertension)}</span> Hipertensión arterial (Presión Arterial Alta)</div>
+                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.hipotension)}</span> Hipotensión arterial (Presión Arterial Baja)</div>
+                                    <div class="checkbox-item" style="grid-column: span 3;"><span style="font-size: 16px;">${checkIcon(ficha.prueba_vih)}</span> ¿Alguna vez le hicieron la prueba del VIH? ${ficha.prueba_vih ? `(${ficha.prueba_vih_resultado || 'Sin especificar'})` : ''}</div>
                                 </div>
 
                                 <h2>Antecedentes Gineco / Obstétricos</h2>
@@ -804,8 +804,8 @@ const PacienteList: React.FC = () => {
                                         </div>
                                     ` : '<div style="height: 105px;"></div>'}
                                     <div style="border-top: 1px solid #333; width: 300px; margin-bottom: 5px;"></div>
-                                    <div style="font-weight: bold; font-size: 14px;">Firma del Paciente</div>
-                                    <div style="font-size: 12px;">${fullPaciente.nombre} ${fullPaciente.paterno} ${fullPaciente.materno}</div>
+                                    <div style="font-weight: bold; font-size: 14px;">FIRMA PACIENTE</div>
+                                    <div style="font-size: 10px; font-weight: bold; margin-top: 5px;">DOCUMENTO EN CALIDAD DE DECLARACION JURADA</div>
                                 </div>
                             </div>
                         </div>

@@ -85,4 +85,8 @@ export class CreateHistoriaClinicaDto {
     @IsOptional()
     @IsNumber()
     clinicaId?: number;
+
+    @IsOptional()
+    @IsNumber()
+    usuarioId?: number;
 }

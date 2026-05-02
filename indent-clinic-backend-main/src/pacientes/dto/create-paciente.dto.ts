@@ -26,8 +26,7 @@ export class CreatePacienteDto {
     direccion: string;
 
     @IsString()
-    @IsOptional()
-    lugar_residencia?: string;
+    lugar_residencia: string;
 
     @IsString()
     telefono: string;
@@ -38,8 +37,6 @@ export class CreatePacienteDto {
     @IsString()
     email: string;
 
-    @IsString()
-    casilla: string;
 
     @IsString()
     profesion: string;
@@ -47,11 +44,7 @@ export class CreatePacienteDto {
     @IsString()
     estado_civil: string;
 
-    @IsString()
-    direccion_oficina: string;
 
-    @IsString()
-    telefono_oficina: string;
 
     @IsDateString()
     fecha_nacimiento: string;
@@ -62,8 +55,6 @@ export class CreatePacienteDto {
     @IsString()
     seguro_medico: string;
 
-    @IsString()
-    poliza: string;
 
     @IsDateString()
     @IsOptional()
@@ -101,4 +92,8 @@ export class CreatePacienteDto {
     @ValidateNested()
     @Type(() => CreateFichaMedicaDto)
     fichaMedica?: CreateFichaMedicaDto;
+
+    @IsOptional()
+    @IsNumber()
+    usuarioId?: number;
 }

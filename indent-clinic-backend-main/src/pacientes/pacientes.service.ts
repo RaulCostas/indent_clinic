@@ -39,11 +39,48 @@ export class PacientesService {
         }
     }
 
+    async checkDuplicateName(nombre: string, paterno: string, materno: string, clinicaId: number, excludeId?: number) {
+        if (!nombre || !paterno || !clinicaId) return;
+
+        const queryBuilder = this.pacientesRepository.createQueryBuilder('p')
+            .where('TRIM(LOWER(p.nombre)) = :nombre', { nombre: nombre.trim().toLowerCase() })
+            .andWhere('TRIM(LOWER(p.paterno)) = :paterno', { paterno: paterno.trim().toLowerCase() })
+            .andWhere('p.clinicaId = :clinicaId', { clinicaId });
+
+        if (materno && materno.trim() !== '') {
+            queryBuilder.andWhere('TRIM(LOWER(p.materno)) = :materno', { materno: materno.trim().toLowerCase() });
+        } else {
+            queryBuilder.andWhere('(p.materno IS NULL OR TRIM(p.materno) = \'\')');
+        }
+
+        if (excludeId) {
+            queryBuilder.andWhere('p.id != :excludeId', { excludeId });
+        }
+
+        const existing = await queryBuilder.getOne();
+        if (existing) {
+            throw new BadRequestException(['Ya existe un Paciente registrado con este nombre completo en esta clínica.']);
+        }
+    }
+
     async create(createPacienteDto: CreatePacienteDto): Promise<Paciente> {
         console.log('Creating Paciente with DTO:', createPacienteDto);
-        if (createPacienteDto.ci && createPacienteDto.clinicaId) {
-            await this.checkDuplicateCi(createPacienteDto.ci, createPacienteDto.clinicaId);
+        
+        if (createPacienteDto.clinicaId) {
+            // 1. If CI is provided, check CI
+            if (createPacienteDto.ci) {
+                await this.checkDuplicateCi(createPacienteDto.ci, createPacienteDto.clinicaId);
+            } else {
+                // 2. If NO CI (minor case), check Name duplication
+                await this.checkDuplicateName(
+                    createPacienteDto.nombre,
+                    createPacienteDto.paterno,
+                    createPacienteDto.materno || '',
+                    createPacienteDto.clinicaId
+                );
+            }
         }
+
         if (createPacienteDto.celular) {
             createPacienteDto.celular = this.formatPhoneNumber(createPacienteDto.celular);
         }
@@ -120,8 +157,15 @@ export class PacientesService {
         }
 
         const currentClinicaId = updatePacienteDto.clinicaId || paciente.clinicaId;
-        if (updatePacienteDto.ci && currentClinicaId) {
-            await this.checkDuplicateCi(updatePacienteDto.ci, currentClinicaId, id);
+        const currentCi = updatePacienteDto.ci !== undefined ? updatePacienteDto.ci : paciente.ci;
+        const currentNombre = updatePacienteDto.nombre || paciente.nombre;
+        const currentPaterno = updatePacienteDto.paterno || paciente.paterno;
+        const currentMaterno = updatePacienteDto.materno !== undefined ? updatePacienteDto.materno : (paciente.materno || '');
+
+        if (currentCi) {
+            await this.checkDuplicateCi(currentCi, currentClinicaId, id);
+        } else {
+            await this.checkDuplicateName(currentNombre, currentPaterno, currentMaterno, currentClinicaId, id);
         }
 
         if (updatePacienteDto.celular) {

@@ -8,6 +8,8 @@ import { useClinica } from '../context/ClinicaContext';
 import Swal from 'sweetalert2';
 import PagosGastosFijosForm from './PagosGastosFijosForm';
 import Pagination from './Pagination';
+import SearchableSelect from './SearchableSelect';
+import { User as UserIcon, X as CloseIcon } from 'lucide-react';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
@@ -184,7 +186,18 @@ const Home: React.FC = () => {
 
     const [noRegistrados, setNoRegistrados] = useState<any[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [selectedDoctor, setSelectedDoctor] = useState('');
+    const [selectedDoctor, setSelectedDoctor] = useState(() => {
+        return sessionStorage.getItem('home_selectedDoctor') || '';
+    });
+
+    useEffect(() => {
+        if (selectedDoctor) {
+            sessionStorage.setItem('home_selectedDoctor', selectedDoctor);
+        } else {
+            sessionStorage.removeItem('home_selectedDoctor');
+        }
+    }, [selectedDoctor]);
+
     const itemsPerPage = 5;
 
     const fetchNoRegistrados = async () => {
@@ -283,29 +296,26 @@ const Home: React.FC = () => {
                                 {selectedDoctor && <span className="ml-2 text-yellow-600 dark:text-yellow-400">(filtrado)</span>}
                             </div>
                             <div className="flex items-center gap-2">
-                                <label className="text-sm text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">Filtrar por Doctor:</label>
-                                <select
-                                    value={selectedDoctor}
-                                    onChange={(e) => { setSelectedDoctor(e.target.value); setCurrentPage(1); }}
-                                    className="pl-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm"
-                                >
-                                    <option value="">-- Todos --</option>
-                                    {doctoresUnicos.map((d) => (
-                                        <option key={d} value={d}>{d}</option>
-                                    ))}
-                                </select>
+                                <div className="relative min-w-[220px]">
+                                    <SearchableSelect
+                                        options={doctoresUnicos.map(d => ({
+                                            id: d,
+                                            label: d
+                                        }))}
+                                        value={selectedDoctor}
+                                        onChange={(val) => { setSelectedDoctor(String(val)); setCurrentPage(1); }}
+                                        placeholder="-- Filtrar por Doctor --"
+                                        icon={<UserIcon size={14} className="text-blue-500" />}
+                                        className="!py-0 shadow-sm"
+                                    />
+                                </div>
                                 {selectedDoctor && (
                                     <button
                                         onClick={() => { setSelectedDoctor(''); setCurrentPage(1); }}
-                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-200 hover:bg-red-100 dark:bg-gray-600 dark:hover:bg-red-900/40 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 hover:shadow-md"
+                                        className="flex-shrink-0 text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-1.5 rounded-full hover:bg-red-200 transition-colors border border-red-200 dark:border-red-800"
                                         title="Limpiar filtro de doctor"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M20 20H7L3 16l10-10 7 7-1.5 1.5"/>
-                                            <path d="M6.5 17.5l4-4"/>
-                                            <line x1="18" y1="6" x2="6" y2="18"/>
-                                        </svg>
-                                        <span className="text-xs font-medium">Limpiar</span>
+                                        <CloseIcon size={14} />
                                     </button>
                                 )}
                             </div>

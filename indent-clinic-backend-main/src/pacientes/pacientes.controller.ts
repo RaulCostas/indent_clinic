@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
 import { PacientesService } from './pacientes.service';
 import { CreatePacienteDto } from './dto/create-paciente.dto';
+import { CreateQuickPacienteDto } from './dto/create-quick-paciente.dto';
 import { UpdatePacienteDto } from './dto/update-paciente.dto';
 
 @Controller('pacientes')
@@ -16,6 +17,14 @@ export class PacientesController {
             }
         }
         return this.pacientesService.create(createPacienteDto);
+    }
+
+    @Post('quick')
+    createQuick(@Body() createQuickPacienteDto: CreateQuickPacienteDto, @Req() req: any) {
+        if (req.user && req.user.id) {
+            createQuickPacienteDto.usuarioId = req.user.id;
+        }
+        return this.pacientesService.createQuick(createQuickPacienteDto);
     }
 
 

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Paciente } from './entities/paciente.entity';
 import { CreatePacienteDto } from './dto/create-paciente.dto';
+import { CreateQuickPacienteDto } from './dto/create-quick-paciente.dto';
 import { UpdatePacienteDto } from './dto/update-paciente.dto';
 
 import { getBoliviaDate } from '../common/utils/date.utils';
@@ -20,6 +21,18 @@ export class PacientesService {
         if (trimmed.startsWith('+')) return trimmed;
         // If it lacks +, assume default +591 (or could be dynamic if needed, but per request +591 is standard here)
         return `+591${trimmed}`;
+    }
+
+    private calculateAge(fechaNacimiento: string): number {
+        if (!fechaNacimiento) return 0;
+        const today = new Date();
+        const birthDate = new Date(fechaNacimiento);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
     }
 
     async checkDuplicateCi(ci: string, clinicaId: number, excludeId?: number) {
@@ -67,11 +80,19 @@ export class PacientesService {
         console.log('Creating Paciente with DTO:', createPacienteDto);
         
         if (createPacienteDto.clinicaId) {
-            // 1. If CI is provided, check CI
+            const age = this.calculateAge(createPacienteDto.fecha_nacimiento);
+            const isMinor = age < 18;
+
             if (createPacienteDto.ci) {
+                // If CI is provided (even if minor), check CI
                 await this.checkDuplicateCi(createPacienteDto.ci, createPacienteDto.clinicaId);
             } else {
-                // 2. If NO CI (minor case), check Name duplication
+                // If NO CI
+                if (!isMinor) {
+                    // For adults, CI is mandatory in regular registration
+                    throw new BadRequestException(['El CI es obligatorio para pacientes mayores de edad.']);
+                }
+                // For minors without CI, check Name duplication
                 await this.checkDuplicateName(
                     createPacienteDto.nombre,
                     createPacienteDto.paterno,
@@ -85,6 +106,33 @@ export class PacientesService {
             createPacienteDto.celular = this.formatPhoneNumber(createPacienteDto.celular);
         }
         const paciente = this.pacientesRepository.create(createPacienteDto);
+        return await this.pacientesRepository.save(paciente);
+    }
+
+    async createQuick(dto: CreateQuickPacienteDto): Promise<Paciente> {
+        console.log('Creating Quick Paciente with DTO:', dto);
+
+        if (dto.clinicaId) {
+            // Quick registration ALWAYS checks Name duplication
+            await this.checkDuplicateName(
+                dto.nombre,
+                dto.paterno,
+                dto.materno || '',
+                dto.clinicaId
+            );
+        }
+
+        if (dto.celular) {
+            dto.celular = this.formatPhoneNumber(dto.celular);
+        }
+
+        const paciente = this.pacientesRepository.create({
+            ...dto,
+            fecha: getBoliviaDate(),
+            fecha_nacimiento: getBoliviaDate(), // Default to today if not provided
+            estado: 'activo'
+        });
+
         return await this.pacientesRepository.save(paciente);
     }
 

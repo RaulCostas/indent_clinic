@@ -32,59 +32,13 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Construct payload with defaults for required fields
+            // Construct simplified payload for quick registration
             const payload = {
                 ...formData,
-                fecha_nacimiento: getLocalDateString(), // Default to today
                 clinicaId: clinicaSeleccionada || undefined,
-                fecha: getLocalDateString(), // Registration date
-                direccion: '',
-                telefono: '',
-                email: '',
-                profesion: '',
-                estado_civil: 'Soltero',
-                recomendado: '',
-                responsable: '',
-                parentesco: '',
-                direccion_responsable: '',
-                telefono_responsable: '',
-                tipo_paciente: 'Normal',
-                nomenclatura: 'Paciente Remitido',
-                estado: 'activo',
-                clasificacion: 'A0',
-                fichaMedica: {
-                    alergia_anestesicos: false,
-                    alergias_drogas: false,
-                    hepatitis: false,
-                    asma: false,
-                    diabetes: false,
-                    dolencia_cardiaca: false,
-                    hipertension: false,
-                    fiebre_reumatica: false,
-                    diatesis_hemorragia: false,
-                    sinusitis: false,
-                    ulcera_gastroduodenal: false,
-                    enfermedades_tiroides: false,
-                    observaciones: '',
-                    medico_cabecera: '',
-                    enfermedad_actual: '',
-                    toma_medicamentos: false,
-                    medicamentos_detalle: '',
-                    tratamiento: '',
-                    ultima_consulta: '',
-                    frecuencia_cepillado: '',
-                    usa_cepillo: false,
-                    usa_hilo_dental: false,
-                    usa_enjuague: false,
-                    mal_aliento: false,
-                    causa_mal_aliento: '',
-                    sangra_encias: false,
-                    dolor_cara: false,
-                    comentarios: ''
-                }
             };
 
-            const response = await api.post('/pacientes', payload);
+            const response = await api.post('/pacientes/quick', payload);
             if (response.data) {
                 Swal.fire({
                     icon: 'success',
@@ -118,7 +72,7 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                 <form onSubmit={handleSubmit}>
                     <div className="grid gap-3">
                         <div>
-                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Nombre:</label>
+                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Nombre: <span className="text-red-500">*</span></label>
                             <input
                                 type="text"
                                 name="nombre"
@@ -131,7 +85,7 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Paterno:</label>
+                                <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Paterno: <span className="text-red-500">*</span></label>
                                 <input
                                     type="text"
                                     name="paterno"
@@ -155,7 +109,7 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                             </div>
                         </div>
                         <div>
-                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Celular:</label>
+                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Celular: <span className="text-red-500">*</span></label>
                             <input
                                 type="text"
                                 name="celular"
@@ -167,7 +121,7 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                             />
                         </div>
                         <div>
-                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Sexo:</label>
+                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Sexo: <span className="text-red-500">*</span></label>
                             <select
                                 name="sexo"
                                 value={formData.sexo}
@@ -179,7 +133,7 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                             </select>
                         </div>
                         <div>
-                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Seguro:</label>
+                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Seguro: <span className="text-red-500">*</span></label>
                             <select
                                 name="seguro_medico"
                                 value={formData.seguro_medico}

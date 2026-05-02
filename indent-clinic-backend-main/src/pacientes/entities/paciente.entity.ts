@@ -25,13 +25,13 @@ export class Paciente {
     @Column({ nullable: true })
     ci: string;
 
-    @Column()
+    @Column({ nullable: true })
     direccion: string;
 
-    @Column()
+    @Column({ nullable: true })
     lugar_residencia: string;
 
-    @Column()
+    @Column({ nullable: true })
     telefono: string;
 
     @Column()
@@ -40,13 +40,13 @@ export class Paciente {
     @Column({ nullable: true })
     ultimo_cumpleanos_felicitado: number;
 
-    @Column()
+    @Column({ nullable: true })
     email: string;
 
-    @Column()
+    @Column({ nullable: true })
     profesion: string;
 
-    @Column()
+    @Column({ nullable: true })
     estado_civil: string;
 
     @Column({ type: 'date' })
@@ -61,16 +61,16 @@ export class Paciente {
     @Column({ type: 'date', nullable: true })
     fecha_vencimiento: string;
 
-    @Column()
+    @Column({ nullable: true })
     responsable: string;
 
-    @Column()
+    @Column({ nullable: true })
     parentesco: string;
 
-    @Column()
+    @Column({ nullable: true })
     direccion_responsable: string;
 
-    @Column()
+    @Column({ nullable: true })
     telefono_responsable: string;
 
     @Column({ default: 'activo' })

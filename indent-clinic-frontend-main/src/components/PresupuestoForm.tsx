@@ -59,7 +59,7 @@ const PresupuestoForm: React.FC = () => {
     const seguroMedico = (paciente?.seguro_medico || '').toUpperCase();
     const isAlianzaGold = seguroMedico.includes('GOLD');
     const isAlianzaSilver = seguroMedico.includes('SILVER');
-    const isAlianzaOdonto = seguroMedico.includes('ODONTOLOGICO') || seguroMedico.includes('ODONTOLÓGICO');
+    const isAlianzaOdonto = seguroMedico.includes('ODONTOLOGICO') || seguroMedico.includes('ODONTOLÓGICO') || seguroMedico.includes('ODONT');
     const hasAlianza = isAlianzaGold || isAlianzaSilver || isAlianzaOdonto;
     const [showManual, setShowManual] = useState(false);
     const [isArancelModalOpen, setIsArancelModalOpen] = useState(false);

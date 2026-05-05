@@ -21,7 +21,8 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
         materno: '',
         celular: '',
         sexo: 'Masculino', // Default
-        seguro_medico: ''
+        seguro_medico: '',
+        fecha_vencimiento: ''
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -35,6 +36,7 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
             // Construct simplified payload for quick registration
             const payload = {
                 ...formData,
+                fecha_vencimiento: formData.fecha_vencimiento || undefined,
                 clinicaId: clinicaSeleccionada || undefined,
             };
 
@@ -167,14 +169,23 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                                 )}
                             </select>
                         </div>
+                        <div>
+                            <label className="block mb-1 font-bold text-sm text-gray-700 dark:text-gray-300">Vencimiento Seguro: <span className="text-xs font-normal text-gray-400">(opcional)</span></label>
+                            <input
+                                type="date"
+                                name="fecha_vencimiento"
+                                value={formData.fecha_vencimiento}
+                                onChange={handleChange}
+                                className="w-full p-2 pl-4 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
                     </div>
-                    {/* Footer Buttons */}
-                    <div className="flex justify-start gap-3 mt-8 p-5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl -mx-4 -mb-5 sm:-mx-5 sm:-mb-5">
+                    <div className="p-5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-start gap-3 rounded-b-xl -mx-4 -mb-5 sm:-mx-5 sm:-mb-5 mt-6">
                         <button
                             type="submit"
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 sm:px-4 rounded flex items-center gap-2 transition-colors transform hover:-translate-y-0.5 shadow-sm text-sm sm:text-base"
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transform hover:-translate-y-0.5 transition-all shadow-md"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" className="sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                                 <polyline points="17 21 17 13 7 13 7 21"></polyline>
                                 <polyline points="7 3 7 8 15 8"></polyline>
@@ -184,9 +195,9 @@ const QuickPacienteForm: React.FC<QuickPacienteFormProps> = ({ isOpen, onClose, 
                         <button
                             type="button"
                             onClick={onClose}
-                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-3 sm:px-4 rounded transition-colors flex items-center gap-2 text-sm sm:text-base"
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                             Cancelar

@@ -406,7 +406,11 @@ const PacienteTabPagos: React.FC = () => {
                             const take = Math.min(pAmount, Math.max(pAmount, available));
                             data.capacities[tIdx] -= Math.min(take, available);
                             pAmount -= take;
-                            covered.push({ treatment: data.treatments[tIdx], allocated: take });
+                            covered.push({ 
+                                treatment: data.treatments[tIdx], 
+                                allocated: take,
+                                isFull: data.capacities[tIdx] <= 0.001
+                            });
                         }
                     });
                 }
@@ -422,8 +426,16 @@ const PacienteTabPagos: React.FC = () => {
                         pAmount -= take;
                         
                         const existing = covered.find(c => c.treatment.id === data.treatments[tratIndex].id);
-                        if (existing) existing.allocated += take;
-                        else covered.push({ treatment: data.treatments[tratIndex], allocated: take });
+                        if (existing) {
+                            existing.allocated += take;
+                            (existing as any).isFull = data.capacities[tratIndex] <= 0.001;
+                        } else {
+                            covered.push({ 
+                                treatment: data.treatments[tratIndex], 
+                                allocated: take,
+                                isFull: data.capacities[tratIndex] <= 0.001
+                            } as any);
+                        }
                     }
                     if (data.capacities[tratIndex] <= 0.001) {
                         tratIndex++;
@@ -443,7 +455,7 @@ const PacienteTabPagos: React.FC = () => {
                     result.push({
                         ...pago,
                         rowId: `${pago.id}-${hc.id}`,
-                        tratamientoNombre: `${hc.estadoTratamiento !== 'terminado' ? '[ADELANTO] ' : ''}${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
+                        tratamientoNombre: `${(hc.estadoTratamiento !== 'terminado' && !(cov as any).isFull) ? '[ADELANTO] ' : ''}${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
                         tratamientoPrecio: hc.precio,
                         tratamientoDescuento: pago.descuento || hc.descuento || 0,
                         pagoMonto: cov.allocated,

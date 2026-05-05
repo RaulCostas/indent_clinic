@@ -20,6 +20,10 @@ export class CreateQuickPacienteDto {
     @IsString()
     seguro_medico: string;
 
+    @IsString()
+    @IsOptional()
+    fecha_vencimiento?: string;
+
     @IsNumber()
     @IsOptional()
     clinicaId?: number;

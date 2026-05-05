@@ -292,6 +292,15 @@ const PagosForm: React.FC<PagosFormProps> = ({
         }
         if (tratamientoIdProp) {
             const tId = Number(tratamientoIdProp);
+            
+            // Pre-llenar el descuento si el tratamiento ya tiene uno asignado en la historia clínica
+            if (tratamientosPlan.length > 0 && !isEditing && !formData.descuento) {
+                const trat = tratamientosPlan.find(t => t.id === tId);
+                if (trat && Number(trat.descuento) > 0) {
+                    setFormData(prev => ({ ...prev, descuento: String(trat.descuento) }));
+                }
+            }
+
             // Ensure ID is selected
             if (!selectedTreatments.includes(tId)) {
                 setSelectedTreatments([tId]);
@@ -305,7 +314,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                 };
             });
         }
-    }, [montoProp, tratamientoIdProp, tratamientosPlan]); // Re-run when tre    // Update main monto when assignments change (Auto-summing logic)
+    }, [montoProp, tratamientoIdProp, tratamientosPlan, isEditing]); // Update main monto when assignments change (Auto-summing logic)
     useEffect(() => {
         // PROTECCIÓN: Si estamos en modo tratamiento específico (modal $), 
         // el usuario edita directamente los campos principales. 
@@ -1257,7 +1266,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                             </div>
 
                         {/* Descuento del Tratamiento */}
-                        {(!isRefund && (!tratamientoIdProp || balancedTreatments.find(t => t.id === Number(tratamientoIdProp))?.estadoTratamiento === 'terminado')) && (
+                        {!isRefund && (
                             <div>
                                 <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">Descuento:</label>
                                 <div className="relative">

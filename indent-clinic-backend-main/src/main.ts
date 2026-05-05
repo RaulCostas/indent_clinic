@@ -15,7 +15,6 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
-  app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
   console.log(`Backend is running on: ${await app.getUrl()}`);

@@ -57,6 +57,15 @@ export class PacientesController {
         return this.pacientesService.getDashboardStats(clinicaId ? +clinicaId : undefined);
     }
 
+    @Get('run-migration-limpieza')
+    runMigration(@Query('key') key: string) {
+        // Simple security check
+        if (key !== 'indent2026cleanup') {
+            return { message: 'Unauthorized' };
+        }
+        return this.pacientesService.runMigrationLimpieza();
+    }
+
     @Get('statistics')
     getStatistics(@Query('year') year: string) {
         return this.pacientesService.getStatistics(year ? +year : new Date().getFullYear());

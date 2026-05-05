@@ -377,13 +377,13 @@ const PacienteTabPagos: React.FC = () => {
         });
 
         // 2. Pre-calcular TODAS las asignaciones de una sola pasada por cada proforma (O(N))
-        const allocationMap = new Map<number, { treatment: any, allocated: number }[]>();
+        const allocationMap = new Map<number, { treatment: any, allocated: number, isFull?: boolean }[]>();
         
         Object.values(proformasData).forEach(data => {
             let tratIndex = 0;
             data.payments.forEach(pago => {
                 let pAmount = Number(pago.monto);
-                const covered: { treatment: any, allocated: number }[] = [];
+                const covered: { treatment: any, allocated: number, isFull?: boolean }[] = [];
 
 
                 // 1. Fase de Prioridad (Pagos Directos)
@@ -428,13 +428,13 @@ const PacienteTabPagos: React.FC = () => {
                         const existing = covered.find(c => c.treatment.id === data.treatments[tratIndex].id);
                         if (existing) {
                             existing.allocated += take;
-                            (existing as any).isFull = data.capacities[tratIndex] <= 0.001;
+                            existing.isFull = data.capacities[tratIndex] <= 0.001;
                         } else {
                             covered.push({ 
                                 treatment: data.treatments[tratIndex], 
                                 allocated: take,
                                 isFull: data.capacities[tratIndex] <= 0.001
-                            } as any);
+                            });
                         }
                     }
                     if (data.capacities[tratIndex] <= 0.001) {
@@ -455,7 +455,7 @@ const PacienteTabPagos: React.FC = () => {
                     result.push({
                         ...pago,
                         rowId: `${pago.id}-${hc.id}`,
-                        tratamientoNombre: `${(hc.estadoTratamiento !== 'terminado' && !(cov as any).isFull) ? '[ADELANTO] ' : ''}${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
+                        tratamientoNombre: `${(hc.estadoTratamiento !== 'terminado' && !cov.isFull) ? '[ADELANTO] ' : ''}${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
                         tratamientoPrecio: hc.precio,
                         tratamientoDescuento: pago.descuento || hc.descuento || 0,
                         pagoMonto: cov.allocated,

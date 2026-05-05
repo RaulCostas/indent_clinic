@@ -18,6 +18,6 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
   console.log(`Backend is running on: ${await app.getUrl()}`);
-  console.log('Force Restart Triggered 14: ' + new Date().toISOString());
+  console.log('Force Migration Trigger: ' + new Date().toISOString());
 }
 bootstrap();

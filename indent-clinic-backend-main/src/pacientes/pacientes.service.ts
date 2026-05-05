@@ -461,12 +461,4 @@ export class PacientesService {
 
         return monthlyStats;
     }
-
-    async runMigrationLimpieza() {
-        const query = `
-            DELETE FROM agenda
-            WHERE fecha <= '2026-05-03';
-        `;
-        return await this.pacientesRepository.query(query);
-    }
 }

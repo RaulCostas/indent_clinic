@@ -67,7 +67,7 @@ export class PacientesDeudoresService {
             }
 
             history = await this.dataSource.query(
-                `SELECT * FROM historia_clinica WHERE "${hProfIdKey}" IN (${proformaIds.join(',')})`
+                `SELECT * FROM historia_clinica WHERE "${hProfIdKey}" IN (${proformaIds.join(',')}) AND cancelado = false AND precio > 0`
             );
         }
 

@@ -331,6 +331,7 @@ export interface HistoriaClinica {
     descuento?: number;
     precioConDescuento?: number;
     firmaPaciente?: string;
+    tienePagos?: boolean;
     createdAt: string;
     updatedAt: string;
 }

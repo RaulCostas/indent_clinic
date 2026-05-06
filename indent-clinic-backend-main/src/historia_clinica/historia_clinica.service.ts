@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThan, In, IsNull, DataSource } from 'typeorm';
 import { HistoriaClinica } from './entities/historia_clinica.entity';
@@ -68,12 +68,23 @@ export class HistoriaClinicaService {
         });
     }
 
-    async findAllByPaciente(pacienteId: number): Promise<HistoriaClinica[]> {
-        return await this.historiaClinicaRepository.find({
+    async findAllByPaciente(pacienteId: number): Promise<any[]> {
+        const hcs = await this.historiaClinicaRepository.find({
             where: { pacienteId },
             relations: ['paciente', 'doctor', 'especialidad', 'proforma', 'proformaDetalle'],
-            order: { fecha: 'DESC' }
+            order: { fecha: 'DESC', id: 'DESC' }
         });
+
+        // Add payment status flag
+        return await Promise.all(hcs.map(async (hc) => {
+            const hasPatientPayment = await this.pagoRepository.findOne({ where: { historiaClinicaId: hc.id } });
+            const hasDoctorPayment = await this.pagosDetalleDoctoresRepository.findOne({ where: { idhistoria_clinica: hc.id } });
+            
+            return {
+                ...hc,
+                tienePagos: !!(hasPatientPayment || hasDoctorPayment)
+            };
+        }));
     }
 
     async findPendientesPago(doctorId: number, clinicaId?: number): Promise<any[]> {
@@ -305,7 +316,22 @@ export class HistoriaClinicaService {
 
     async remove(id: number): Promise<void> {
         const historia = await this.findOne(id);
+
+        // Verify if it has associated payments (Safety net)
+        const hasPatientPayment = await this.pagoRepository.findOne({ where: { historiaClinicaId: id } });
+        const hasDoctorPayment = await this.pagosDetalleDoctoresRepository.findOne({ where: { idhistoria_clinica: id } });
+
+        if (hasPatientPayment || hasDoctorPayment) {
+            throw new ForbiddenException('No se puede eliminar este registro porque tiene pagos asociados. Elimine primero los pagos vinculados a este tratamiento.');
+        }
+
+        const proformaId = historia.proformaId;
         await this.historiaClinicaRepository.remove(historia);
+
+        // Rebalance if it was part of a proforma
+        if (proformaId) {
+            await this.rebalanceProformaStatus(proformaId);
+        }
     }
 
     async findRecientesByPaciente(pacienteId: number, proformaId?: number): Promise<HistoriaClinica[]> {

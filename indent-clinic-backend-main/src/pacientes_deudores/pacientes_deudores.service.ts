@@ -31,21 +31,36 @@ export class PacientesDeudoresService {
             k.toLowerCase() === 'pacienteid' || k.toLowerCase() === 'paciente_id'
         ) || 'pacienteId';
 
+        const proformaIdKey = Object.keys(sampleProforma).find(k =>
+            k.toLowerCase() === 'id'
+        ) || 'id';
+
         const patientIds = [...new Set(proformas.map(p => p[patientIdKey]))].filter(id => id);
 
         // Step 3: Fetch all payments for these patients (includes advances with no proformaId)
         let pagos: any[] = [];
         if (patientIds.length > 0) {
+            // We need to know the pacienteId column in 'pagos' table.
+            // Assuming it follows the same naming convention as proformas.
             pagos = await this.dataSource.query(
-                `SELECT * FROM pagos WHERE "pacienteId" IN (${patientIds.join(',')})`
+                `SELECT * FROM pagos WHERE "${patientIdKey}" IN (${patientIds.join(',')})`
             );
         }
 
         // Step 4: Fetch all historia_clinica entries for these proformas
         let history: any[] = [];
         if (proformaIds.length > 0) {
+            // We need to know the proformaId column in 'historia_clinica' table.
+            const historySample = await this.dataSource.query(`SELECT * FROM historia_clinica LIMIT 1`);
+            let hProfIdKey = 'proformaId';
+            if (historySample.length > 0) {
+                hProfIdKey = Object.keys(historySample[0]).find(k =>
+                    k.toLowerCase() === 'proformaid' || k.toLowerCase() === 'proforma_id'
+                ) || 'proformaId';
+            }
+
             history = await this.dataSource.query(
-                `SELECT * FROM historia_clinica WHERE "proformaId" IN (${proformaIds.join(',')})`
+                `SELECT * FROM historia_clinica WHERE "${hProfIdKey}" IN (${proformaIds.join(',')})`
             );
         }
 
@@ -86,8 +101,9 @@ export class PacientesDeudoresService {
 
         pagos.forEach(pg => {
             const monto = parseFloat(pg.monto) || 0;
-            const hcId = pg.historiaClinicaId ? Number(pg.historiaClinicaId) : null;
-            const pgPacienteId = Number(pg.pacienteId);
+            const pgHcId = getVal(pg, 'historiaClinicaId');
+            const hcId = pgHcId ? Number(pgHcId) : null;
+            const pgPacienteId = Number(getVal(pg, 'pacienteId'));
 
             if (hcId) {
                 const current = pagosHCMap.get(hcId) || 0;
@@ -102,7 +118,7 @@ export class PacientesDeudoresService {
         const results: any[] = [];
 
         history.forEach(h => {
-            const pid = h.pacienteId;
+            const pid = Number(getVal(h, 'pacienteId'));
             const pac = patientMap.get(pid);
             if (!pac) return;
 
@@ -120,7 +136,8 @@ export class PacientesDeudoresService {
             // Skip if no price or fully paid directly
             if (netPrice <= 0 || saldo <= 0.01) return;
 
-            const prof = proformas.find(p => Number(p.id) === Number(h.proformaId));
+            const hProfId = Number(getVal(h, 'proformaId'));
+            const prof = proformas.find(p => Number(p.id) === hProfId);
 
             results.push({
                 id: h.id, // HC ID

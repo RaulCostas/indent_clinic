@@ -56,6 +56,7 @@ export class PacientesDeudoresService {
 
         // Step 4: Fetch all historia_clinica entries for these proformas
         let history: any[] = [];
+        let allHcIds = new Set<number>();
         if (proformaIds.length > 0) {
             // We need to know the proformaId column in 'historia_clinica' table.
             const historySample = await this.dataSource.query(`SELECT * FROM historia_clinica LIMIT 1`);
@@ -69,6 +70,13 @@ export class PacientesDeudoresService {
             history = await this.dataSource.query(
                 `SELECT * FROM historia_clinica WHERE "${hProfIdKey}" IN (${proformaIds.join(',')}) AND cancelado = false AND precio > 0`
             );
+
+            // Fetch ALL HC IDs (including cancelled) so payments linked to paid treatments
+            // don't bleed into the general FIFO pool
+            const allHcRows = await this.dataSource.query(
+                `SELECT id FROM historia_clinica WHERE "${hProfIdKey}" IN (${proformaIds.join(',')})`
+            );
+            allHcIds = new Set(allHcRows.map((r: any) => Number(r.id)));
         }
 
         // Step 5: Fetch patients for display info
@@ -142,7 +150,7 @@ export class PacientesDeudoresService {
 
             // 3. Validar vinculación contra el contexto actual (History)
             // Solo vinculamos "directamente" si el ID existe en la historia que estamos procesando
-            const validLinkedIds = linkedIds.filter(id => id > 0 && presentHcIds.has(id));
+            const validLinkedIds = linkedIds.filter(id => id > 0 && allHcIds.has(id));
 
             if (validLinkedIds.length > 0) {
                 // Dividir el monto entre los IDs vinculados válidos

@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import { formatDate } from '../utils/dateUtils';
-import { Image as ImageIcon, ArrowLeft, Upload, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Image as ImageIcon, ArrowLeft, Upload, Plus, ChevronLeft, ChevronRight, X, HelpCircle } from 'lucide-react';
+import ManualModal, { type ManualSection } from './ManualModal';
 
 interface ProformaSlim { id: number; numero: number; fecha: string; total: number }
 interface ImgData { id: number; nombre_archivo: string; ruta: string; fecha_creacion: string; descripcion?: string }
@@ -18,7 +19,27 @@ const PacienteTabImagenes: React.FC = () => {
     const [filesToUpload, setFilesToUpload] = useState<{ file: File; descripcion: string }[]>([]);
     const [isUploadingMode, setIsUploadingMode] = useState(false);
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+    const [showManual, setShowManual] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
+
+    const manualSections: ManualSection[] = [
+        {
+            title: 'Gestión de Imágenes',
+            content: 'Las imágenes se organizan por Plan de Tratamiento. Primero debe seleccionar un plan para ver las fotos asociadas o subir nuevas.'
+        },
+        {
+            title: 'Subir Imágenes',
+            content: 'Dentro de un plan, use el botón "+ Agregar Imágenes". Podrá seleccionar múltiples archivos de su dispositivo y añadirles una descripción opcional antes de guardarlas permanentemente.'
+        },
+        {
+            title: 'Visualización (Lightbox)',
+            content: 'Haga clic en cualquier miniatura para abrirla en pantalla completa. Puede usar las flechas del teclado (izquierda/derecha) o los botones laterales para navegar entre todas las fotos del plan.'
+        },
+        {
+            title: 'Eliminar Imágenes',
+            content: 'Al pasar el mouse sobre una imagen (o mantener presionada en móviles), aparecerá un icono de papelera roja en la esquina superior derecha para borrar la imagen.'
+        }
+    ];
 
     const isDark = () => document.documentElement.classList.contains('dark');
 
@@ -262,9 +283,18 @@ const PacienteTabImagenes: React.FC = () => {
     // — Plan selector ─────────────────────────────────────────────────────────
     return (
         <div className="content-card bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6 transition-colors">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-2">
-                <ImageIcon size={22} className="text-blue-500" /> Imágenes por Plan de Tratamiento
-            </h2>
+            <div className="flex justify-between items-start mb-2">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                    <ImageIcon size={22} className="text-blue-500" /> Imágenes por Plan de Tratamiento
+                </h2>
+                <button
+                    onClick={() => setShowManual(true)}
+                    className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center flex-shrink-0"
+                    title="Ayuda / Manual"
+                >
+                    ?
+                </button>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Seleccione un plan para ver y gestionar sus imágenes.</p>
             {loadingPFs ? (
                 <div className="flex items-center justify-center py-16">
@@ -293,6 +323,13 @@ const PacienteTabImagenes: React.FC = () => {
                     ))}
                 </div>
             )}
+            {/* Manual Modal */}
+            <ManualModal
+                isOpen={showManual}
+                onClose={() => setShowManual(false)}
+                title="Manual de Usuario - Gestión de Imágenes"
+                sections={manualSections}
+            />
         </div>
     );
 };

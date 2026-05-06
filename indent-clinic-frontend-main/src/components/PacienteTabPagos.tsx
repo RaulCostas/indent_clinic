@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useClinica } from '../context/ClinicaContext';
 import PagosForm from './PagosForm';
+import ManualModal, { type ManualSection } from './ManualModal';
 
 const PacienteTabPagos: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -28,6 +29,30 @@ const PacienteTabPagos: React.FC = () => {
     const [selectedTratamientoId, setSelectedTratamientoId] = useState<number | null>(null);
     const [editingPagoId, setEditingPagoId] = useState<number | null>(null);
     const [isRefundMode, setIsRefundMode] = useState(false);
+    const [showManual, setShowManual] = useState(false);
+
+    const manualSections: ManualSection[] = [
+        {
+            title: 'Historial de Pagos',
+            content: 'En esta sección se listan todos los abonos realizados por el paciente. Puede ver el detalle de cada pago, imprimir recibos individuales o editar/eliminar registros si tiene los permisos necesarios.'
+        },
+        {
+            title: 'Deudas Pendientes',
+            content: 'Muestra los tratamientos que han sido concluidos pero que aún tienen un saldo por pagar. Puede realizar pagos directos a estos tratamientos usando el botón azul de dólar ($).'
+        },
+        {
+            title: 'Adelantos y Pagos en Curso',
+            content: 'Aquí se visualizan los abonos realizados a tratamientos que aún están en proceso (no terminados). Estos pagos se consideran adelantos hasta que el tratamiento se marque como finalizado.'
+        },
+        {
+            title: 'Anticipos / Saldo a Favor',
+            content: 'Si el monto total pagado por el paciente supera el costo de todos sus tratamientos iniciados, la diferencia aparecerá como un "Saldo a Favor" resaltado en azul, el cual puede ser devuelto si es necesario.'
+        },
+        {
+            title: 'Impresión de Historial',
+            content: 'El botón "Imprimir Historial" genera un estado de cuenta detallado agrupado por tratamientos, ideal para entregar al paciente como resumen de su inversión.'
+        }
+    ];
 
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
@@ -214,9 +239,8 @@ const PacienteTabPagos: React.FC = () => {
         d.saldo > 0.01 && d.tratamiento.estadoTratamiento !== 'terminado'
     );
 
-    // Deuda solo basado en tratamientos terminados (lo que realmente debe el paciente)
-    const debtTerminados = deudasTratamientos
-        .filter(d => d.tratamiento.estadoTratamiento === 'terminado')
+    // Deuda de todos los tratamientos iniciados (lo que realmente debe el paciente)
+    const totalDebt = deudasTratamientos
         .reduce((s, d) => s + d.saldo, 0);
 
     // Anticipo / Saldo a Favor = dinero que el paciente pagó de MÁS respecto al costo total de TODOS sus tratamientos.
@@ -507,84 +531,166 @@ const PacienteTabPagos: React.FC = () => {
                 return;
             }
 
+            // Group payments by treatment, initializing with ALL treatments from clinical history
+            const treatmentGroups: Record<string, { 
+                nombre: string, 
+                costo: number | string, 
+                pagos: any[] 
+            }> = {};
+            
+            historiasConsolidadas.forEach(hc => {
+                const key = `t_${hc.id}`;
+                treatmentGroups[key] = {
+                    nombre: `${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
+                    costo: Number(hc.precio || 0) - Number(hc.descuento || 0),
+                    pagos: []
+                };
+            });
+
+            const generalPayments: any[] = [];
+
+            flatTableRows.forEach(row => {
+                if (row.tratamientoId) {
+                    const key = `t_${row.tratamientoId}`;
+                    if (treatmentGroups[key]) {
+                        treatmentGroups[key].pagos.push(row);
+                    } else {
+                        // fallback if for some reason the ID wasn't in consolidated
+                        generalPayments.push(row);
+                    }
+                } else {
+                    generalPayments.push(row);
+                }
+            });
+
             const printContent = `
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Resumen de Pagos - ${paciente ? `${paciente.paterno} ${paciente.nombre}` : 'Paciente'}</title>
+                    <title>Estado de Cuenta - ${paciente ? `${paciente.paterno} ${paciente.nombre}` : 'Paciente'}</title>
                     <style>
-                        @page { size: A4; margin: 2cm 1.5cm; }
-                        body { font-family: Arial, sans-serif; color: #333; margin: 0; padding: 0; font-size: 11px; }
+                        @page { size: A4; margin: 1.5cm; }
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; padding: 0; font-size: 10px; line-height: 1.4; }
                         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #7e22ce; padding-bottom: 10px; }
-                        .header img { height: 50px; }
+                        .header img { height: 50px; object-fit: contain; }
                         .header-info { text-align: right; }
-                        .patient-box { background: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
-                        .patient-box h2 { margin: 0 0 5px 0; color: #1f2937; font-size: 16px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                        th { background-color: #7e22ce; color: white; padding: 10px 8px; text-align: left; font-weight: bold; border: 1px solid #6b21a8; }
-                        td { padding: 8px; border: 1px solid #e5e7eb; }
-                        tr:nth-child(even) { background-color: #f3f4f6; }
+                        .patient-box { background: #f9fafb; padding: 12px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
+                        .patient-box h2 { margin: 0 0 5px 0; color: #7e22ce; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+                        
+                        .treatment-section { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+                        .treatment-header { background: #f3f4f6; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; }
+                        .treatment-header h3 { margin: 0; color: #1f2937; font-size: 11px; font-weight: 800; }
+                        .treatment-header .cost { color: #7e22ce; font-weight: 900; }
+                        
+                        table { width: 100%; border-collapse: collapse; }
+                        th { background-color: #f9fafb; color: #6b7280; padding: 6px 10px; text-align: left; font-weight: bold; border-bottom: 1px solid #e5e7eb; font-size: 9px; text-transform: uppercase; }
+                        td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
                         .text-right { text-align: right; }
-                        .totals-section { margin-top: 25px; margin-left: auto; width: 300px; padding: 15px; background: #f3f4f6; border-radius: 8px; }
-                        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
-                        .total-final { font-weight: bold; font-size: 14px; border-top: 1px solid #d1d5db; margin-top: 8px; padding-top: 8px; color: ${debtTerminados > 0 ? '#dc2626' : '#16a34a'}; }
-                        .footer { margin-top: 50px; text-align: center; color: #9ca3af; font-size: 9px; }
+                        
+                        .totals-section { margin-top: 30px; margin-left: auto; width: 250px; padding: 12px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px; }
+                        .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; color: #4b5563; }
+                        .total-final { font-weight: 900; font-size: 13px; border-top: 2px solid #7e22ce; margin-top: 8px; padding-top: 8px; color: ${totalDebt > 0 ? '#dc2626' : '#16a34a'}; }
+                        
+                        .footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 8px; }
+                        .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 80px; color: rgba(126, 34, 206, 0.05); font-weight: bold; pointer-events: none; z-index: -1; }
                     </style>
                 </head>
                 <body>
+                    <div class="watermark">${clinicaActual?.nombre?.substring(0, 10).toUpperCase() || 'LENS'}</div>
                     <div class="header">
                         <img src="${clinicaActual?.logo || '/logo-curare.png'}" alt="Logo">
                         <div class="header-info">
-                            <h1 style="margin:0; color:#7e22ce; font-size:22px;">RESUMEN DE PAGOS</h1>
-                            <p style="margin:5px 0 0 0;">Fecha de Emisión: ${formatDate(new Date().toISOString())}</p>
+                            <h1 style="margin:0; color:#7e22ce; font-size:20px;">ESTADO DE CUENTA</h1>
+                            <p style="margin:2px 0 0 0;">Fecha: ${formatDate(new Date().toISOString())}</p>
                         </div>
                     </div>
                     
                     <div class="patient-box">
-                        <h2>DATOS DEL PACIENTE</h2>
-                        <p style="margin:0;"><strong>Nombre:</strong> ${paciente ? `${paciente.paterno} ${paciente.materno} ${paciente.nombre}`.toUpperCase() : 'N/A'} ${paciente?.seguro_medico ? `(${paciente.seguro_medico})` : ''}</p>
+                        <h2>Datos del Paciente</h2>
+                        <p style="margin:0; font-size:12px;"><strong>${paciente ? `${paciente.paterno} ${paciente.materno} ${paciente.nombre}`.toUpperCase() : 'N/A'}</strong></p>
+                        ${paciente?.seguro_medico ? `<p style="margin:3px 0 0 0; color:#6b7280;">Seguro: ${paciente.seguro_medico}</p>` : ''}
                     </div>
 
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Concepto / Tratamiento</th>
-                                <th>Forma Pago</th>
-                                <th>Recibo</th>
-                                <th class="text-right">Monto (Bs.)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${flatTableRows.map(row => `
-                                <tr>
-                                    <td>${formatDate(row.fecha)}</td>
-                                    <td>${row.tratamientoNombre}</td>
-                                    <td>${row.formaPagoRel ? row.formaPagoRel.forma_pago : row.formaPago || '-'}</td>
-                                    <td>${row.recibo || '-'}</td>
-                                    <td class="text-right">${Number(row.pagoMonto).toFixed(2)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                    ${Object.values(treatmentGroups).map(group => `
+                        <div class="treatment-section">
+                            <div class="treatment-header">
+                                <h3>TRATAMIENTO: ${group.nombre.toUpperCase()}</h3>
+                                <span class="cost">Costo: Bs. ${Number(group.costo).toFixed(2)}</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%">Fecha</th>
+                                        <th style="width: 35%">Forma de Pago</th>
+                                        <th style="width: 25%">Factura/Recibo</th>
+                                        <th class="text-right" style="width: 25%">Monto Abonado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${group.pagos.length > 0 ? group.pagos.map(p => `
+                                        <tr>
+                                            <td>${formatDate(p.fecha)}</td>
+                                            <td>${p.formaPagoRel ? p.formaPagoRel.forma_pago : p.formaPago || '-'}</td>
+                                            <td>${p.factura ? `F:${p.factura}` : (p.recibo ? `R:${p.recibo}` : '-')}</td>
+                                            <td class="text-right font-bold">Bs. ${Number(p.pagoMonto).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('') : `
+                                        <tr>
+                                            <td colspan="4" style="text-align:center; color:#9ca3af; padding: 15px;">Sin abonos registrados</td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
+                        </div>
+                    `).join('')}
+
+                    ${generalPayments.length > 0 ? `
+                        <div class="treatment-section">
+                            <div class="treatment-header">
+                                <h3>PAGOS GENERALES / ANTICIPOS</h3>
+                                <span class="cost">-</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%">Fecha</th>
+                                        <th style="width: 35%">Concepto</th>
+                                        <th style="width: 25%">Factura/Recibo</th>
+                                        <th class="text-right" style="width: 25%">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${generalPayments.map(p => `
+                                        <tr>
+                                            <td>${formatDate(p.fecha)}</td>
+                                            <td>${p.tratamientoNombre}</td>
+                                            <td>${p.factura ? `F:${p.factura}` : (p.recibo ? `R:${p.recibo}` : '-')}</td>
+                                            <td class="text-right font-bold">Bs. ${Number(p.pagoMonto).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
 
                     <div class="totals-section">
                         <div class="total-row">
                             <span>Total Abonado:</span>
-                            <span>Bs. ${(totalPagadoGlobal || 0).toFixed(2)}</span>
+                            <strong>Bs. ${(totalPagadoGlobal || 0).toFixed(2)}</strong>
                         </div>
                         <div class="total-row">
-                            <span>Costo Total Tratamientos:</span>
-                            <span>Bs. ${(costoTotalTodos || 0).toFixed(2)}</span>
+                            <span>Total Tratamientos:</span>
+                            <strong>Bs. ${(costoTotalTodos || 0).toFixed(2)}</strong>
                         </div>
                         <div class="total-row total-final">
                             <span>SALDO PENDIENTE:</span>
-                            <span>Bs. ${(debtTerminados || 0).toFixed(2)}</span>
+                            <span>Bs. ${(totalDebt || 0).toFixed(2)}</span>
                         </div>
                     </div>
 
                     <div class="footer">
-                        <p>${clinicaActual?.nombre || 'CLÍNICA ODONTOLÓGICA'} - Reporte generado automáticamente</p>
+                        <p>Sistema de Gestión Clínicas Lens - Reporte Oficial</p>
+                        <p>${clinicaActual?.nombre || 'CLÍNICA ODONTOLÓGICA'} ${clinicaActual?.direccion ? ` - ${clinicaActual.direccion}` : ''}</p>
                     </div>
                 </body>
                 </html>
@@ -640,6 +746,13 @@ const PacienteTabPagos: React.FC = () => {
                     )}
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowManual(true)}
+                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center mr-2 flex-shrink-0"
+                        title="Ayuda / Manual"
+                    >
+                        ?
+                    </button>
                     {pagos.length > 0 && (
                         <button
                             onClick={handlePrintSummary}
@@ -664,9 +777,9 @@ const PacienteTabPagos: React.FC = () => {
                         <div className="text-xs font-bold uppercase text-blue-600 dark:text-blue-400 mb-1">Nº de Pagos</div>
                         <div className="text-xl font-black text-blue-700 dark:text-blue-300">{pagos.length}</div>
                     </div>
-                    <div className={`rounded-xl p-4 border ${debtTerminados > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'}`}>
-                        <div className="text-xs font-bold uppercase text-red-600 dark:text-red-400 mb-1">Saldo Total Deuda (Terminados)</div>
-                        <div className="text-xl font-black text-red-700 dark:text-red-300">Bs. {debtTerminados.toFixed(2)}</div>
+                    <div className={`rounded-xl p-4 border ${totalDebt > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'}`}>
+                        <div className="text-xs font-bold uppercase text-red-600 dark:text-red-400 mb-1">Saldo Total Deuda Pendiente</div>
+                        <div className="text-xl font-black text-red-700 dark:text-red-300">Bs. {totalDebt.toFixed(2)}</div>
                     </div>
                     {anticipoDisponible > 0.01 && (
                         <div className="bg-blue-600 dark:bg-blue-900 rounded-xl p-4 border border-blue-500 shadow-lg shadow-blue-500/20 flex justify-between items-center group overflow-hidden relative">
@@ -977,6 +1090,13 @@ const PacienteTabPagos: React.FC = () => {
                     setSelectedMonto(null);
                     setSelectedTratamientoId(null);
                 }}
+            />
+            {/* Manual Modal */}
+            <ManualModal
+                isOpen={showManual}
+                onClose={() => setShowManual(false)}
+                title="Manual de Usuario - Historial de Pagos"
+                sections={manualSections}
             />
         </div>
     );

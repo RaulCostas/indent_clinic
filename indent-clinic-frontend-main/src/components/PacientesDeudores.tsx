@@ -11,6 +11,7 @@ import { FileText, Download, Printer, AlertCircle, Users } from 'lucide-react';
 
 
 interface Deudor {
+    id: number;
     proformaId: number;
     pacienteId: number;
     numeroPresupuesto: number;
@@ -68,7 +69,10 @@ const PacientesDeudores: React.FC = () => {
         });
         try {
             const clinicaId = clinicaSeleccionada || 1;
-            await api.post(`/chatbot/${clinicaId}/enviar-saldo-deudor`, { pacienteId: deudor.pacienteId });
+            await api.post(`/chatbot/${clinicaId}/enviar-saldo-deudor`, { 
+                pacienteId: deudor.pacienteId,
+                historiaClinicaId: deudor.id 
+            });
             Swal.fire({
                 icon: 'success',
                 title: '¡Enviado!',
@@ -676,7 +680,7 @@ const PacientesDeudores: React.FC = () => {
                 <div className="bg-blue-50 dark:bg-blue-900/10 px-4 py-2 rounded-lg border-l-4 border-blue-400 border border-blue-100 dark:border-blue-800 flex items-center gap-3">
                     <Users size={16} className="text-blue-500" />
                     <div>
-                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-tighter block leading-none">Total Deuda Activos</span>
+                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-tighter block leading-none">Total Deuda Pacientes Activos</span>
                         <span className="text-lg font-bold text-blue-900 dark:text-blue-200">
                             {new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(totalDeudaActivos)}
                         </span>
@@ -686,7 +690,7 @@ const PacientesDeudores: React.FC = () => {
                 <div className="bg-red-50 dark:bg-red-900/10 px-4 py-2 rounded-lg border-l-4 border-red-400 border border-red-100 dark:border-red-800 flex items-center gap-3">
                     <AlertCircle size={16} className="text-red-500" />
                     <div>
-                        <span className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-tighter block leading-none">Total Deuda Inactivos</span>
+                        <span className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-tighter block leading-none">Total Deuda Pacientes Inactivos</span>
                         <span className="text-lg font-bold text-red-900 dark:text-red-200">
                             {new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(totalDeudaInactivos)}
                         </span>

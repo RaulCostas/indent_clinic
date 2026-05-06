@@ -91,7 +91,7 @@ const InventarioForm: React.FC<InventarioFormProps> = ({ isOpen, onClose, id, on
 
     const fetchDropdowns = async () => {
         try {
-            const espRes = await api.get<any>('/especialidad?limit=100');
+            const espRes = await api.get<any>('/especialidad?estado=activo&limit=100');
             const grupRes = await api.get<any>('/grupo-inventario?limit=100');
 
             const especialidadesData = Array.isArray(espRes.data) ? espRes.data : (espRes.data.data || []);

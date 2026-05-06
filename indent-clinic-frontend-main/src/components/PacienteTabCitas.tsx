@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import type { Agenda, Paciente } from '../types';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
-import { Calendar, Plus, ChevronRight } from 'lucide-react';
+import { Calendar, Plus, ChevronRight, HelpCircle } from 'lucide-react';
 import AgendaForm from './AgendaForm';
+import ManualModal, { type ManualSection } from './ManualModal';
 
 // ── Estado colors (igual que en /agenda) ─────────────────────────────────────
 const estadoColor = (estado: string) => {
@@ -43,6 +44,33 @@ const PacienteTabCitas: React.FC = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedCita, setSelectedCita] = useState<Agenda | null>(null);
     const [isRestricted, setIsRestricted] = useState(false);
+    const [showManual, setShowManual] = useState(false);
+
+    const manualSections: ManualSection[] = [
+        {
+            title: 'Historial de Citas',
+            content: 'Aquí puede ver todas las citas pasadas y futuras del paciente. Las citas están codificadas por colores para facilitar su identificación.'
+        },
+        {
+            title: 'Agendar Nueva Cita',
+            content: 'Haga clic en el botón "+ Nueva Cita" para programar una nueva atención. Se abrirá el formulario de agenda pre-completado con los datos del paciente.'
+        },
+        {
+            title: 'Editar Citas Futuras',
+            content: 'Puede hacer clic en la fecha de cualquier cita futura (marcada con un icono de lápiz ✎) para modificar sus detalles, como el doctor, horario o tratamiento.'
+        },
+        {
+            title: 'Estados de Cita',
+            content: (
+                <ul className="list-disc pl-5 space-y-1">
+                    <li><span className="text-blue-600 font-bold">Agendado:</span> Cita programada pendiente de confirmación.</li>
+                    <li><span className="text-green-600 font-bold">Atendido:</span> Cita finalizada.</li>
+                    <li><span className="text-red-600 font-bold">Cancelado:</span> Cita anulada por el paciente o la clínica.</li>
+                    <li><span className="text-orange-600 font-bold">No Asistió:</span> El paciente no se presentó a la cita.</li>
+                </ul>
+            )
+        }
+    ];
 
     useEffect(() => {
         const userStr = localStorage.getItem('user');
@@ -117,20 +145,29 @@ const PacienteTabCitas: React.FC = () => {
                         </p>
                     )}
                 </div>
-                {!isRestricted && (
-                    <span
-                        onClick={() => {
-                            setSelectedCita(null);
-                            setModalOpen(true);
-                        }}
-                        className="bg-[#3498db] hover:bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm cursor-pointer"
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={e => e.key === 'Enter' && (setSelectedCita(null), setModalOpen(true))}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowManual(true)}
+                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center mr-2 flex-shrink-0"
+                        title="Ayuda / Manual"
                     >
-                        <Plus size={16} /> Nueva Cita
-                    </span>
-                )}
+                        ?
+                    </button>
+                    {!isRestricted && (
+                        <span
+                            onClick={() => {
+                                setSelectedCita(null);
+                                setModalOpen(true);
+                            }}
+                            className="bg-[#3498db] hover:bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm cursor-pointer"
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={e => e.key === 'Enter' && (setSelectedCita(null), setModalOpen(true))}
+                        >
+                            <Plus size={16} /> Nueva Cita
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Leyenda */}
@@ -266,6 +303,13 @@ const PacienteTabCitas: React.FC = () => {
                     defaultPacienteId={Number(id)}
                 />
             )}
+            {/* Manual Modal */}
+            <ManualModal
+                isOpen={showManual}
+                onClose={() => setShowManual(false)}
+                title="Manual de Usuario - Historial de Citas"
+                sections={manualSections}
+            />
         </div>
     );
 };

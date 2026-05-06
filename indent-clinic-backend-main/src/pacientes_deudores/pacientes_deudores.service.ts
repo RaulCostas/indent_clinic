@@ -40,10 +40,17 @@ export class PacientesDeudoresService {
         // Step 3: Fetch all payments for these patients (includes advances with no proformaId)
         let pagos: any[] = [];
         if (patientIds.length > 0) {
-            // We need to know the pacienteId column in 'pagos' table.
-            // Assuming it follows the same naming convention as proformas.
+            // Detect the correct patientId column in the 'pagos' table specifically
+            const pagosSample = await this.dataSource.query(`SELECT * FROM pagos LIMIT 1`);
+            let pPacIdKey = 'pacienteId';
+            if (pagosSample.length > 0) {
+                pPacIdKey = Object.keys(pagosSample[0]).find(k =>
+                    k.toLowerCase() === 'pacienteid' || k.toLowerCase() === 'paciente_id'
+                ) || 'pacienteId';
+            }
+
             pagos = await this.dataSource.query(
-                `SELECT * FROM pagos WHERE "${patientIdKey}" IN (${patientIds.join(',')})`
+                `SELECT * FROM pagos WHERE "${pPacIdKey}" IN (${patientIds.join(',')})`
             );
         }
 
@@ -101,13 +108,12 @@ export class PacientesDeudoresService {
 
         pagos.forEach(pg => {
             const monto = parseFloat(pg.monto) || 0;
-            const pgHcId = getVal(pg, 'historiaClinicaId');
-            const hcId = pgHcId ? Number(pgHcId) : null;
-            const pgPacienteId = Number(getVal(pg, 'pacienteId'));
+            const hcId = getVal(pg, 'historiaClinicaId') || getVal(pg, 'historia_clinica_id');
+            const pgPacienteId = Number(getVal(pg, 'pacienteId') || getVal(pg, 'paciente_id'));
 
             if (hcId) {
-                const current = pagosHCMap.get(hcId) || 0;
-                pagosHCMap.set(hcId, current + monto);
+                const current = pagosHCMap.get(Number(hcId)) || 0;
+                pagosHCMap.set(Number(hcId), current + monto);
             } else {
                 const current = pagosGeneralesMap.get(pgPacienteId) || 0;
                 pagosGeneralesMap.set(pgPacienteId, current + monto);

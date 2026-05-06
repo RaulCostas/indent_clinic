@@ -92,11 +92,17 @@ export class EspecialidadService {
         }));
     }
 
-    async findAll(search?: string, page: number = 1, limit: number = 5) {
+    async findAll(search?: string, page: number = 1, limit: number = 5, estado?: string) {
         const skip = (page - 1) * limit;
-        const where = search
-            ? { especialidad: ILike(`%${search}%`) }
-            : {};
+        const where: any = {};
+
+        if (search) {
+            where.especialidad = ILike(`%${search}%`);
+        }
+
+        if (estado) {
+            where.estado = estado;
+        }
 
         const [data, total] = await this.especialidadRepository.findAndCount({
             where,

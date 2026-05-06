@@ -849,54 +849,58 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    async calculateDetailedSaldo(pacienteId: number, clinicId: number): Promise<string> {
-        const proformas = await this.proformasService.findAllByPaciente(pacienteId);
+    async calculateDetailedSaldo(pacienteId: number, clinicId: number, historiaClinicaId?: number): Promise<string> {
         const historia = await this.historiaClinicaService.findAllByPaciente(pacienteId);
         const pagos = await this.pagosService.findAllByPaciente(pacienteId);
 
-        const report = new Map<number, { ejecutado: number, pagado: number, numero: number }>();
-
-        proformas.forEach(p => {
-            report.set(p.id, { ejecutado: 0, pagado: 0, numero: p.numero });
-        });
-
-        historia.forEach(h => {
-            if (h.estadoTratamiento === 'terminado' && h.proformaId) {
-                const current = report.get(h.proformaId);
-                if (current) {
-                    current.ejecutado += Number(h.precio);
-                }
-            }
-        });
-
+        // Build payments map per HC
+        const pagosHCMap = new Map<number, number>();
+        let generalPool = 0;
         pagos.forEach(p => {
-            if (p.proformaId) {
-                const current = report.get(p.proformaId);
-                if (current) {
-                    current.pagado += Number(p.monto);
-                }
+            const monto = Number(p.monto || 0);
+            if (p.historiaClinicaId) {
+                pagosHCMap.set(p.historiaClinicaId, (pagosHCMap.get(p.historiaClinicaId) || 0) + monto);
+            } else {
+                generalPool += monto;
             }
         });
 
-        let messageParts: string[] = [];
+        const lines: string[] = [];
+        let totalNeto = 0;
 
-        report.forEach((data, proformaId) => {
-            const saldo = data.ejecutado - data.pagado;
-            const saldoFavor = saldo < 0 ? Math.abs(saldo) : 0;
-            const saldoContra = saldo > 0 ? saldo : 0;
+        // Sort historia chronologically
+        const sortedHistory = [...historia].sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
-            messageParts.push(`Plan de Tratamiento #${data.numero}
-- Total Plan: ${data.ejecutado}
-- Total Pagado: ${data.pagado}
-- Saldo a Favor: ${saldoFavor}
-- Saldo en contra: ${saldoContra}`);
+        sortedHistory.forEach(h => {
+            // If we are filtering by a specific treatment, skip others
+            if (historiaClinicaId && Number(h.id) !== Number(historiaClinicaId)) return;
+
+            const price = Number(h.precio || 0) - Number(h.descuento || 0);
+            if (price <= 0) return;
+
+            const paidDirectly = pagosHCMap.get(h.id) || 0;
+            let saldo = Math.max(0, price - paidDirectly);
+
+            // Apply general advances
+            if (generalPool > 0 && saldo > 0) {
+                const applied = Math.min(generalPool, saldo);
+                saldo -= applied;
+                generalPool -= applied;
+            }
+
+            if (saldo > 0.01) {
+                totalNeto += saldo;
+                lines.push(`🦷 *${h.tratamiento || 'Tratamiento'}*\n• Saldo: *Bs. ${saldo.toFixed(2)}*`);
+            }
         });
 
-        if (messageParts.length === 0) {
-            return "No tiene presupuestos registrados en el sistema.";
+        if (lines.length === 0) {
+            if (historiaClinicaId) return "Este tratamiento ya se encuentra totalmente cancelado.";
+            return "¡Felicidades! Actualmente no tienes ningún saldo pendiente con la clínica.";
         }
 
-        return messageParts.join('\n\n');
+        const breakdown = lines.join('\n\n');
+        return historiaClinicaId ? breakdown : (breakdown + `\n\n💰 *Total pendiente: Bs. ${totalNeto.toFixed(2)}*`);
     }
 
     async checkAppointments(paciente: any, remoteJid: string, clinicId: number, instance: number = 1) {
@@ -1229,7 +1233,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    async enviarSaldoDeudor(pacienteId: number, clinicId: number, instance: number = 1): Promise<{ success: boolean; message: string }> {
+    async enviarSaldoDeudor(pacienteId: number, clinicId: number, instance: number = 1, historiaClinicaId?: number): Promise<{ success: boolean; message: string }> {
         const paciente = await this.pacientesService.findOne(pacienteId);
         if (!paciente) throw new Error('Paciente no encontrado');
 
@@ -1242,66 +1246,18 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         const nomClinica = clinica?.nombre || 'la Clínica';
         const nombrePaciente = `${paciente.nombre || ''} ${paciente.paterno || ''} ${paciente.materno || ''}`.trim();
 
-        // Get all proformas, historia and pagos for this patient
-        const proformas = await this.proformasService.findAllByPaciente(pacienteId);
-        const historia = await this.historiaClinicaService.findAllByPaciente(pacienteId);
-        const pagos = await this.pagosService.findAllByPaciente(pacienteId);
+        const messageText = await this.calculateDetailedSaldo(pacienteId, clinicId, historiaClinicaId);
+        
+        // If the return was the "Felicidades" message, we don't throw error but send it
+        const finalMessage = `Hola *${nombrePaciente}*, le informamos sobre su estado de cuenta en *${nomClinica}*:\n\n${messageText}\n\nPor favor, comuníquese con la clínica para cualquier duda u observación.`;
 
-        // Build pagos map per proforma
-        const pagosMap = new Map<number, number>();
-        let generalPool = 0;
-        pagos.forEach(p => {
-            const monto = Number(p.monto || 0);
-            if (p.proformaId) {
-                pagosMap.set(p.proformaId, (pagosMap.get(p.proformaId) || 0) + monto);
-            } else {
-                generalPool += monto;
-            }
-        });
+        await this.sendMessage(jid, finalMessage, clinicId, instance);
 
-        // Build lines per proforma with pending debt
-        const lines: string[] = [];
-        let totalPendiente = 0;
-
-        for (const proforma of proformas) {
-            const pHistory = historia.filter((h: any) => h.proformaId === proforma.id && h.estadoTratamiento === 'terminado');
-            if (pHistory.length === 0) continue;
-
-            const totalEjecutado = pHistory.reduce((sum: number, h: any) => sum + (Number(h.precio || 0) - Number(h.descuento || 0)), 0);
-            const totalPagadoProforma = pagosMap.get(proforma.id) || 0;
-            let saldo = Math.max(0, totalEjecutado - totalPagadoProforma);
-
-            // Apply general advances (FIFO)
-            if (generalPool > 0 && saldo > 0) {
-                const applied = Math.min(generalPool, saldo);
-                saldo -= applied;
-                generalPool -= applied;
-            }
-
-            if (saldo <= 0.01) continue;
-            totalPendiente += saldo;
-
-            // Get latest treatment info for display
-            const latest = [...pHistory].sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0] as any;
-            const especialidad = latest.especialidad?.especialidad || '-';
-            const tratamiento = latest.tratamiento || '-';
-
-            lines.push(`📋 *Plan #${String(proforma.numero || proforma.id).padStart(2, '0')}*\n• Especialidad: ${especialidad}\n• Tratamiento: ${tratamiento}\n• Saldo: *Bs. ${saldo.toFixed(2)}*`);
-        }
-
-        if (lines.length === 0) throw new Error('¡Felicidades! Actualmente no tienes ningún saldo pendiente con la clínica.');
-
-        const mensaje = `Hola *${nombrePaciente}*, le informamos sobre su saldo pendiente en *${nomClinica}*:\n\n${lines.join('\n\n')}\n\n💰 *Total pendiente: Bs. ${totalPendiente.toFixed(2)}*\n\nPor favor, comuníquese con la clínica para cualquier duda u observación.`;
-
-        await this.sendMessage(jid, mensaje, clinicId, instance);
-
-        // Send QR if available
-        if (clinica?.qr_pago) {
+        // Send QR if available and there is actual debt (and not a "Felicidades" message)
+        if (clinica?.qr_pago && !messageText.includes('Felicidades') && !messageText.includes('cancelado')) {
             try {
-                // Ensure socket is available to send media
                 const session = this.getSession(clinicId, instance);
                 if (session.sock && session.status === 'connected') {
-                    // Extract base64 data
                     const base64Data = clinica.qr_pago.split(',')[1];
                     if (base64Data) {
                         const buffer = Buffer.from(base64Data, 'base64');
@@ -1313,7 +1269,6 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 }
             } catch (error) {
                 console.error('Error al enviar QR de pago:', error);
-                // No lanzamos error para no afectar el flujo principal, el texto ya se envió
             }
         }
 

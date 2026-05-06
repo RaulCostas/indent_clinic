@@ -32,11 +32,13 @@ export class EspecialidadController {
         @Query('search') search?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Query('estado') estado?: string,
     ) {
         return this.especialidadService.findAll(
             search,
             page ? +page : 1,
             limit ? +limit : 5,
+            estado
         );
     }
 

@@ -225,11 +225,11 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-center">
-                                    <span className={`px-2 py-1 rounded text-sm ${item.cancelado
+                                    <span className={`px-2 py-1 rounded text-sm ${item.estadoPresupuesto === 'terminado'
                                         ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                                         : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
                                         }`}>
-                                        {item.cancelado ? 'cancelado' : 'pendiente'}
+                                        {item.estadoPresupuesto || 'no terminado'}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">

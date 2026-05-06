@@ -106,15 +106,56 @@ export class PacientesDeudoresService {
         const pagosHCMap = new Map<number, number>();
         const pagosGeneralesMap = new Map<number, number>();
 
-        pagos.forEach(pg => {
-            const monto = parseFloat(pg.monto) || 0;
-            const hcId = getVal(pg, 'historiaClinicaId') || getVal(pg, 'historia_clinica_id');
-            const pgPacienteId = Number(getVal(pg, 'pacienteId') || getVal(pg, 'paciente_id'));
+        // Crear un Set de IDs de historia clínica presentes para validación rápida
+        const presentHcIds = new Set(history.map(h => Number(h.id)));
 
-            if (hcId) {
-                const current = pagosHCMap.get(Number(hcId)) || 0;
-                pagosHCMap.set(Number(hcId), current + monto);
+        pagos.forEach(pg => {
+            // 1. Obtener Monto con Conversión de Moneda
+            let monto = parseFloat(pg.monto) || 0;
+            const moneda = getVal(pg, 'moneda');
+            const tc = parseFloat(getVal(pg, 'tc')) || 0;
+            
+            // Si es dólares, convertir a bolivianos usando el TC
+            if (moneda === 'Dólares' && tc > 0) {
+                monto = monto * tc;
+            }
+
+            const pgPacienteId = Number(getVal(pg, 'pacienteId') || getVal(pg, 'paciente_id'));
+            
+            // 2. Extraer IDs de vinculación (Singular y Plural)
+            let linkedIds: number[] = [];
+            const hcIdSingular = getVal(pg, 'historiaClinicaId') || getVal(pg, 'historia_clinica_id');
+            const hcIdsPlural = getVal(pg, 'historiaClinicaIds') || getVal(pg, 'tratamientosIds');
+
+            if (hcIdSingular) {
+                linkedIds.push(Number(hcIdSingular));
+            } else if (hcIdsPlural) {
+                if (Array.isArray(hcIdsPlural)) {
+                    linkedIds = hcIdsPlural.map(id => Number(id));
+                } else if (typeof hcIdsPlural === 'string') {
+                    linkedIds = hcIdsPlural.split(',')
+                        .map(id => id.trim())
+                        .filter(id => id !== '')
+                        .map(id => Number(id));
+                }
+            }
+
+            // 3. Validar vinculación contra el contexto actual (History)
+            // Solo vinculamos "directamente" si el ID existe en la historia que estamos procesando
+            const validLinkedIds = linkedIds.filter(id => id > 0 && presentHcIds.has(id));
+
+            if (validLinkedIds.length > 0) {
+                // Dividir el monto entre los IDs vinculados válidos
+                const fraction = monto / validLinkedIds.length;
+                validLinkedIds.forEach(id => {
+                    const current = pagosHCMap.get(id) || 0;
+                    pagosHCMap.set(id, current + fraction);
+                });
+                
+                // Si había IDs vinculados pero ninguno era válido en este contexto (ej: proforma de otra clínica),
+                // el monto debería ir al pool general para aplicación FIFO.
             } else {
+                // Pago sin vinculación o con vinculación inválida -> Pool General (FIFO)
                 const current = pagosGeneralesMap.get(pgPacienteId) || 0;
                 pagosGeneralesMap.set(pgPacienteId, current + monto);
             }

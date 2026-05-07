@@ -87,12 +87,18 @@ const PacienteTabPagos: React.FC = () => {
     // NUEVO REQUERIMIENTO CRÍTICO: 
     // Los médicos a menudo crean MÚLTIPLES TIEMPOS (seguimientos) del mismo tratamiento por cada cita.
     // Si no consolidamos estas historias, el sistema facturará X veces el mismo precio de la misma corona.
+    // IMPORTANTE: Si el tratamiento tiene piezas diferentes (ej: Obturación pieza 36 vs pieza 38),
+    // cada pieza se trata como un item independiente con su propio precio.
     const historiasConsolidadas = useMemo(() => {
         const map = new Map<string, any>();
         historias.forEach(h => {
-            const key = h.proformaDetalleId 
-                ? `det_${h.proformaDetalleId}` 
-                : `prof_${h.proformaId || 'gen'}_trat_${h.tratamiento}_pz_${h.pieza || ''}`;
+            // Si tiene proformaDetalleId Y pieza específica → cada pieza es un ítem de cobro independiente
+            // Si tiene proformaDetalleId pero SIN pieza → consolidar por detalle (ej: una corona en múltiples sesiones)
+            const key = h.proformaDetalleId && h.pieza
+                ? `det_${h.proformaDetalleId}_pz_${(h.pieza || '').trim()}`
+                : h.proformaDetalleId
+                    ? `det_${h.proformaDetalleId}`
+                    : `prof_${h.proformaId || 'gen'}_trat_${h.tratamiento}_pz_${h.pieza || ''}`;
                 
             if (!map.has(key)) {
                 map.set(key, { ...h, allIds: [h.id] });
@@ -834,6 +840,9 @@ const PacienteTabPagos: React.FC = () => {
                                         </td>
                                         <td className="px-4 py-2 text-sm text-gray-900 dark:text-white max-w-[200px] truncate" title={deuda.tratamiento.tratamiento}>
                                             <div className="font-semibold">{deuda.tratamiento.tratamiento}</div>
+                                            {deuda.tratamiento.pieza && (
+                                                <div className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">Pz. {deuda.tratamiento.pieza}</div>
+                                            )}
                                             <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
                                         <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
@@ -894,6 +903,9 @@ const PacienteTabPagos: React.FC = () => {
                                                     {deuda.tratamiento.estadoTratamiento.replace('_', ' ')}
                                                 </span>
                                             </div>
+                                            {deuda.tratamiento.pieza && (
+                                                <div className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">Pz. {deuda.tratamiento.pieza}</div>
+                                            )}
                                             <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
                                         <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>

@@ -160,43 +160,17 @@ const PacienteTabPagos: React.FC = () => {
             if (!pf.detalles) return;
             
             pf.detalles.forEach(det => {
-                // Solo mostrar si posible = false (confirmados pero no iniciados)
-                if (det.posible !== false) return;
+                // Solo mostrar si posible es false, null o undefined (confirmados pero no iniciados)
+                if (det.posible === true) return;
 
-                // Buscamos si este detalle ya tiene registros en HC
-                const registrosHC = historiasConsolidadas.filter(h => h.proformaDetalleId === det.id);
+                // REGLA ESTRICTA: Si existe CUALQUIER registro en HC para este detalle, se considera INICIADO.
+                const yaIniciado = historias.some(h => Number(h.proformaDetalleId) === Number(det.id));
                 
-                // Extraemos las piezas que ya han sido iniciadas
-                const piezasIniciadas = registrosHC
-                    .map(h => (h.pieza || '').split('-'))
-                    .flat()
-                    .map(p => p.trim())
-                    .filter(p => p !== '');
-
-                // Procesamos las piezas del detalle de la proforma
-                const piezasPlanificadas = (det.piezas || '')
-                    .split('-')
-                    .map(p => p.trim())
-                    .filter(p => p !== '');
-
-                // Las piezas realmente pendientes son las que no están en HC
-                const piezasPendientes = piezasPlanificadas.filter(p => !piezasIniciadas.includes(p));
-
-                // Calculamos la cantidad ya iniciada (si no hay piezas, usamos la cantidad numérica)
-                const cantidadIniciada = piezasPlanificadas.length > 0
-                    ? piezasPlanificadas.length - piezasPendientes.length
-                    : registrosHC.reduce((sum, h) => sum + (Number(h.cantidad) || 1), 0);
-
-                const cantidadPendiente = Math.max(0, Number(det.cantidad) - cantidadIniciada);
-
-                if (cantidadPendiente > 0) {
+                if (!yaIniciado) {
                     planned.push({
                         ...det,
                         proformaNumero: pf.numero,
-                        cantidadPendiente,
-                        // Mostramos solo las piezas que faltan
-                        piezas: piezasPendientes.join('-') || det.piezas,
-                        // Búsqueda profunda del nombre del tratamiento usando el campo correcto 'detalle'
+                        cantidadPendiente: Number(det.cantidad),
                         tratamientoNombreReal: det.arancel?.detalle || 'Tratamiento'
                     });
                 }

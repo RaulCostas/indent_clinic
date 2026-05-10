@@ -75,14 +75,13 @@ export class HistoriaClinicaService {
             order: { fecha: 'DESC', id: 'DESC' }
         });
 
-        // Add payment status flag
+        // Add payment status flag using persistent fields
         return await Promise.all(hcs.map(async (hc) => {
-            const hasPatientPayment = await this.pagoRepository.findOne({ where: { historiaClinicaId: hc.id } });
             const hasDoctorPayment = await this.pagosDetalleDoctoresRepository.findOne({ where: { idhistoria_clinica: hc.id } });
             
             return {
                 ...hc,
-                tienePagos: !!(hasPatientPayment || hasDoctorPayment)
+                tienePagos: Number(hc.montoPagado) > 0 || !!hasDoctorPayment
             };
         }));
     }
@@ -123,26 +122,17 @@ export class HistoriaClinicaService {
                 return null;
             }
 
-            // 1. Determinar el precio objetivo (lo que el paciente debe cubrir)
-            const basePrice = Number(hc.proformaDetalle?.precioUnitario || hc.precio || 0);
-            const targetPrice = Number(hc.precioConDescuento) || (basePrice - Number(hc.descuento || 0));
+            // Determinar si está totalmente pagado por el paciente usando el campo persistente 'saldo'
+            const isFullyPaidByPatient = Boolean(hc.cancelado) || Number(hc.saldo) <= 0.05;
 
-            // 2. Calcular cuánto se ha pagado (Tomando en cuenta el pozo de la proforma si existe)
-            let totalPagadoYDescontado = 0;
+            if (!isFullyPaidByPatient) {
+                console.log(`[PAGOS_DOCTORES][${timestamp}] HC #${hc.id} EXCLUIDO: Saldo insuficiente. (Saldo:${hc.saldo})`);
+                return null;
+            }
+
+            // Para el reporte seguimos necesitando el detalle del último pago
             let pagosPaciente: Pago[] = [];
-            
             if (hc.proformaId) {
-                const poolResults = await this.dataSource.query(
-                    `SELECT 
-                        SUM(CAST(monto AS NUMERIC)) as "montoTotal",
-                        SUM(CAST(descuento AS NUMERIC)) as "descuentoTotal"
-                     FROM pagos 
-                     WHERE "proformaId" = $1`,
-                    [hc.proformaId]
-                );
-                totalPagadoYDescontado = Number(poolResults[0]?.montoTotal || 0) + Number(poolResults[0]?.descuentoTotal || 0);
-                
-                // Para el 'latestPayment', necesitamos los pagos reales
                 pagosPaciente = await this.pagoRepository.find({
                     where: { proformaId: hc.proformaId },
                     relations: ['formaPagoRel']
@@ -152,18 +142,6 @@ export class HistoriaClinicaService {
                     where: { historiaClinicaId: hc.id },
                     relations: ['formaPagoRel']
                 });
-                totalPagadoYDescontado = (pagosPaciente || []).reduce((acc, p) => 
-                    acc + Number(p.monto) + Number(p.descuento || 0), 0);
-            }
-
-            const hc_cancelado_bool = Boolean(hc.cancelado);
-            const isFullyPaidByPatient = hc_cancelado_bool || 
-                                       targetPrice <= 0 || 
-                                       totalPagadoYDescontado >= (targetPrice - 0.5);
-
-            if (!isFullyPaidByPatient) {
-                console.log(`[PAGOS_DOCTORES][${timestamp}] HC #${hc.id} EXCLUIDO: Saldo insuficiente. (Paid:${totalPagadoYDescontado} vs Target:${targetPrice})`);
-                return null;
             }
 
             const pagoConFactura = (pagosPaciente || []).find(p => p.factura && p.factura.trim() !== '');
@@ -176,7 +154,7 @@ export class HistoriaClinicaService {
 
             return {
                 ...hc,
-                precio: basePrice, // Enviamos el precio base para que el frontend reste el descuento una sola vez
+                precio: Number(hc.proformaDetalle?.precioUnitario || hc.precio || 0), // Enviamos el precio base para que el frontend reste el descuento una sola vez
                 ultimoPagoPaciente: latestPayment ? {
                     fecha: latestPayment.fecha,
                     forma_pago: (latestPayment as any).formaPagoRel?.forma_pago || '',
@@ -330,7 +308,7 @@ export class HistoriaClinicaService {
 
         // Rebalance if it was part of a proforma
         if (proformaId) {
-            await this.rebalanceProformaStatus(proformaId);
+            // await this.rebalanceProformaStatus(proformaId);
         }
     }
 
@@ -367,149 +345,49 @@ export class HistoriaClinicaService {
 
     async syncTreatmentStatus(id: number): Promise<void> {
         const timestamp = new Date().toISOString();
-        console.log(`[PAGOS_SYNC][${timestamp}] Iniciando sincronización ROBUSTA para HC #${id}`);
+        console.log(`[PAGOS_SYNC][${timestamp}] Iniciando sincronización INDIVIDUAL para HC #${id}`);
         
         try {
             const hc = await this.historiaClinicaRepository.findOne({ where: { id } });
             if (!hc) return;
 
-            // Si el tratamiento pertenece a una proforma, rebalanceamos TODA la proforma
-            // Esto asegura que adelantos generales se tomen en cuenta.
-            if (hc.proformaId) {
-                await this.rebalanceProformaStatus(hc.proformaId);
-            } else {
-                // Sincronización individual (para tratamientos sin presupuesto)
-                const rawResults = await this.dataSource.query(
-                    `SELECT 
-                        SUM(CAST(monto AS NUMERIC)) as "totalPagado", 
-                        SUM(CAST(descuento AS NUMERIC)) as "totalDescontado" 
-                     FROM pagos 
-                     WHERE "historiaClinicaId" = $1`,
-                    [id]
-                );
+            // Sincronización individual basada estrictamente en historiaClinicaId
+            const rawResults = await this.dataSource.query(
+                `SELECT 
+                    SUM(CAST(monto AS NUMERIC)) as "totalPagado", 
+                    SUM(CAST(descuento AS NUMERIC)) as "totalDescontado" 
+                 FROM pagos 
+                 WHERE "historiaClinicaId" = $1`,
+                [id]
+            );
 
-                const aggregation = rawResults[0] || { totalPagado: 0, totalDescontado: 0 };
-                const totalPagado = Number(aggregation.totalPagado || 0);
-                const totalDescontado = Number(aggregation.totalDescontado || 0);
-                const targetPrice = Number(hc.precio || 0);
-                const cancelado = (totalPagado + totalDescontado) >= (targetPrice - 0.1);
+            const aggregation = rawResults[0] || { totalPagado: 0, totalDescontado: 0 };
+            const totalPagado = Number(aggregation.totalPagado || 0);
+            const totalDescontadoPagos = Number(aggregation.totalDescontado || 0);
+            
+            // IMPORTANTE: El descuento final es la suma de lo que se descontó en los pagos.
+            // Si en el futuro permites descuentos directos en HC, podrías sumarlos aquí.
+            const totalDescontadoFinal = totalDescontadoPagos; 
+            
+            const precioBase = Number(hc.precio || 0);
+            const precioConDescuento = Math.max(0, precioBase - totalDescontadoFinal);
+            const saldo = Math.max(0, precioConDescuento - totalPagado);
+            const cancelado = saldo <= 0.05;
 
-                await this.dataSource.query(
-                    `UPDATE historia_clinica 
-                     SET cancelado = $1, 
-                         descuento = $2, 
-                         "precioConDescuento" = $3 
-                     WHERE id = $4`,
-                    [cancelado, totalDescontado, targetPrice - totalDescontado, id]
-                );
-            }
-            console.log(`[PAGOS_SYNC][${timestamp}] Sincronización finalizada para HC #${id}`);
+            await this.dataSource.query(
+                `UPDATE historia_clinica 
+                 SET cancelado = $1, 
+                     descuento = $2, 
+                     "precioConDescuento" = $3,
+                     "montoPagado" = $4,
+                     saldo = $5
+                 WHERE id = $6`,
+                [cancelado, totalDescontadoFinal, precioConDescuento, totalPagado, saldo, id]
+            );
+
+            console.log(`[PAGOS_SYNC][${timestamp}] Sincronización finalizada para HC #${id}. Saldo: ${saldo}`);
         } catch (error) {
             console.error(`[PAGOS_SYNC][${timestamp}] Error sincronizando HC #${id}:`, error);
-        }
-    }
-
-    async rebalanceProformaStatus(proformaId: number): Promise<void> {
-        const timestamp = new Date().toISOString();
-        console.log(`[PAGOS_REBALANCE][${timestamp}] >>> INICIO REBALANCEO SMART FIFO <<< Proforma #${proformaId}`);
-        
-        try {
-            // 1. Obtener los recursos (Efectivo Específico y Descuentos)
-            const pagosDeProforma = await this.pagoRepository.find({
-                where: { proformaId }
-            });
-
-            const directCash: Map<number, number> = new Map();
-            let globalCashPool = 0;
-            const directDiscounts: Map<number | string, number> = new Map();
-
-            pagosDeProforma.forEach(p => {
-                const amount = Number(p.monto || 0);
-                if (p.historiaClinicaId) {
-                    directCash.set(p.historiaClinicaId, (directCash.get(p.historiaClinicaId) || 0) + amount);
-                } else {
-                    globalCashPool += amount;
-                }
-
-                if (Number(p.descuento || 0) > 0) {
-                    const key = p.historiaClinicaId || 'global';
-                    directDiscounts.set(key, (directDiscounts.get(key) || 0) + Number(p.descuento));
-                }
-            });
-
-            let globalDiscountPool = directDiscounts.get('global') || 0;
-
-            // 2. Obtener y Agrupar Tratamientos (para no cobrar doble por seguimientos)
-            const todasLasHcs = await this.historiaClinicaRepository.find({
-                where: { proformaId },
-                relations: ['proformaDetalle'],
-                order: { fecha: 'ASC', id: 'ASC' }
-            });
-
-            const grupos: Map<number | string, HistoriaClinica[]> = new Map();
-            todasLasHcs.forEach(hc => {
-                const key = hc.proformaDetalleId || hc.tratamiento || 'unlinked';
-                if (!grupos.has(key)) grupos.set(key, []);
-                grupos.get(key)!.push(hc);
-            });
-
-            // 3. Procesar cada grupo de tratamiento
-            for (const [key, items] of grupos.entries()) {
-                const finishedItem = items.find(i => i.estadoTratamiento === 'terminado');
-                const referenceItem = finishedItem || items[0];
-                const basePrice = Number(referenceItem.precio);
-                
-                // A. SUMAR DESCUENTOS DIRECTOS DE ESTE GRUPO
-                let groupDiscount = 0;
-                items.forEach(t => {
-                    groupDiscount += (directDiscounts.get(t.id) || 0);
-                });
-
-                // B. APLICAR DESCUENTO GLOBAL (si sobra pool y falta cubrir precio)
-                if ((basePrice - groupDiscount) > 0 && globalDiscountPool > 0) {
-                    const extra = Math.min(basePrice - groupDiscount, globalDiscountPool);
-                    groupDiscount += extra;
-                    globalDiscountPool -= extra;
-                }
-
-                // C. APLICAR PAGOS DIRECTOS Y EFECTIVO GLOBAL
-                let costRemaining = basePrice - groupDiscount;
-                
-                // Sumamos pagos directos vinculados a CUALQUIER seguimiento de este grupo
-                let groupDirectCash = 0;
-                items.forEach(t => {
-                    groupDirectCash += (directCash.get(t.id) || 0);
-                });
-
-                // 1. Prioridad: Dinero que entró por botones de este tratamiento
-                let appliedDirect = Math.min(costRemaining, groupDirectCash);
-                costRemaining -= appliedDirect;
-
-                // 2. Secundario: Dinero del pozo global (pagos sin HC vinculado)
-                let appliedGlobal = 0;
-                if (costRemaining > 0 && globalCashPool > 0) {
-                    appliedGlobal = Math.min(costRemaining, globalCashPool);
-                    globalCashPool -= appliedGlobal;
-                    costRemaining -= appliedGlobal;
-                }
-
-                const isCancelado = costRemaining <= 0.05;
-                const netPrice = basePrice - groupDiscount;
-
-                // D. ACTUALIZAR TODOS LOS SEGUIMIENTOS DEL GRUPO
-                for (const t of items) {
-                    await this.historiaClinicaRepository.update(t.id, { 
-                        cancelado: isCancelado,
-                        descuento: groupDiscount,
-                        precioConDescuento: netPrice
-                    });
-                }
-                
-                console.log(`[PAGOS_REBALANCE] Grupo ${key}: Base ${basePrice}, Desc ${groupDiscount}, Directo ${appliedDirect}, Global ${appliedGlobal}, Cancelado: ${isCancelado}`);
-            }
-            console.log(`[PAGOS_REBALANCE][${timestamp}] >>> FIN REBALANCEO EXITOSO <<<`);
-        } catch (error) {
-            console.error(`[PAGOS_REBALANCE][${timestamp}] !!! ERROR CRÍTICO !!!`, error);
         }
     }
 }

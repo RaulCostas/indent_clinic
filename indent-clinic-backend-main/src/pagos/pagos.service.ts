@@ -86,11 +86,9 @@ export class PagosService {
                 const saved = await this.pagoRepository.save(pago);
                 results.push(saved);
 
-            }
-
-            // REBALANCEO GLOBAL: Si el pago está asociado a una proforma, rebalancear todos sus tratamientos
-            if (createDto.proformaId) {
-                await this.historiaClinicaService.rebalanceProformaStatus(Number(createDto.proformaId));
+                if (hcId) {
+                    await this.historiaClinicaService.syncTreatmentStatus(hcId);
+                }
             }
 
             console.log(`[PAGOS_AUDIT] FINALIZADO creación de ${results.length} pagos.`);
@@ -181,10 +179,9 @@ export class PagosService {
         
         const savedPago = await this.pagoRepository.save(pago);
         
-        // Rebalancear si hay proforma
-        const pfId = savedPago.proformaId || (savedPago.proforma ? savedPago.proforma.id : null);
-        if (pfId) {
-            await this.historiaClinicaService.rebalanceProformaStatus(Number(pfId));
+        // Sincronizar tratamiento individual
+        if (savedPago.historiaClinicaId) {
+            await this.historiaClinicaService.syncTreatmentStatus(Number(savedPago.historiaClinicaId));
         }
 
         return savedPago;
@@ -213,13 +210,13 @@ export class PagosService {
         }
 
 
-        const pfId = pago.proformaId;
+        const hcId = pago.historiaClinicaId;
         
         await this.pagoRepository.delete(id);
 
-        // Rebalancear después de eliminar para que los tratamientos vuelvan a estar pendientes si falta dinero
-        if (pfId) {
-            await this.historiaClinicaService.rebalanceProformaStatus(Number(pfId));
+        // Sincronizar tratamiento individual después de eliminar
+        if (hcId) {
+            await this.historiaClinicaService.syncTreatmentStatus(Number(hcId));
         }
     }
 

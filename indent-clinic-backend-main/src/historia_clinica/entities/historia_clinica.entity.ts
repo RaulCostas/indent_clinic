@@ -25,6 +25,12 @@ export class HistoriaClinica {
     @Column({ nullable: true })
     pieza: string;
 
+    @Column('decimal', { precision: 12, scale: 2, default: 0 })
+    montoPagado: number;
+
+    @Column('decimal', { precision: 12, scale: 2, default: 0 })
+    saldo: number;
+
     @Column({ type: 'int', default: 1 })
     cantidad: number;
 

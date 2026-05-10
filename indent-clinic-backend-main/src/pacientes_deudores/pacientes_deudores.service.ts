@@ -102,22 +102,29 @@ export class PacientesDeudoresService {
 
             const details = await this.dataSource.query(q);
 
-            return details.map(det => ({
-                id: det.id,
-                proformaId: det.proformaId,
-                numeroPresupuesto: det.numeroPresupuesto,
-                pacienteId: det.pacienteId,
-                paciente: `${det.nombre || ''} ${det.paterno || ''} ${det.materno || ''}`.trim(),
-                pacienteEstado: det.pacienteEstado || 'activo',
-                especialidad: det.especialidad || 'General',
-                tratamiento: det.tratamiento || 'Tratamiento',
-                piezas: det.piezas || '-',
-                cantidadPendiente: Number(det.cantidad || 1),
-                precioUnitario: Number(det.precioUnitario || 0),
-                saldo: 0,
-                saldoPlanificado: Number(det.cantidad || 1) * Number(det.precioUnitario || 0),
-                ultimaCita: det.ultimaCita
-            }));
+            return details.map(det => {
+                const piezasArr = (det.piezas || '')
+                    .split(/[-,.]/)
+                    .map(p => p.trim())
+                    .filter(p => p !== '');
+
+                return {
+                    id: det.id,
+                    proformaId: det.proformaId,
+                    numeroPresupuesto: det.numeroPresupuesto,
+                    pacienteId: det.pacienteId,
+                    paciente: `${det.nombre || ''} ${det.paterno || ''} ${det.materno || ''}`.trim(),
+                    pacienteEstado: det.pacienteEstado || 'activo',
+                    especialidad: det.especialidad || 'General',
+                    tratamiento: det.tratamiento || 'Tratamiento',
+                    piezas: piezasArr.join('-') || det.piezas || '-',
+                    cantidadPendiente: Number(det.cantidad || 1),
+                    precioUnitario: Number(det.precioUnitario || 0),
+                    saldo: 0,
+                    saldoPlanificado: Number(det.cantidad || 1) * Number(det.precioUnitario || 0),
+                    ultimaCita: det.ultimaCita
+                };
+            });
         } catch (e) { 
             console.error('Error in PacientesDeudoresService.findPlanned:', e);
             return []; 

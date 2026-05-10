@@ -643,59 +643,25 @@ const HojaDiaria: React.FC = () => {
         const getCoveredTreatmentsForPaymentLocal = (r: any) => {
             if (!r.proforma || !r.proforma.historiaClinica || r.proforma.historiaClinica.length === 0) return [];
             
-            if (r.historiaClinicaId || (r.tratamientosIds && r.tratamientosIds.length > 0)) {
-                let ids: string[] = [];
-                if (r.historiaClinicaId) ids.push(String(r.historiaClinicaId));
-                
+            let ids: string[] = [];
+            if (r.historiaClinicaId) ids.push(String(r.historiaClinicaId));
+            
+            if (r.tratamientosIds) {
                 if (Array.isArray(r.tratamientosIds)) {
                     ids = [...ids, ...r.tratamientosIds.map(String)];
                 } else if (typeof r.tratamientosIds === 'string') {
                     ids = [...ids, ...r.tratamientosIds.split(',')];
                 }
-
-                if (ids.length > 0) {
-                    return r.proforma.historiaClinica.filter((h: any) => ids.includes(String(h.id)));
-                }
             }
 
-            const tratamientosPlan = r.proforma.historiaClinica;
-            const allPagos = r.proforma.pagos || [r];
-
-            let discountFactor = 1;
-            if (Number(r.proforma.sub_total) > 0) {
-                discountFactor = Number(r.proforma.total) / Number(r.proforma.sub_total);
+            if (ids.length > 0) {
+                // Return unique treatments matching the IDs
+                const uniqueIds = Array.from(new Set(ids));
+                return r.proforma.historiaClinica.filter((h: any) => uniqueIds.includes(String(h.id)));
             }
 
-            const sortedPagos = [...allPagos].sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-            const sortedTreatments = [...tratamientosPlan].sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-
-            // Capacidad de cada tratamiento basada en precio (heuristic for legacy payments)
-            const capacities = sortedTreatments.map((t: any) => Number(t.precio) * discountFactor);
-
-            let tratIndex = 0;
-
-            for (const p of sortedPagos) {
-                let pAmount = Number(p.monto);
-                const thisPaymentCovers: any[] = [];
-
-                while (pAmount > 0.01 && tratIndex < sortedTreatments.length) {
-                    if (capacities[tratIndex] > 0.01) {
-                        const filled = Math.min(pAmount, capacities[tratIndex]);
-                        capacities[tratIndex] -= filled;
-                        pAmount -= filled;
-                        thisPaymentCovers.push(sortedTreatments[tratIndex]);
-                    }
-                    
-                    if (capacities[tratIndex] <= 0.01) {
-                        tratIndex++;
-                    }
-                }
-
-                if (p.id === r.id) {
-                    return Array.from(new Set(thisPaymentCovers));
-                }
-            }
-            return r.proforma.historiaClinica.filter((h: any) => Number(h.cancelado) > 0);
+            // Fallback: If no explicit links, return empty (as we verified all current payments are linked)
+            return [];
         };
 
         const summary = calculateSummary(ingresos, 'ingreso');
@@ -1569,181 +1535,195 @@ const HojaDiaria: React.FC = () => {
                 </div>
                 <div class="report-info">Filtro: <strong>${filterInfo}</strong></div>
 
-                <div class="section-title">1. Ingresos de Pacientes</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Paciente</th>
-                            <th>Plan/Tratamientos</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>F. Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${ingresos.length === 0 ? '<tr><td colspan="5" style="text-align: center;">Sin registros</td></tr>' : ingresos.map(r => `
+                ${ingresos.length > 0 ? `
+                    <div class="section-title">1. Ingresos de Pacientes</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>${[r.paciente?.nombre, r.paciente?.paterno, r.paciente?.materno].filter(Boolean).join(' ')}</td>
-                                <td style="font-size: 9px;">
-                                    <strong>#${r.proforma?.numero || 'Gen'}</strong>: 
-                                    ${getCoveredTreatmentsLocal(r).map((h: any) => h.tratamiento).join(', ') || r.observaciones || '-'}
-                                </td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
-                                <td>${r.formaPagoRel?.forma_pago || 'N/A'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Paciente</th>
+                                <th>Plan/Tratamientos</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(ingresos, 'ingreso'))}</div>
+                        </thead>
+                        <tbody>
+                            ${ingresos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${[r.paciente?.nombre, r.paciente?.paterno, r.paciente?.materno].filter(Boolean).join(' ')}</td>
+                                    <td style="font-size: 9px;">
+                                        <strong>#${r.proforma?.numero || 'Gen'}</strong>: 
+                                        ${getCoveredTreatmentsLocal(r).map((h: any) => h.tratamiento).join(', ') || r.observaciones || '-'}
+                                    </td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPagoRel?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(ingresos, 'ingreso'))}</div>
+                ` : ''}
 
-                <div class="section-title">2. Otros Ingresos</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Detalle</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>F. Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${otrosIngresos.length === 0 ? '<tr><td colspan="4" style="text-align: center;">Sin registros</td></tr>' : otrosIngresos.map(r => `
+                ${otrosIngresos.length > 0 ? `
+                    <div class="section-title">2. Otros Ingresos</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>${r.detalle}</td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
-                                <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Detalle</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(otrosIngresos, 'egreso'))}</div>
+                        </thead>
+                        <tbody>
+                            ${otrosIngresos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.detalle}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(otrosIngresos, 'egreso'))}</div>
+                ` : ''}
 
-                <div class="section-title">3. Egresos Diarios</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Detalle</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>F. Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${egresos.length === 0 ? '<tr><td colspan="4" style="text-align: center;">Sin registros</td></tr>' : egresos.map(r => `
+                ${egresos.length > 0 ? `
+                    <div class="section-title">3. Egresos Diarios</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>${r.detalle}</td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
-                                <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Detalle</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(egresos, 'egreso'))}</div>
+                        </thead>
+                        <tbody>
+                            ${egresos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.detalle}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(egresos, 'egreso'))}</div>
+                ` : ''}
 
-                <div class="section-title">4. Pagos a Doctores</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Doctor</th>
-                            <th>Pacientes / Tratamientos</th>
-                            <th style="text-align: right;">Monto Total</th>
-                            <th>F. Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${pagosDoctores.length === 0 ? '<tr><td colspan="5" style="text-align: center;">Sin registros</td></tr>' : pagosDoctores.map(r => `
+                ${pagosDoctores.length > 0 ? `
+                    <div class="section-title">4. Pagos a Doctores</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}</td>
-                                <td style="font-size: 8px;">
-                                    ${r.detalles?.map(d => `• <strong>${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}</strong>: ${d.historiaClinica?.tratamiento}`).join('<br>') || '-'}
-                                </td>
-                                <td class="amount">${formatMoney(Number(r.total), r.moneda)}</td>
-                                <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Doctor</th>
+                                <th>Pacientes / Tratamientos</th>
+                                <th style="text-align: right;">Monto Total</th>
+                                <th>F. Pago</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosDoctores, 'doctor'))}</div>
+                        </thead>
+                        <tbody>
+                            ${pagosDoctores.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}</td>
+                                    <td style="font-size: 8px;">
+                                        ${r.detalles?.map((d: any) => `• <strong>${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}</strong>: ${d.historiaClinica?.tratamiento}`).join('<br>') || '-'}
+                                    </td>
+                                    <td class="amount">${formatMoney(Number(r.total), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosDoctores, 'doctor'))}</div>
+                ` : ''}
 
-                <div class="section-title">5. Pagos a Laboratorios</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Laboratorio</th>
-                            <th>Paciente</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>F. Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${pagosLaboratorios.length === 0 ? '<tr><td colspan="5" style="text-align: center;">Sin registros</td></tr>' : pagosLaboratorios.map(r => `
+                ${pagosLaboratorios.length > 0 ? `
+                    <div class="section-title">5. Pagos a Laboratorios</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>${r.trabajoLaboratorio?.laboratorio?.laboratorio || '-'}</td>
-                                <td>${[r.trabajoLaboratorio?.paciente?.nombre, r.trabajoLaboratorio?.paciente?.paterno, r.trabajoLaboratorio?.paciente?.materno].filter(Boolean).join(' ')}</td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
-                                <td>${r.formaPago?.forma_pago || '-'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Laboratorio</th>
+                                <th>Paciente</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosLaboratorios, 'laboratorio'))}</div>
+                        </thead>
+                        <tbody>
+                            ${pagosLaboratorios.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.trabajoLaboratorio?.laboratorio?.laboratorio || '-'}</td>
+                                    <td>${[r.trabajoLaboratorio?.paciente?.nombre, r.trabajoLaboratorio?.paciente?.paterno, r.trabajoLaboratorio?.paciente?.materno].filter(Boolean).join(' ')}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosLaboratorios, 'laboratorio'))}</div>
+                ` : ''}
 
-                <div class="section-title">6. Pagos de Pedidos / Compras</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Proveedor</th>
-                            <th>Detalle</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>F. Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${pagosPedidos.length === 0 ? '<tr><td colspan="5" style="text-align: center;">Sin registros</td></tr>' : pagosPedidos.map(r => `
+                ${pagosPedidos.length > 0 ? `
+                    <div class="section-title">6. Pagos de Pedidos / Compras</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>${r.pedido?.proveedor?.proveedor || '-'}</td>
-                                <td>${r.pedido?.descripcion || '-'}</td>
-                                <td class="amount">${formatMoney(Number(r.monto), 'Bolivianos')}</td>
-                                <td>${r.forma_pago || '-'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Proveedor</th>
+                                <th>Detalle</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosPedidos, 'pedido'))}</div>
+                        </thead>
+                        <tbody>
+                            ${pagosPedidos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.pedido?.proveedor?.proveedor || '-'}</td>
+                                    <td>${r.pedido?.descripcion || '-'}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), 'Bolivianos')}</td>
+                                    <td>${r.forma_pago || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosPedidos, 'pedido'))}</div>
+                ` : ''}
 
-                <div class="section-title">7. Pagos Gastos Fijos</div>
-                <table>
-                    <thead>
-                        <tr>
-                            ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
-                            <th>Gasto</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>F. Pago</th>
-                            <th>Obs.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${pagosGastosFijos.length === 0 ? '<tr><td colspan="5" style="text-align: center;">Sin registros</td></tr>' : pagosGastosFijos.map(r => `
+                ${pagosGastosFijos.length > 0 ? `
+                    <div class="section-title">7. Pagos Gastos Fijos</div>
+                    <table>
+                        <thead>
                             <tr>
-                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
-                                <td>${r.gastoFijo?.gasto_fijo || '-'}</td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
-                                <td>${r.formaPago?.forma_pago || '-'}</td>
-                                <td>${r.observaciones || '-'}</td>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Gasto</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                                <th>Obs.</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosGastosFijos, 'gasto'))}</div>
+                        </thead>
+                        <tbody>
+                            ${pagosGastosFijos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.gastoFijo?.gasto_fijo || '-'}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || '-'}</td>
+                                    <td>${r.observaciones || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosGastosFijos, 'gasto'))}</div>
+                ` : ''}
 
                 ${renderFinalSummary()}
                 

@@ -205,13 +205,10 @@ const Utilidades: React.FC = () => {
                                 }
 
                                 if (ids.length > 0) {
-                                    const match = r.proforma.historiaClinica.filter((h: any) => ids.includes(String(h.id)));
+                                    const uniqueIds = Array.from(new Set(ids));
+                                    const match = r.proforma.historiaClinica.filter((h: any) => uniqueIds.includes(String(h.id)));
                                     if (match.length > 0) return match.map((h: any) => h.tratamiento).join(', ');
                                 }
-
-                                // Fallback a cancelados
-                                const cancelados = r.proforma.historiaClinica.filter((h: any) => Number(h.cancelado) > 0);
-                                if (cancelados.length > 0) return cancelados.map((h: any) => h.tratamiento).join(', ');
                                 
                                 return '-';
                             };

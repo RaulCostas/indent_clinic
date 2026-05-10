@@ -200,61 +200,70 @@ const PagosForm: React.FC<PagosFormProps> = ({
         return fecha <= clinicaActual.fecha_cierre_caja;
     };
 
-    // Fuente Única de Verdad: Tratamientos con saldos rebalanceados basados en la tabla de Pagos
+    // Fuente Única de Verdad: Usamos los campos persistentes montoPagado y saldo del servidor
     const balancedTreatments = useMemo(() => {
-        const totalPaidInProforma = allPagos
-            .filter(p => {
-                const pId = p.proformaId || (p as any).proforma?.id;
-                return pId && Number(pId) === Number(formData.proformaId) && p.id !== pagoIdProp;
-            })
-            .reduce((acc, p) => acc + Number(p.monto), 0);
-        
+        if (isModal && !isOpen) return [];
+
         const discountValue = Number(formData.descuento) || 0;
         
         // El descuento se aplica al tratamiento específico (tratamientoIdProp), 
-        // o si hay un solo tratamiento seleccionado (comportamiento esperado del usuario)
+        // o si hay un solo tratamiento seleccionado
         const targetTratId = tratamientoIdProp 
             ? Number(tratamientoIdProp) 
             : (selectedTreatments.length === 1 ? selectedTreatments[0] : null);
 
-        let pool = totalPaidInProforma;
-        
-        // Rebalanceo cronológico: Ordenamos por fecha ASC para asignar el dinero
-        const sortedForBalance = [...tratamientosPlan].sort((a, b) => 
-            new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id
-        );
-
-        if (isModal && !isOpen) return [];
-
-        return sortedForBalance.map(t => {
+        // Rebalanceo: usamos los datos del servidor (montoPagado y saldo)
+        // pero si estamos editando, devolvemos virtualmente el monto de este pago al saldo
+        return tratamientosPlan.map(t => {
             let discountAmount = Number(t.descuento || 0);
             
-            // Si es el tratamiento objetivo
             if (t.id === targetTratId) {
                 const discountInput = String(formData.descuento || '').trim();
                 if (discountInput !== '') {
-                    // OVERRIDE total: lo que está en la caja de texto MANDA sobre la BD
                     discountAmount = Number(discountInput);
                 } else {
-                    // Si la caja está vacía, su intención es resetear a 0 el descuento
-                    // para ver el precio completo (ej. 70) en lugar del precio guardado (ej. 68)
                     discountAmount = 0;
                 }
             }
 
+            // Recuperar el monto que ESTE pago en particular está aportando a este tratamiento
+            let thisPaymentContribution = 0;
+            if (isEditing && pagoIdProp) {
+                // Si el pago que editamos estaba vinculado a este tratamiento, lo sumamos al saldo disponible
+                const currentPago = allPagos.find(p => p.id === pagoIdProp);
+                if (currentPago) {
+                    if (Number(currentPago.historiaClinicaId) === t.id) {
+                        thisPaymentContribution = Number(currentPago.monto);
+                    } else if (currentPago.tratamientosIds) {
+                        const ids = Array.isArray(currentPago.tratamientosIds) 
+                            ? currentPago.tratamientosIds.map(String) 
+                            : String(currentPago.tratamientosIds).split(',');
+                        if (ids.includes(String(t.id))) {
+                            // En pagos multi-tratamiento, el prorrateo es complejo, 
+                            // pero para simplificar, si está vinculado, asumimos que este pago cubría su parte.
+                            // Sin embargo, en el nuevo sistema usualmente es 1 a 1 o explícito.
+                            // Como fallback, usamos el monto total del pago si no hay más info.
+                            thisPaymentContribution = Number(currentPago.monto); 
+                        }
+                    }
+                }
+            }
+
             const netPrice = Math.max(0, Number(t.precio) - discountAmount);
-            
-            const paid = Math.min(pool, netPrice);
-            pool -= paid;
+            // El saldo "disponible" para pagar es el saldo actual + lo que este pago ya aportó
+            const availableSaldo = Number(t.saldo) + thisPaymentContribution;
+            const paidSoFar = Number(t.montoPagado) - thisPaymentContribution;
+
             return {
                 ...t,
                 computedDiscount: discountAmount,
                 netPrice,
-                balancedPaid: paid,
-                balancedSaldo: netPrice - paid
+                balancedPaid: paidSoFar,
+                balancedSaldo: availableSaldo,
+                remainingToPay: availableSaldo // Usado por toggleTreatment
             };
-        });
-    }, [tratamientosPlan, allPagos, formData.proformaId, formData.descuento, selectedTreatments, tratamientoIdProp, isModal, isOpen]);
+        }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
+    }, [tratamientosPlan, allPagos, formData.proformaId, formData.descuento, selectedTreatments, tratamientoIdProp, isModal, isOpen, isEditing, pagoIdProp]);
 
     const toggleTreatment = (id: number) => {
         setSelectedTreatments(prev => {

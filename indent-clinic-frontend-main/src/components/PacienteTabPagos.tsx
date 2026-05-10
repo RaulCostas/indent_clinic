@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente, Pago, Proforma, HistoriaClinica } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { FileText, Plus, Printer, AlertCircle, DollarSign, Lock } from 'lucide-react';
+import { FileText, Plus, Printer, AlertCircle, DollarSign, Lock, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,6 +30,7 @@ const PacienteTabPagos: React.FC = () => {
     const [editingPagoId, setEditingPagoId] = useState<number | null>(null);
     const [isRefundMode, setIsRefundMode] = useState(false);
     const [showManual, setShowManual] = useState(false);
+    const [isModalPlannedOpen, setIsModalPlannedOpen] = useState(false);
 
     const manualSections: ManualSection[] = [
         {
@@ -140,8 +141,8 @@ const PacienteTabPagos: React.FC = () => {
     const totalPagadoGlobal = pagos.reduce((s, p) => s + Number(p.monto), 0);
 
     // 2. Todos los tratamientos del paciente ordenados por prioridad (Terminados > Fecha)
-    const allSortedTreatments = [...historiasConsolidadas]
-        .sort((a, b) => {
+    const allSortedTreatments = useMemo(() => {
+        return [...historiasConsolidadas].sort((a, b) => {
             // Prioridad 1: Terminados primero
             if (a.estadoTratamiento === 'terminado' && b.estadoTratamiento !== 'terminado') return -1;
             if (a.estadoTratamiento !== 'terminado' && b.estadoTratamiento === 'terminado') return 1;
@@ -149,115 +150,99 @@ const PacienteTabPagos: React.FC = () => {
             // Prioridad 2: Orden cronológico
             return new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id;
         });
+    }, [historiasConsolidadas]);
+
+    // NUEVO: Tratamientos Pendientes por Iniciar (Están en proforma pero NO en historia clínica)
+    const plannedTreatments = useMemo(() => {
+        const planned: any[] = [];
+        
+        proformas.forEach(pf => {
+            if (!pf.detalles) return;
+            
+            pf.detalles.forEach(det => {
+                // Solo mostrar si posible = false (confirmados pero no iniciados)
+                if (det.posible !== false) return;
+
+                // Buscamos si este detalle ya tiene registros en HC
+                const registrosHC = historiasConsolidadas.filter(h => h.proformaDetalleId === det.id);
+                
+                // Extraemos las piezas que ya han sido iniciadas
+                const piezasIniciadas = registrosHC
+                    .map(h => (h.pieza || '').split('-'))
+                    .flat()
+                    .map(p => p.trim())
+                    .filter(p => p !== '');
+
+                // Procesamos las piezas del detalle de la proforma
+                const piezasPlanificadas = (det.piezas || '')
+                    .split('-')
+                    .map(p => p.trim())
+                    .filter(p => p !== '');
+
+                // Las piezas realmente pendientes son las que no están en HC
+                const piezasPendientes = piezasPlanificadas.filter(p => !piezasIniciadas.includes(p));
+
+                // Calculamos la cantidad ya iniciada (si no hay piezas, usamos la cantidad numérica)
+                const cantidadIniciada = piezasPlanificadas.length > 0
+                    ? piezasPlanificadas.length - piezasPendientes.length
+                    : registrosHC.reduce((sum, h) => sum + (Number(h.cantidad) || 1), 0);
+
+                const cantidadPendiente = Math.max(0, Number(det.cantidad) - cantidadIniciada);
+
+                if (cantidadPendiente > 0) {
+                    planned.push({
+                        ...det,
+                        proformaNumero: pf.numero,
+                        cantidadPendiente,
+                        // Mostramos solo las piezas que faltan
+                        piezas: piezasPendientes.join('-') || det.piezas,
+                        // Búsqueda profunda del nombre del tratamiento usando el campo correcto 'detalle'
+                        tratamientoNombreReal: det.arancel?.detalle || 'Tratamiento'
+                    });
+                }
+            });
+        });
+        
+        return planned;
+    }, [proformas, historiasConsolidadas]);
 
     const deudasTratamientos = useMemo(() => {
-        // 1. Pool global de todos los pagos del paciente
-        const explicitPaidMap: Record<number, number> = {};
-        let currentGenericPool = 0;
-
-        pagos.forEach(p => {
-            const monto = Number(p.monto);
-            // 1. Prioridad: Pagos vinculados específicamente a un ID de historia clínica
-            if (p.historiaClinicaId) {
-                const numId = Number(p.historiaClinicaId);
-                explicitPaidMap[numId] = (explicitPaidMap[numId] || 0) + monto;
-                return;
-            }
-
-            if ((p as any).historiaClinicaIds && (p as any).historiaClinicaIds.length > 0) {
-                let ids: string[] = [];
-                if (Array.isArray((p as any).historiaClinicaIds)) ids = (p as any).historiaClinicaIds.map(String);
-                else if (typeof (p as any).historiaClinicaIds === 'string') ids = (p as any).historiaClinicaIds.split(',');
-
-                if (ids.length > 0) {
-                    const fraction = monto / ids.length;
-                    ids.forEach(id => {
-                        const numId = Number(id);
-                        explicitPaidMap[numId] = (explicitPaidMap[numId] || 0) + fraction;
-                    });
-                    return;
-                }
-            }
-            
-            if ((p as any).tratamientosIds && (p as any).tratamientosIds.length > 0) {
-                 let ids: string[] = [];
-                 if (Array.isArray((p as any).tratamientosIds)) ids = (p as any).tratamientosIds.map(String);
-                 else if (typeof (p as any).tratamientosIds === 'string') ids = (p as any).tratamientosIds.split(',');
-     
-                 if (ids.length > 0) {
-                     const fraction = monto / ids.length;
-                     ids.forEach(id => {
-                         const numId = Number(id);
-                         explicitPaidMap[numId] = (explicitPaidMap[numId] || 0) + fraction;
-                     });
-                     return;
-                 }
-            }
-
-            currentGenericPool += monto;
-        });
-
-        // 2. Todos los tratamientos del paciente ordenados
-        const sortedTreatments = [...historiasConsolidadas]
-            .sort((a, b) => {
-                if (a.estadoTratamiento === 'terminado' && b.estadoTratamiento !== 'terminado') return -1;
-                if (a.estadoTratamiento !== 'terminado' && b.estadoTratamiento === 'terminado') return 1;
-                return new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id;
-            });
-
-        return sortedTreatments.map(t => {
+        return historiasConsolidadas.map(t => {
             const pf = proformas.find(p => p.id === t.proformaId || (t.proforma && p.id === t.proforma.id));
-            const netPrice = Math.max(0, Number(t.precio) - (Number(t.descuento) || 0));
-            
-            let paid = 0;
-            if (t.allIds && t.allIds.length > 0) {
-                t.allIds.forEach((id: number) => {
-                    paid += explicitPaidMap[id] || 0;
-                });
-            } else {
-                paid = explicitPaidMap[t.id] || 0;
-            }
-            
-            const remainingToPay = Math.max(0, netPrice - paid);
-            if (remainingToPay > 0 && currentGenericPool > 0) {
-                const genericPaid = Math.min(currentGenericPool, remainingToPay);
-                currentGenericPool -= genericPaid;
-                paid += genericPaid;
-            }
-            
+            const netPrice = Number(t.precioConDescuento || Number(t.precio) - Number(t.descuento || 0));
+            const paid = Number(t.montoPagado || 0);
+            const saldo = Number(t.saldo || 0);
+
             return {
                 tratamiento: t,
                 proforma: pf,
                 netPrice,
                 paid,
-                saldo: Math.max(0, netPrice - paid)
+                saldo
             };
         });
-    }, [pagos, historiasConsolidadas, proformas]);
+    }, [historiasConsolidadas, proformas]);
 
-    // Filtro para mostrar solo tratamientos TERMINADOS con saldo pendiente
-    const deudasTratamientosFiltradas = deudasTratamientos.filter(d => 
-        d.saldo > 0.01 && d.tratamiento.estadoTratamiento === 'terminado'
-    );
+    const deudasTratamientosFiltradas = useMemo(() => 
+        deudasTratamientos.filter(d => d.saldo > 0.05 && d.tratamiento.estadoTratamiento === 'terminado'),
+    [deudasTratamientos]);
 
-    // Filtro para mostrar tratamientos EN CURSO / OTROS ESTADOS con saldo pendiente
-    const deudasTratamientosEnCurso = deudasTratamientos.filter(d => 
-        d.saldo > 0.01 && d.tratamiento.estadoTratamiento !== 'terminado'
-    );
+    const deudasTratamientosEnCurso = useMemo(() => 
+        deudasTratamientos.filter(d => d.saldo > 0.05 && d.tratamiento.estadoTratamiento !== 'terminado'),
+    [deudasTratamientos]);
 
-    // Deuda de todos los tratamientos iniciados (lo que realmente debe el paciente)
-    const totalDebt = deudasTratamientos
-        .reduce((s, d) => s + d.saldo, 0);
+    const totalDebt = useMemo(() => 
+        deudasTratamientos.reduce((s, d) => s + d.saldo, 0),
+    [deudasTratamientos]);
 
-    // Anticipo / Saldo a Favor = dinero que el paciente pagó de MÁS respecto al costo total de TODOS sus tratamientos.
-    // Si el paciente aún debe $, su saldo a favor es 0 aunque haya ciertos tratamientos terminados y pagados.
-    const costoTotalTodos = (historiasConsolidadas || []).reduce((acc, h) => {
-        const p = parseFloat(String(h.precio)) || 0;
-        const d = parseFloat(String(h.descuento)) || 0;
-        return acc + (p - d);
-    }, 0);
+    const costoTotalTodos = useMemo(() => 
+        historiasConsolidadas.reduce((acc, h) => acc + Number(h.precioConDescuento || Number(h.precio) - Number(h.descuento || 0)), 0),
+    [historiasConsolidadas]);
 
-    const anticipoDisponible = Math.max(0, totalPagadoGlobal - costoTotalTodos);
+    const anticipoDisponible = useMemo(() => {
+        const anticipo = totalPagadoGlobal - costoTotalTodos;
+        return anticipo > 1 ? anticipo : 0;
+    }, [totalPagadoGlobal, costoTotalTodos]);
 
     const loadImage = (src: string): Promise<HTMLImageElement> =>
         new Promise((resolve, reject) => {
@@ -374,139 +359,24 @@ const PacienteTabPagos: React.FC = () => {
 
 
     const flatTableRows = useMemo(() => {
-        // 0. Si no hay datos suficientes, retornar vacío
         if (!pagos || pagos.length === 0 || !historias) return [];
-
+        
         const sorted = [...pagos].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-        
-        // 1. Agrupar pagos e historias por proforma para procesar FIFO una sola vez por plan
-        const proformasData: Record<number, { 
-            payments: Pago[], 
-            treatments: any[], 
-            capacities: number[] 
-        }> = {};
 
-        // Organizar datos base
-        pagos.forEach(p => {
-            const pid = p.proformaId || p.proforma?.id;
-            if (!pid) return;
-            const numId = Number(pid);
-            if (!proformasData[numId]) {
-                const trats = historias.filter(h => h.proformaId && Number(h.proformaId) === numId);
-                const sortedTrats = [...trats].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-                
-                proformasData[numId] = {
-                    payments: pagos.filter(pago => {
-                        const pgId = pago.proformaId || pago.proforma?.id;
-                        return pgId && Number(pgId) === numId;
-                    }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id),
-                    treatments: sortedTrats,
-                    capacities: sortedTrats.map(t => Math.max(0, Number(t.precio) - (Number(t.descuento) || 0)))
-                };
-            }
+        return sorted.map(pago => {
+            const hc = historias.find(h => h.id === pago.historiaClinicaId);
+            return {
+                ...pago,
+                rowId: pago.id.toString(),
+                tratamientoNombre: hc 
+                    ? `${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`
+                    : (Number(pago.monto) < 0 ? 'Devolución' : (pago.proforma ? `Plan de Tratamiento #${pago.proforma.numero}` : 'Pago General / Anticipo')),
+                tratamientoPrecio: hc ? hc.precio : '-',
+                tratamientoDescuento: pago.descuento || 0,
+                pagoMonto: pago.monto,
+                tratamientoId: hc?.id
+            };
         });
-
-        // 2. Pre-calcular TODAS las asignaciones de una sola pasada por cada proforma (O(N))
-        const allocationMap = new Map<number, { treatment: any, allocated: number, isFull?: boolean }[]>();
-        
-        Object.values(proformasData).forEach(data => {
-            let tratIndex = 0;
-            data.payments.forEach(pago => {
-                let pAmount = Number(pago.monto);
-                const covered: { treatment: any, allocated: number, isFull?: boolean }[] = [];
-
-
-                // 1. Fase de Prioridad (Pagos Directos)
-                const rawIds = (pago as any).tratamientosIds || (pago as any).historiaClinicaIds || [];
-                const priorityIds: number[] = Array.isArray(rawIds) 
-                    ? rawIds.map((id: any) => Number(id)) 
-                    : String(rawIds).split(',').map((id: string) => Number(id.trim())).filter((id: number) => !isNaN(id));
-
-                if (pago.historiaClinicaId) {
-                    priorityIds.unshift(Number(pago.historiaClinicaId));
-                }
-
-                if (priorityIds.length > 0) {
-                    priorityIds.forEach((targetId: number) => {
-                        if (pAmount <= 0.001) return;
-                        const tIdx = data.treatments.findIndex(t => t.id === targetId);
-                        if (tIdx !== -1) {
-                            const available = data.capacities[tIdx];
-                            // Obligamos a aplicarlo si fue vinculado directamente, aunque la capacidad sea 0 por el rebalanceo
-                            const take = Math.min(pAmount, Math.max(pAmount, available));
-                            data.capacities[tIdx] -= Math.min(take, available);
-                            pAmount -= take;
-                            covered.push({ 
-                                treatment: data.treatments[tIdx], 
-                                allocated: take,
-                                isFull: data.capacities[tIdx] <= 0.001
-                            });
-                        }
-                    });
-                }
-
-                // 2. Fase de Fondo Común (FIFO)
-                let safetyExit = 0;
-                while (pAmount > 0.001 && tratIndex < data.treatments.length && safetyExit < 1000) {
-                    safetyExit++;
-                    const available = data.capacities[tratIndex];
-                    if (available > 0.001) {
-                        const take = Math.min(pAmount, available);
-                        data.capacities[tratIndex] -= take;
-                        pAmount -= take;
-                        
-                        const existing = covered.find(c => c.treatment.id === data.treatments[tratIndex].id);
-                        if (existing) {
-                            existing.allocated += take;
-                            existing.isFull = data.capacities[tratIndex] <= 0.001;
-                        } else {
-                            covered.push({ 
-                                treatment: data.treatments[tratIndex], 
-                                allocated: take,
-                                isFull: data.capacities[tratIndex] <= 0.001
-                            });
-                        }
-                    }
-                    if (data.capacities[tratIndex] <= 0.001) {
-                        tratIndex++;
-                    }
-                }
-                allocationMap.set(pago.id, covered);
-            });
-        });
-
-        // 3. Aplanar las filas finales basadas en la pre-asignación
-        const result: any[] = [];
-        sorted.forEach(pago => {
-            const covered = allocationMap.get(pago.id) || [];
-            if (covered.length > 0) {
-                covered.forEach(cov => {
-                    const hc = cov.treatment;
-                    result.push({
-                        ...pago,
-                        rowId: `${pago.id}-${hc.id}`,
-                        tratamientoNombre: `${(hc.estadoTratamiento !== 'terminado' && !cov.isFull) ? '[ADELANTO] ' : ''}${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
-                        tratamientoPrecio: hc.precio,
-                        tratamientoDescuento: pago.descuento || hc.descuento || 0,
-                        pagoMonto: cov.allocated,
-                        tratamientoId: hc.id
-                    });
-                });
-            } else {
-                result.push({
-                    ...pago,
-                    rowId: `${pago.id}-gen`,
-                    tratamientoNombre: Number(pago.monto) < 0 
-                        ? 'Devolución a Paciente' 
-                        : (pago.proforma ? `Plan de Tratamiento #${pago.proforma.numero}` : (pago as any).observaciones?.includes('TRANS') ? 'Transferencia de Saldo' : 'Pago General / Cuenta'),
-                    tratamientoPrecio: '-',
-                    tratamientoDescuento: pago.descuento || 0,
-                    pagoMonto: pago.monto
-                });
-            }
-        });
-
-        return result;
     }, [pagos, historias]);
 
     const totalPages = Math.ceil(flatTableRows.length / itemsPerPage);
@@ -759,6 +629,14 @@ const PacienteTabPagos: React.FC = () => {
                     >
                         ?
                     </button>
+                    <button
+                        onClick={() => setIsModalPlannedOpen(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        title="Ver tratamientos presupuestados no iniciados"
+                    >
+                        <FileText size={18} />
+                        <span className="text-sm">Trat. no iniciados</span>
+                    </button>
                     {pagos.length > 0 && (
                         <button
                             onClick={handlePrintSummary}
@@ -954,7 +832,7 @@ const PacienteTabPagos: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                {['Fecha', 'Plan', 'Tratamiento', 'Precio', 'Descuento', 'Total (Abono)', 'Forma Pago', 'Recibo', 'Factura', 'Acciones'].map(h => (
+                                {['Fecha', 'Plan', 'Tratamiento', 'Precio', 'Descuento', 'Total (Abono)', 'Forma Pago', 'Factura/Recibo', 'Observaciones', 'Acciones'].map(h => (
                                     <th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider ${['Precio', 'Descuento', 'Total (Abono)'].includes(h) ? 'text-right' : ''}`}>{h}</th>
                                 ))}
                             </tr>
@@ -968,17 +846,21 @@ const PacienteTabPagos: React.FC = () => {
                                         {row.tratamientoNombre}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                                        {row.tratamientoPrecio !== '-' ? `Bs. ${Number(row.tratamientoPrecio).toFixed(2)}` : '-'}
+                                        {row.tratamientoPrecio && row.tratamientoPrecio !== '-' ? `Bs. ${Number(row.tratamientoPrecio).toFixed(2)}` : '-'}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                                        {row.tratamientoDescuento !== '-' ? `Bs. ${Number(row.tratamientoDescuento).toFixed(2)}` : '-'}
+                                        {Number(row.tratamientoDescuento) > 0 ? `Bs. ${Number(row.tratamientoDescuento).toFixed(2)}` : '-'}
                                     </td>
                                     <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">Bs. {Number(row.pagoMonto).toFixed(2)}</td>
                                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                                         {row.formaPagoRel ? row.formaPagoRel.forma_pago : row.formaPago}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.recibo || '—'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.factura || '—'}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                                        {row.factura ? `F: ${row.factura}` : (row.recibo ? `R: ${row.recibo}` : '—')}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic">
+                                        {row.observaciones || '—'}
+                                    </td>
                                     <td className="px-4 py-3 flex gap-2">
                                         <button
                                             onClick={() => generateReciboPDF(row)}
@@ -1110,6 +992,101 @@ const PacienteTabPagos: React.FC = () => {
                 title="Manual de Usuario - Historial de Pagos"
                 sections={manualSections}
             />
+            {/* Modal: Tratamientos Pendientes por Iniciar */}
+            {isModalPlannedOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900/20">
+                            <div>
+                                <h2 className="text-xl font-bold text-indigo-900 dark:text-indigo-100 flex items-center gap-2">
+                                    <AlertCircle className="w-6 h-6 text-indigo-600" />
+                                    Tratamientos no iniciados
+                                </h2>
+                                <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
+                                    Estos ítems están en el presupuesto pero el doctor aún no ha registrado su inicio en la historia clínica.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto">
+                            {plannedTreatments.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="bg-gray-100 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <FileText className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                    <p className="text-gray-500 dark:text-gray-400">No hay tratamientos pendientes por iniciar.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                            <tr>
+                                                <th className="px-4 py-3">Plan de Trat.</th>
+                                                <th className="px-4 py-3">Tratamiento</th>
+                                                <th className="px-4 py-3">Piezas</th>
+                                                <th className="px-4 py-3 text-center">Cant. Pendiente</th>
+                                                <th className="px-4 py-3 text-right">Precio Unit.</th>
+                                                <th className="px-4 py-3 text-right">Subtotal Pendiente</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {plannedTreatments.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                    <td className="px-4 py-3 font-medium text-gray-500">No. {item.proformaNumero}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="font-bold text-gray-900 dark:text-white uppercase text-[12px]">
+                                                            {item.tratamientoNombreReal || item.arancel?.detalle || 'Tratamiento'}
+                                                        </div>
+                                                        {(item.arancel?.especialidad || item.especialidad) && (
+                                                            <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
+                                                                {item.arancel?.especialidad || item.especialidad}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.piezas && (
+                                                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs font-medium">
+                                                                {item.piezas}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center font-bold text-indigo-600 dark:text-indigo-400">
+                                                        {item.cantidadPendiente}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        Bs. {Number(item.precioUnitario).toFixed(2)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                                                        Bs. {(Number(item.precioUnitario) * item.cantidadPendiente).toFixed(2)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot className="bg-gray-50 dark:bg-gray-800/50 font-bold">
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-4 text-right uppercase text-xs tracking-wider text-gray-500">Total Oportunidad de Venta:</td>
+                                                <td className="px-4 py-4 text-right text-lg text-indigo-600 dark:text-indigo-400 font-black">
+                                                    Bs. {plannedTreatments.reduce((sum, item) => sum + (Number(item.precioUnitario) * item.cantidadPendiente), 0).toFixed(2)}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                            <button 
+                                onClick={() => setIsModalPlannedOpen(false)}
+                                className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-xl font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm flex items-center gap-2"
+                            >
+                                <X size={18} />
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -85,7 +85,13 @@ export class AgendaService {
             const nomClinica = (cita.clinica?.nombre || 'Selec Dental').trim();
             const sucursalNombre = (cita.sucursal?.nombre || cita.clinica?.nombre || 'nuestra clínica').trim();
 
-            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana:\n\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
+            const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            const [cy, cm, cd] = cita.fecha.toString().split('-').map(Number);
+            const fechaObj = new Date(cy, cm - 1, cd);
+            const diaSemana = diasSemana[fechaObj.getDay()];
+            const fechaFormateada = `${String(cd).padStart(2,'0')}/${String(cm).padStart(2,'0')}/${cy}`;
+
+            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita:\n\n🗓️ *${diaSemana} ${fechaFormateada}*\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
 
             await this.chatbotService.sendAgendaMenu(
                 jid,
@@ -128,7 +134,13 @@ export class AgendaService {
                 const nomClinica = (cita.clinica?.nombre || 'Selec Dental').trim();
                 const sucursalNombre = (cita.sucursal?.nombre || cita.clinica?.nombre || 'nuestra clínica').trim();
 
-                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana:\n\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
+                const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                const [cy, cm, cd] = cita.fecha.toString().split('-').map(Number);
+                const fechaObj = new Date(cy, cm - 1, cd);
+                const diaSemana = diasSemana[fechaObj.getDay()];
+                const fechaFormateada = `${String(cd).padStart(2,'0')}/${String(cm).padStart(2,'0')}/${cy}`;
+
+                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita:\n\n🗓️ *${diaSemana} ${fechaFormateada}*\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
 
                 await this.chatbotService.sendAgendaMenu(
                     jid,

@@ -19,10 +19,11 @@ import { PersonalModule } from '../personal/personal.module';
 
 import { Clinica } from '../clinicas/entities/clinica.entity';
 import { Sucursal } from '../clinicas/entities/sucursal.entity';
+import { Especialidad } from '../especialidad/entities/especialidad.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([ChatbotIntento, Clinica, Sucursal, WhatsappSession]),
+        TypeOrmModule.forFeature([ChatbotIntento, Clinica, Sucursal, WhatsappSession, Especialidad]),
         PacientesModule,
         forwardRef(() => AgendaModule),
         PagosModule,

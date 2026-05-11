@@ -94,7 +94,7 @@ const PacienteTabPagos: React.FC = () => {
         const map = new Map<string, any>();
         historias.forEach(h => {
             // Si tiene proformaDetalleId Y pieza específica → cada pieza es un ítem de cobro independiente
-            // Si tiene proformaDetalleId pero SIN pieza → consolidar por detalle (ej: una corona en múltiples sesiones)
+            // Si tiene proformaDetalleId pero SIN pieza → consolidar por detalle (ej: corona en múltiples sesiones)
             const key = h.proformaDetalleId && h.pieza
                 ? `det_${h.proformaDetalleId}_pz_${(h.pieza || '').trim()}`
                 : h.proformaDetalleId
@@ -110,8 +110,15 @@ const PacienteTabPagos: React.FC = () => {
                     master.estadoTratamiento = 'terminado';
                     if (new Date(h.fecha) > new Date(master.fecha)) master.fecha = h.fecha;
                 }
-                master.precio = Math.max(Number(master.precio || 0), Number(h.precio || 0));
-                master.descuento = Math.max(Number(master.descuento || 0), Number(h.descuento || 0));
+                // Preservar el mayor precio entre seguimientos del mismo tratamiento.
+                // FIX: convertir a Number() antes de comparar para manejar strings de PostgreSQL.
+                const newPrecio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
+                if (newPrecio > (Number(master.precio) || 0)) {
+                    master.precio = newPrecio;
+                    // Recalcular precioConDescuento al actualizar el precio
+                    master.precioConDescuento = Math.max(0, newPrecio - (Number(master.descuento) || 0));
+                }
+                master.descuento = Math.max(Number(master.descuento) || 0, Number(h.descuento) || 0);
             }
         });
         return Array.from(map.values());
@@ -181,21 +188,40 @@ const PacienteTabPagos: React.FC = () => {
     }, [proformas, historiasConsolidadas]);
 
     const deudasTratamientos = useMemo(() => {
+        // ESTRATEGIA: Calcular el saldo SIEMPRE sumando los pagos reales del paciente
+        // agrupados por proforma. Los pagos se guardan con historiaClinicaId O con proformaId,
+        // El pago correcto es el vinculado directamente al historiaClinicaId del tratamiento.
+        // NO distribuir proporcionalmente: eso atribuye pagos de un tratamiento a otro.
+
+        // Pagos directos por historiaClinicaId
+        const pagosPorHC = new Map<number, number>();
+        pagos.forEach(p => {
+            if ((p as any).historiaClinicaId) {
+                const hId = Number((p as any).historiaClinicaId);
+                pagosPorHC.set(hId, (pagosPorHC.get(hId) || 0) + Number(p.monto));
+            }
+        });
+
         return historiasConsolidadas.map(t => {
             const pf = proformas.find(p => p.id === t.proformaId || (t.proforma && p.id === t.proforma.id));
-            const netPrice = Number(t.precioConDescuento || Number(t.precio) - Number(t.descuento || 0));
-            const paid = Number(t.montoPagado || 0);
-            const saldo = Number(t.saldo || 0);
+            // FIX: PostgreSQL retorna decimals como strings ("0.00" es truthy, pero Number("0.00")=0).
+            // Convertir a Number primero para que el || use el fallback correcto.
+            const netPrice = Number(t.precioConDescuento) || (Number(t.precio) - (Number(t.descuento) || 0));
 
-            return {
-                tratamiento: t,
-                proforma: pf,
-                netPrice,
-                paid,
-                saldo
-            };
+            if (netPrice <= 0) {
+                return { tratamiento: t, proforma: pf, netPrice: 0, paid: 0, saldo: 0 };
+            }
+
+            // Sumar pagos de todos los seguimientos del mismo tratamiento (allIds)
+            const allHCIds: number[] = t.allIds || [t.id];
+            const paidDirecto = allHCIds.reduce((acc: number, hcId: number) => acc + (pagosPorHC.get(hcId) || 0), 0);
+            // Fallback al campo persistente del backend si no hay pagos directos registrados
+            const paid = Math.min(netPrice, paidDirecto > 0 ? paidDirecto : (Number(t.montoPagado) || 0));
+            const saldo = Math.max(0, netPrice - paid);
+
+            return { tratamiento: t, proforma: pf, netPrice, paid, saldo };
         });
-    }, [historiasConsolidadas, proformas]);
+    }, [historiasConsolidadas, proformas, pagos]);
 
     const deudasTratamientosFiltradas = useMemo(() => 
         deudasTratamientos.filter(d => d.saldo > 0.05 && d.tratamiento.estadoTratamiento === 'terminado'),
@@ -210,7 +236,7 @@ const PacienteTabPagos: React.FC = () => {
     [deudasTratamientos]);
 
     const costoTotalTodos = useMemo(() => 
-        historiasConsolidadas.reduce((acc, h) => acc + Number(h.precioConDescuento || Number(h.precio) - Number(h.descuento || 0)), 0),
+        historiasConsolidadas.reduce((acc, h) => acc + (Number(h.precioConDescuento) || (Number(h.precio) - (Number(h.descuento) || 0))), 0),
     [historiasConsolidadas]);
 
     const anticipoDisponible = useMemo(() => {

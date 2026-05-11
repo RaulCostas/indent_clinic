@@ -93,32 +93,29 @@ const PacienteTabPagos: React.FC = () => {
     const historiasConsolidadas = useMemo(() => {
         const map = new Map<string, any>();
         historias.forEach(h => {
-            // Si tiene proformaDetalleId Y pieza específica → cada pieza es un ítem de cobro independiente
-            // Si tiene proformaDetalleId pero SIN pieza → consolidar por detalle (ej: corona en múltiples sesiones)
             const key = h.proformaDetalleId && h.pieza
                 ? `det_${h.proformaDetalleId}_pz_${(h.pieza || '').trim()}`
                 : h.proformaDetalleId
                     ? `det_${h.proformaDetalleId}`
-                    : `prof_${h.proformaId || 'gen'}_trat_${h.tratamiento}_pz_${h.pieza || ''}`;
+                    : `prof_${h.proformaId || 'gen'}_trat_${(h.tratamiento || '').trim()}_pz_${h.pieza || ''}`;
                 
             if (!map.has(key)) {
                 map.set(key, { ...h, allIds: [h.id] });
             } else {
                 const master = map.get(key);
                 master.allIds.push(h.id);
-                if (h.estadoTratamiento === 'terminado') {
+                
+                // Normalizar estado para comparación
+                const hEstado = (h.estadoTratamiento || '').trim().toLowerCase();
+                if (hEstado === 'terminado') {
                     master.estadoTratamiento = 'terminado';
                     if (new Date(h.fecha) > new Date(master.fecha)) master.fecha = h.fecha;
                 }
-                // Preservar el mayor precio entre seguimientos del mismo tratamiento.
-                // FIX: convertir a Number() antes de comparar para manejar strings de PostgreSQL.
-                const newPrecio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
-                if (newPrecio > (Number(master.precio) || 0)) {
-                    master.precio = newPrecio;
-                    // Recalcular precioConDescuento al actualizar el precio
-                    master.precioConDescuento = Math.max(0, newPrecio - (Number(master.descuento) || 0));
-                }
+                
+                // Preservar valores máximos registrados
+                master.precio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
                 master.descuento = Math.max(Number(master.descuento) || 0, Number(h.descuento) || 0);
+                master.precioConDescuento = Math.max(0, Number(master.precio) - Number(master.descuento));
             }
         });
         return Array.from(map.values());
@@ -188,47 +185,96 @@ const PacienteTabPagos: React.FC = () => {
     }, [proformas, historiasConsolidadas]);
 
     const deudasTratamientos = useMemo(() => {
-        // ESTRATEGIA: Calcular el saldo SIEMPRE sumando los pagos reales del paciente
-        // agrupados por proforma. Los pagos se guardan con historiaClinicaId O con proformaId,
-        // El pago correcto es el vinculado directamente al historiaClinicaId del tratamiento.
-        // NO distribuir proporcionalmente: eso atribuye pagos de un tratamiento a otro.
-
-        // Pagos directos por historiaClinicaId
+        // 1. Organizar Pagos
         const pagosPorHC = new Map<number, number>();
+        const pagosGeneralesProforma = new Map<number, number>();
+
         pagos.forEach(p => {
-            if ((p as any).historiaClinicaId) {
-                const hId = Number((p as any).historiaClinicaId);
-                pagosPorHC.set(hId, (pagosPorHC.get(hId) || 0) + Number(p.monto));
+            const hId = (p as any).historiaClinicaId;
+            if (hId) {
+                pagosPorHC.set(Number(hId), (pagosPorHC.get(Number(hId)) || 0) + Number(p.monto));
+            } else {
+                const pfId = p.proformaId || (p.proforma as any)?.id;
+                if (pfId) {
+                    pagosGeneralesProforma.set(Number(pfId), (pagosGeneralesProforma.get(Number(pfId)) || 0) + Number(p.monto));
+                }
             }
         });
 
-        return historiasConsolidadas.map(t => {
+        // 2. Pre-calcular deudas base (sin distribución proporcional aún)
+        const baseCalculada = historiasConsolidadas.map(t => {
             const pf = proformas.find(p => p.id === t.proformaId || (t.proforma && p.id === t.proforma.id));
-            // FIX: PostgreSQL retorna decimals como strings ("0.00" es truthy, pero Number("0.00")=0).
-            // Convertir a Number primero para que el || use el fallback correcto.
-            const netPrice = Number(t.precioConDescuento) || (Number(t.precio) - (Number(t.descuento) || 0));
-
-            if (netPrice <= 0) {
-                return { tratamiento: t, proforma: pf, netPrice: 0, paid: 0, saldo: 0 };
+            
+            // BUSCAR PRECIO ROBUSTO:
+            // a) Precio directo en el registro consolidado
+            let price = Number(t.precioConDescuento) || (Number(t.precio) - (Number(t.descuento) || 0));
+            
+            // b) Si es 0 y hay proforma, buscar en los detalles de la proforma
+            if (price <= 0 && t.proformaDetalleId && pf?.detalles) {
+                const det = pf.detalles.find(d => Number(d.id) === Number(t.proformaDetalleId));
+                if (det) {
+                    // Si el detalle tiene precio, lo usamos. Multiplicamos por cantidad si aplica.
+                    price = Number(det.total) || (Number(det.precioUnitario) * Number(det.cantidad));
+                }
             }
 
-            // Sumar pagos de todos los seguimientos del mismo tratamiento (allIds)
-            const allHCIds: number[] = t.allIds || [t.id];
-            const paidDirecto = allHCIds.reduce((acc: number, hcId: number) => acc + (pagosPorHC.get(hcId) || 0), 0);
-            // Fallback al campo persistente del backend si no hay pagos directos registrados
-            const paid = Math.min(netPrice, paidDirecto > 0 ? paidDirecto : (Number(t.montoPagado) || 0));
-            const saldo = Math.max(0, netPrice - paid);
+            // c) Si sigue siendo 0, intentamos ver si el arancel de la proforma tiene el precio (raro pero posible)
+            if (price <= 0 && pf?.detalles) {
+                const det = pf.detalles.find(d => (d.arancel?.detalle || '').trim().toLowerCase() === (t.tratamiento || '').trim().toLowerCase());
+                if (det) price = Number(det.total);
+            }
 
-            return { tratamiento: t, proforma: pf, netPrice, paid, saldo };
+            const allHCIds: number[] = t.allIds || [t.id];
+            const paidDirecto = allHCIds.reduce((acc, hcId) => acc + (pagosPorHC.get(hcId) || 0), 0);
+            
+            // Usar montoPagado del backend solo si no hay pagos directos en este fetch
+            const paidInitial = paidDirecto > 0 ? paidDirecto : (Number(t.montoPagado) || 0);
+            
+            return { 
+                tratamiento: t, 
+                proforma: pf, 
+                netPrice: price, 
+                paid: Math.min(price, paidInitial),
+                saldoBase: Math.max(0, price - paidInitial)
+            };
         });
+
+        // 3. Distribuir Pagos Generales de Proforma
+        // Si el paciente pagó "a la proforma #1" sin especificar tratamiento, 
+        // distribuimos ese saldo entre los tratamientos de esa proforma que aún tienen deuda.
+        pagosGeneralesProforma.forEach((montoGeneral, pfId) => {
+            const itemsConDeuda = baseCalculada.filter(item => 
+                Number(item.proforma?.id || item.tratamiento.proformaId) === pfId && item.saldoBase > 0.01
+            );
+            
+            if (itemsConDeuda.length > 0) {
+                const deudaTotalProforma = itemsConDeuda.reduce((s, i) => s + i.saldoBase, 0);
+                itemsConDeuda.forEach(item => {
+                    const proporcion = item.saldoBase / deudaTotalProforma;
+                    const abonoExtra = Math.min(item.saldoBase, montoGeneral * proporcion);
+                    item.paid += abonoExtra;
+                });
+            }
+        });
+
+        return baseCalculada.map(item => ({
+            ...item,
+            saldo: Math.max(0, item.netPrice - item.paid)
+        }));
     }, [historiasConsolidadas, proformas, pagos]);
 
     const deudasTratamientosFiltradas = useMemo(() => 
-        deudasTratamientos.filter(d => d.saldo > 0.05 && d.tratamiento.estadoTratamiento === 'terminado'),
+        deudasTratamientos.filter(d => 
+            d.saldo > 0.01 && 
+            (d.tratamiento.estadoTratamiento || '').trim().toLowerCase() === 'terminado'
+        ),
     [deudasTratamientos]);
 
     const deudasTratamientosEnCurso = useMemo(() => 
-        deudasTratamientos.filter(d => d.saldo > 0.05 && d.tratamiento.estadoTratamiento !== 'terminado'),
+        deudasTratamientos.filter(d => 
+            d.saldo > 0.01 && 
+            (d.tratamiento.estadoTratamiento || '').trim().toLowerCase() !== 'terminado'
+        ),
     [deudasTratamientos]);
 
     const totalDebt = useMemo(() => 

@@ -330,6 +330,8 @@ export interface HistoriaClinica {
     precio?: number;
     descuento?: number;
     precioConDescuento?: number;
+    montoPagado?: number;
+    saldo?: number;
     firmaPaciente?: string;
     tienePagos?: boolean;
     createdAt: string;

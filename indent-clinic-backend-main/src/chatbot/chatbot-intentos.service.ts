@@ -67,25 +67,16 @@ export class ChatbotIntentosService implements OnModuleInit {
             }
         }
 
-        // 3. Remove deprecated or specifically requested removals
-        const toDelete = [
-            'CONSULTAR_SALDO',
-            'CONSULTAR_CITA',
-            'CONSULTAR_PRESUPUESTO',
-            'CONSULTAR_DIRECCION',
-            'CONSULTAR_HORARIO'
-        ];
-        
-        for (const action of toDelete) {
-            await this.intentoRepository.delete({ action: action as any, target: 'PACIENTE' as any });
-        }
+        // 3. Eliminar intents obsoletos (solo los que aún puedan existir con enum válido)
+        // Los valores CONSULTAR_SALDO, CONSULTAR_PRESUPUESTO, etc. fueron eliminados
+        // directamente en la BD vía SQL. No se repite aquí para evitar QueryFailedError.
 
-        // Cleanup other misconfigured intents
+        // Cleanup de intents con keywords de letras/números sueltos
         const deprecatedKeywords = ['A', 'B', '1', '2', '3'];
         for (const k of deprecatedKeywords) {
             await this.intentoRepository.delete({ keywords: k });
         }
-        
+
         await this.intentoRepository.delete({ action: 'CONSULTAR_INVENTARIO' as any, target: 'PACIENTE' as any });
     }
 

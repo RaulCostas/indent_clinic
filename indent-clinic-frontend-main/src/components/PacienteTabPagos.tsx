@@ -229,7 +229,7 @@ const PacienteTabPagos: React.FC = () => {
                 if (det) price = Number(det.total);
             }
 
-            const allHCIds: number[] = (t.allIds || [t.id]).map(id => Number(id));
+            const allHCIds: number[] = (t.allIds || [t.id]).map((id: any) => Number(id));
             // CALCULO REAL: Solo confiar en el array de pagos del paciente, NO en las columnas montoPagado/saldo del backend
             const paidDirecto = allHCIds.reduce((acc, hcId) => acc + (pagosPorHC.get(hcId) || 0), 0);
             

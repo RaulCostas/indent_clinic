@@ -93,11 +93,14 @@ const PacienteTabPagos: React.FC = () => {
     const historiasConsolidadas = useMemo(() => {
         const map = new Map<string, any>();
         historias.forEach(h => {
-            const key = h.proformaDetalleId && h.pieza
-                ? `det_${h.proformaDetalleId}_pz_${(h.pieza || '').trim()}`
-                : h.proformaDetalleId
-                    ? `det_${h.proformaDetalleId}`
-                    : `prof_${h.proformaId || 'gen'}_trat_${(h.tratamiento || '').trim()}_pz_${h.pieza || ''}`;
+            // Key logic: 
+            // - If it has proformaDetalleId and pieza, group by that (same treatment item on same tooth)
+            // - If it has ONLY proformaDetalleId, group by that (same treatment item)
+            // - If it is "General" (no proforma), DO NOT consolidate unless they have the same ID (which means they are the same record)
+            //   Actually, for general, we use the ID to ensure each session is its own debt row.
+            const key = h.proformaDetalleId
+                ? (h.pieza ? `det_${h.proformaDetalleId}_pz_${(h.pieza || '').trim()}` : `det_${h.proformaDetalleId}`)
+                : `gen_${h.id}`;
                 
             if (!map.has(key)) {
                 map.set(key, { ...h, allIds: [h.id] });
@@ -105,14 +108,17 @@ const PacienteTabPagos: React.FC = () => {
                 const master = map.get(key);
                 master.allIds.push(h.id);
                 
-                // Normalizar estado para comparación
+                // Normalizar estado: Si alguno está terminado, el consolidado se considera terminado
                 const hEstado = (h.estadoTratamiento || '').trim().toLowerCase();
                 if (hEstado === 'terminado') {
                     master.estadoTratamiento = 'terminado';
-                    if (new Date(h.fecha) > new Date(master.fecha)) master.fecha = h.fecha;
+                }
+                // Mantener la fecha más reciente
+                if (h.fecha && (!master.fecha || new Date(h.fecha) > new Date(master.fecha))) {
+                    master.fecha = h.fecha;
                 }
                 
-                // Preservar valores máximos registrados
+                // Preservar valores máximos registrados para evitar que un seguimiento en 0 "pise" el precio del presupuesto
                 master.precio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
                 master.descuento = Math.max(Number(master.descuento) || 0, Number(h.descuento) || 0);
                 master.precioConDescuento = Math.max(0, Number(master.precio) - Number(master.descuento));
@@ -209,57 +215,37 @@ const PacienteTabPagos: React.FC = () => {
             // a) Precio directo en el registro consolidado
             let price = Number(t.precioConDescuento) || (Number(t.precio) - (Number(t.descuento) || 0));
             
-            // b) Si es 0 y hay proforma, buscar en los detalles de la proforma
-            if (price <= 0 && t.proformaDetalleId && pf?.detalles) {
+            // b) Si es casi 0 y hay proforma, buscar en los detalles de la proforma
+            if (price < 0.01 && t.proformaDetalleId && pf?.detalles) {
                 const det = pf.detalles.find(d => Number(d.id) === Number(t.proformaDetalleId));
                 if (det) {
-                    // Si el detalle tiene precio, lo usamos. Multiplicamos por cantidad si aplica.
                     price = Number(det.total) || (Number(det.precioUnitario) * Number(det.cantidad));
                 }
             }
 
-            // c) Si sigue siendo 0, intentamos ver si el arancel de la proforma tiene el precio (raro pero posible)
-            if (price <= 0 && pf?.detalles) {
+            // c) Si sigue siendo casi 0, intentamos ver si el arancel de la proforma tiene el precio
+            if (price < 0.01 && pf?.detalles) {
                 const det = pf.detalles.find(d => (d.arancel?.detalle || '').trim().toLowerCase() === (t.tratamiento || '').trim().toLowerCase());
                 if (det) price = Number(det.total);
             }
 
-            const allHCIds: number[] = t.allIds || [t.id];
+            const allHCIds: number[] = (t.allIds || [t.id]).map(id => Number(id));
+            // CALCULO REAL: Solo confiar en el array de pagos del paciente, NO en las columnas montoPagado/saldo del backend
             const paidDirecto = allHCIds.reduce((acc, hcId) => acc + (pagosPorHC.get(hcId) || 0), 0);
-            
-            // Usar montoPagado del backend solo si no hay pagos directos en este fetch
-            const paidInitial = paidDirecto > 0 ? paidDirecto : (Number(t.montoPagado) || 0);
             
             return { 
                 tratamiento: t, 
                 proforma: pf, 
-                netPrice: price, 
-                paid: Math.min(price, paidInitial),
-                saldoBase: Math.max(0, price - paidInitial)
+                netPrice: Number(price), 
+                paid: Math.min(Number(price), Number(paidDirecto)),
+                saldoBase: Math.max(0, Number(price) - Number(paidDirecto))
             };
         });
 
-        // 3. Distribuir Pagos Generales de Proforma
-        // Si el paciente pagó "a la proforma #1" sin especificar tratamiento, 
-        // distribuimos ese saldo entre los tratamientos de esa proforma que aún tienen deuda.
-        pagosGeneralesProforma.forEach((montoGeneral, pfId) => {
-            const itemsConDeuda = baseCalculada.filter(item => 
-                Number(item.proforma?.id || item.tratamiento.proformaId) === pfId && item.saldoBase > 0.01
-            );
-            
-            if (itemsConDeuda.length > 0) {
-                const deudaTotalProforma = itemsConDeuda.reduce((s, i) => s + i.saldoBase, 0);
-                itemsConDeuda.forEach(item => {
-                    const proporcion = item.saldoBase / deudaTotalProforma;
-                    const abonoExtra = Math.min(item.saldoBase, montoGeneral * proporcion);
-                    item.paid += abonoExtra;
-                });
-            }
-        });
-
+        // 3. Resultados finales
         return baseCalculada.map(item => ({
             ...item,
-            saldo: Math.max(0, item.netPrice - item.paid)
+            saldo: Math.max(0, Number(item.netPrice) - Number(item.paid))
         }));
     }, [historiasConsolidadas, proformas, pagos]);
 
@@ -282,8 +268,8 @@ const PacienteTabPagos: React.FC = () => {
     [deudasTratamientos]);
 
     const costoTotalTodos = useMemo(() => 
-        historiasConsolidadas.reduce((acc, h) => acc + (Number(h.precioConDescuento) || (Number(h.precio) - (Number(h.descuento) || 0))), 0),
-    [historiasConsolidadas]);
+        deudasTratamientos.reduce((acc, d) => acc + d.netPrice, 0),
+    [deudasTratamientos]);
 
     const anticipoDisponible = useMemo(() => {
         const anticipo = totalPagadoGlobal - costoTotalTodos;
@@ -697,7 +683,7 @@ const PacienteTabPagos: React.FC = () => {
             </div>
 
             {/* Summary bar */}
-            {pagos.length > 0 && (
+            {(pagos.length > 0 || totalDebt > 0.01) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
                         <div className="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400 mb-1">Total Pagado</div>

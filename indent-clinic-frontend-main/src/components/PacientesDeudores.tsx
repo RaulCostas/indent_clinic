@@ -635,10 +635,10 @@ const PacientesDeudores: React.FC = () => {
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Paciente</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Especialidad</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tratamiento</th>
+                                <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
                                 {activeTab === 'planificados' && (
                                     <>
                                         <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pieza</th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
                                         <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Precio Unit.</th>
                                     </>
                                 )}
@@ -672,13 +672,14 @@ const PacientesDeudores: React.FC = () => {
                                             {deudor.tratamiento || '-'}
                                         </td>
                                         
+                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                            {deudor.cantidadPendiente}
+                                        </td>
+                                        
                                         {activeTab === 'planificados' && (
                                             <>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">
                                                     {deudor.piezas ? <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-medium">{deudor.piezas}</span> : '-'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                                    {deudor.cantidadPendiente}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
                                                     {formatCurrency(deudor.precioUnitario || 0)}

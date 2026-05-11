@@ -58,7 +58,12 @@ export class HistoriaClinicaService {
         }
 
         const historia = this.historiaClinicaRepository.create(createDto);
-        return await this.historiaClinicaRepository.save(historia);
+        const saved = await this.historiaClinicaRepository.save(historia);
+        
+        // Sincronizar estados financieros inmediatamente
+        await this.syncTreatmentStatus(saved.id);
+        
+        return saved;
     }
 
     async findAll(): Promise<HistoriaClinica[]> {
@@ -122,7 +127,7 @@ export class HistoriaClinicaService {
                 return null;
             }
 
-            // Determinar si está totalmente pagado por el paciente usando el campo persistente 'saldo'
+            // 2. Determinar si está totalmente pagado por el paciente usando el campo persistente 'saldo'
             const isFullyPaidByPatient = Boolean(hc.cancelado) || Number(hc.saldo) <= 0.05;
 
             if (!isFullyPaidByPatient) {
@@ -130,20 +135,30 @@ export class HistoriaClinicaService {
                 return null;
             }
 
-            // Para el reporte seguimos necesitando el detalle del último pago
+            // 3. Buscar los pagos específicos de este tratamiento (incluyendo sesiones hermanas si es consolidado)
             let pagosPaciente: Pago[] = [];
-            if (hc.proformaId) {
-                pagosPaciente = await this.pagoRepository.find({
-                    where: { proformaId: hc.proformaId },
-                    relations: ['formaPagoRel']
-                });
-            } else {
-                pagosPaciente = await this.pagoRepository.find({
-                    where: { historiaClinicaId: hc.id },
-                    relations: ['formaPagoRel']
-                });
+            const detId = hc.proformaDetalleId;
+            const pieza = hc.pieza;
+            const pId = hc.pacienteId;
+
+            let idsParaPagos = [hc.id];
+            if (detId) {
+                const siblings = await this.dataSource.query(
+                    `SELECT id FROM historia_clinica 
+                     WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                    [pId, detId, pieza]
+                );
+                idsParaPagos = siblings.map(s => s.id);
             }
 
+            pagosPaciente = await this.pagoRepository.find({
+                where: { historiaClinicaId: In(idsParaPagos) },
+                relations: ['formaPagoRel']
+            });
+
+            // Si no hay pagos directos a HC, pero tiene proforma, podríamos buscar pagos generales a proforma?
+            // Pero según el requerimiento, los pagos se vinculan al seguimiento.
+            
             const pagoConFactura = (pagosPaciente || []).find(p => p.factura && p.factura.trim() !== '');
             const latestPayment = (pagosPaciente || []).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0];
 
@@ -154,7 +169,7 @@ export class HistoriaClinicaService {
 
             return {
                 ...hc,
-                precio: Number(hc.proformaDetalle?.precioUnitario || hc.precio || 0), // Enviamos el precio base para que el frontend reste el descuento una sola vez
+                precio: Number(hc.precio || 0), // El precio ya contempla cantidad en el seguimiento
                 ultimoPagoPaciente: latestPayment ? {
                     fecha: latestPayment.fecha,
                     forma_pago: (latestPayment as any).formaPagoRel?.forma_pago || '',
@@ -186,9 +201,6 @@ export class HistoriaClinicaService {
         }
 
         // We only want doctors who have at least one treatment satisfying the "Full Payment" condition
-        // Here we just get the doctors who have at least one TERMINADO and NO PAGADO.
-        // We filter the actual eligibility in findPendientesPago for performance.
-        // safer aliases for getRawMany
         const doctors = await qb.select('doctor.id', 'id')
             .addSelect('doctor.nombre', 'nombre')
             .addSelect('doctor.paterno', 'paterno')
@@ -289,6 +301,9 @@ export class HistoriaClinicaService {
             );
         }
 
+        // Sincronizar estados financieros después de la actualización
+        await this.syncTreatmentStatus(saved.id);
+
         return saved;
     }
 
@@ -345,47 +360,56 @@ export class HistoriaClinicaService {
 
     async syncTreatmentStatus(id: number): Promise<void> {
         const timestamp = new Date().toISOString();
-        console.log(`[PAGOS_SYNC][${timestamp}] Iniciando sincronización INDIVIDUAL para HC #${id}`);
-        
         try {
             const hc = await this.historiaClinicaRepository.findOne({ where: { id } });
             if (!hc) return;
 
-            // Sincronización individual basada estrictamente en historiaClinicaId
-            const rawResults = await this.dataSource.query(
-                `SELECT 
-                    SUM(CAST(monto AS NUMERIC)) as "totalPagado", 
-                    SUM(CAST(descuento AS NUMERIC)) as "totalDescontado" 
-                 FROM pagos 
-                 WHERE "historiaClinicaId" = $1`,
-                [id]
+            const pId = hc.pacienteId;
+            const detId = hc.proformaDetalleId;
+            const pieza = hc.pieza;
+
+            let siblingsIds = [id];
+            let targetPrice = Number(hc.precio || 0);
+
+            // 1. Si está vinculado a un detalle de proforma, buscamos todos los registros "hermanos" (misma pieza y detalle)
+            if (detId) {
+                const siblings = await this.dataSource.query(
+                    `SELECT id, precio FROM historia_clinica 
+                     WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                    [pId, detId, pieza]
+                );
+                siblingsIds = siblings.map(s => s.id);
+                // El precio objetivo es la suma de los precios registrados para estas piezas específicas
+                targetPrice = siblings.reduce((acc, s) => acc + Number(s.precio || 0), 0);
+            }
+
+            // 2. Sumar todos los pagos vinculados a cualquiera de estos registros
+            const payments = await this.dataSource.query(
+                `SELECT SUM(CAST(monto AS NUMERIC)) as total FROM pagos WHERE "historiaClinicaId" = ANY($1)`,
+                [siblingsIds]
             );
+            const totalPagadoGrupo = Number(payments[0]?.total || 0);
 
-            const aggregation = rawResults[0] || { totalPagado: 0, totalDescontado: 0 };
-            const totalPagado = Number(aggregation.totalPagado || 0);
-            const totalDescontadoPagos = Number(aggregation.totalDescontado || 0);
+            // 3. Determinar estado
+            // El estado de cancelación se aplica a TODO el grupo si el total pagado cubre el precio objetivo
+            const isCancelado = totalPagadoGrupo >= (targetPrice - 0.05);
             
-            // IMPORTANTE: El descuento final es la suma de lo que se descontó en los pagos.
-            // Si en el futuro permites descuentos directos en HC, podrías sumarlos aquí.
-            const totalDescontadoFinal = totalDescontadoPagos; 
-            
-            const precioBase = Number(hc.precio || 0);
-            const precioConDescuento = Math.max(0, precioBase - totalDescontadoFinal);
-            const saldo = Math.max(0, precioConDescuento - totalPagado);
-            const cancelado = saldo <= 0.05;
+            // Distribuir el monto pagado equitativamente entre los hermanos para reportes coherentes
+            const montoPorHermano = totalPagadoGrupo / siblingsIds.length;
+            const saldoPorHermano = Math.max(0, (targetPrice / siblingsIds.length) - montoPorHermano);
 
+            // 4. Actualizar todos los registros del grupo
             await this.dataSource.query(
                 `UPDATE historia_clinica 
                  SET cancelado = $1, 
-                     descuento = $2, 
-                     "precioConDescuento" = $3,
-                     "montoPagado" = $4,
-                     saldo = $5
-                 WHERE id = $6`,
-                [cancelado, totalDescontadoFinal, precioConDescuento, totalPagado, saldo, id]
+                     "montoPagado" = $2,
+                     saldo = $3,
+                     "precioConDescuento" = precio 
+                 WHERE id = ANY($4)`,
+                [isCancelado, montoPorHermano, saldoPorHermano, siblingsIds]
             );
 
-            console.log(`[PAGOS_SYNC][${timestamp}] Sincronización finalizada para HC #${id}. Saldo: ${saldo}`);
+            console.log(`[PAGOS_SYNC][${timestamp}] Grupo HC ${siblingsIds.join(',')} sincronizado. Total: ${totalPagadoGrupo}/${targetPrice}. Cancelado: ${isCancelado}`);
         } catch (error) {
             console.error(`[PAGOS_SYNC][${timestamp}] Error sincronizando HC #${id}:`, error);
         }

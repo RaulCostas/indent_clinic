@@ -972,46 +972,44 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
     async calculateDetailedSaldo(pacienteId: number, clinicId: number, historiaClinicaId?: number): Promise<string> {
         const historia = await this.historiaClinicaService.findAllByPaciente(pacienteId);
-        const pagos = await this.pagosService.findAllByPaciente(pacienteId);
-
-        // Build payments map per HC
-        const pagosHCMap = new Map<number, number>();
-        let generalPool = 0;
-        pagos.forEach(p => {
-            const monto = Number(p.monto || 0);
-            if (p.historiaClinicaId) {
-                pagosHCMap.set(p.historiaClinicaId, (pagosHCMap.get(p.historiaClinicaId) || 0) + monto);
-            } else {
-                generalPool += monto;
+        
+        // Group historia by treatment group (Detalle ID + Pieza)
+        const groups = new Map<string, any>();
+        
+        historia.forEach((h: any) => {
+            const key = h.proformaDetalleId ? `DET-${h.proformaDetalleId}-${h.pieza || ''}` : `HC-${h.id}`;
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    ids: [],
+                    tratamiento: h.tratamiento,
+                    saldo: 0,
+                    montoPagado: 0,
+                    precio: 0,
+                    cantidad: 0
+                });
             }
+            const g = groups.get(key);
+            g.ids.push(h.id);
+            g.saldo += Number(h.saldo || 0);
+            g.montoPagado += Number(h.montoPagado || 0);
+            g.precio += Number(h.precio || 0);
+            g.cantidad += Number(h.cantidad || 1);
         });
 
         const lines: string[] = [];
         let totalNeto = 0;
 
-        // Sort historia chronologically
-        const sortedHistory = [...historia].sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+        // If we are filtering by a specific treatment (from the report button)
+        let filteredGroups = Array.from(groups.values());
+        if (historiaClinicaId) {
+            filteredGroups = filteredGroups.filter(g => g.ids.includes(Number(historiaClinicaId)));
+        }
 
-        sortedHistory.forEach(h => {
-            // If we are filtering by a specific treatment, skip others
-            if (historiaClinicaId && Number(h.id) !== Number(historiaClinicaId)) return;
-
-            const price = Number(h.precio || 0) - Number(h.descuento || 0);
-            if (price <= 0) return;
-
-            const paidDirectly = pagosHCMap.get(h.id) || 0;
-            let saldo = Math.max(0, price - paidDirectly);
-
-            // Apply general advances
-            if (generalPool > 0 && saldo > 0) {
-                const applied = Math.min(generalPool, saldo);
-                saldo -= applied;
-                generalPool -= applied;
-            }
-
-            if (saldo > 0.01) {
-                totalNeto += saldo;
-                lines.push(`🦷 *${h.tratamiento || 'Tratamiento'}*\n• Saldo: *Bs. ${saldo.toFixed(2)}*`);
+        filteredGroups.forEach(g => {
+            if (g.saldo > 0.01) {
+                totalNeto += g.saldo;
+                const qtyText = g.cantidad > 1 ? ` (Cant: ${g.cantidad})` : '';
+                lines.push(`🦷 *${g.tratamiento || 'Tratamiento'}*${qtyText}\n• Saldo: *Bs. ${g.saldo.toFixed(2)}*`);
             }
         });
 

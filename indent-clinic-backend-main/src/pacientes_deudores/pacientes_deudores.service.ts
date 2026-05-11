@@ -13,19 +13,18 @@ export class PacientesDeudoresService {
 
     async findAll(estado: 'terminado' | 'no terminado', clinicaId?: number) {
         try {
-            // Reformulated logic: Filter by "estadoPresupuesto" as requested by the user.
-            // Pasivos = estadoPresupuesto 'terminado'
-            // Activos = estadoPresupuesto 'no terminado'
+            // Reformulated logic: Group by patient, proforma item, and piece to consolidate debt rows.
             let q = `
                 SELECT 
-                    hc.id,
+                    MIN(hc.id) as id,
                     hc."proformaId",
                     hc."pacienteId",
-                    hc.precio as "totalPresupuesto",
-                    hc."montoPagado" as "totalPagado",
-                    hc.saldo,
+                    SUM(hc.precio) as "totalPresupuestoBruto",
+                    SUM(hc."montoPagado") as "totalPagado",
+                    SUM(hc.saldo) as saldo,
+                    SUM(hc.cantidad) as cantidad,
                     hc.tratamiento,
-                    hc.fecha as "ultimaCita",
+                    MAX(hc.fecha) as "ultimaCita",
                     hc."estadoPresupuesto",
                     p.numero as "numeroPresupuesto",
                     pac.nombre, pac.paterno, pac.materno, pac.estado as "pacienteEstado", pac.celular as telefono,
@@ -34,8 +33,7 @@ export class PacientesDeudoresService {
                 LEFT JOIN proformas p ON hc."proformaId" = p.id
                 LEFT JOIN pacientes pac ON hc."pacienteId" = pac.id
                 LEFT JOIN especialidad e ON hc."especialidadId" = e.id
-                WHERE hc.saldo > 0.05 
-                  AND hc.cancelado = false
+                WHERE hc.cancelado = false
             `;
 
             if (estado === 'terminado') {
@@ -48,7 +46,20 @@ export class PacientesDeudoresService {
                 q += ` AND hc."clinicaId" = ${Number(clinicaId)}`;
             }
 
-            q += ` ORDER BY hc.fecha DESC`;
+            q += ` 
+                GROUP BY 
+                    hc."pacienteId", 
+                    hc."proformaId", 
+                    hc."proformaDetalleId", 
+                    COALESCE(hc.pieza, ''), 
+                    hc.tratamiento, 
+                    hc."estadoPresupuesto", 
+                    p.numero, 
+                    pac.nombre, pac.paterno, pac.materno, pac.estado, pac.celular, 
+                    e.especialidad
+                HAVING SUM(hc.saldo) > 0.05
+                ORDER BY "ultimaCita" DESC
+            `;
 
             const rows = await this.dataSource.query(q);
 
@@ -58,9 +69,10 @@ export class PacientesDeudoresService {
                 pacienteId: row.pacienteId,
                 numeroPresupuesto: row.numeroPresupuesto || 0,
                 paciente: `${row.nombre || ''} ${row.paterno || ''} ${row.materno || ''}`.trim(),
-                totalPresupuesto: Number(row.totalPresupuesto),
+                totalPresupuesto: Number(row.totalPresupuestoBruto),
                 totalPagado: Number(row.totalPagado),
                 saldo: Number(row.saldo),
+                cantidadPendiente: Number(row.cantidad || 1),
                 ultimaCita: row.ultimaCita,
                 especialidad: row.especialidad || 'General',
                 tratamiento: row.tratamiento || 'Tratamiento',

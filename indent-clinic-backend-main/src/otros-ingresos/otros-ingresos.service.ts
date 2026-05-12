@@ -25,9 +25,13 @@ export class OtrosIngresosService {
         const skip = (page - 1) * limit;
 
         const queryBuilder = this.otrosIngresosRepository.createQueryBuilder('ingreso')
-            .leftJoinAndSelect('ingreso.formaPago', 'formaPago')
-            .orderBy('ingreso.fecha', 'DESC')
-            .addOrderBy('ingreso.detalle', 'ASC');
+            .leftJoinAndSelect('ingreso.formaPago', 'formaPago');
+
+        if (startDate && endDate) {
+            queryBuilder.orderBy('ingreso.fecha', 'ASC');
+        }
+        
+        queryBuilder.addOrderBy('ingreso.detalle', 'ASC');
 
         // Apply filters
         if (clinicaId !== undefined && clinicaId !== null) {

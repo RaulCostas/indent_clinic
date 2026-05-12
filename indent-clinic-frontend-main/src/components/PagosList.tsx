@@ -167,7 +167,7 @@ const PagosList: React.FC = () => {
         doc.text('Recibí de:', xLabel, y);
         doc.setFont('helvetica', 'normal');
         const pacienteNombre = pago.paciente
-            ? `${pago.paciente.paterno} ${pago.paciente.materno} ${pago.paciente.nombre}`
+            ? `${pago.paciente.nombre} ${pago.paciente.paterno} ${pago.paciente.materno || ''}`.trim()
             : 'N/A';
         doc.text(pacienteNombre.toUpperCase(), xValue, y);
         y += 12;
@@ -239,7 +239,7 @@ const PagosList: React.FC = () => {
 
     const filteredPagos = pagos.filter(pago => {
         const term = searchTerm.toLowerCase();
-        const pacienteName = pago.paciente ? `${pago.paciente.paterno} ${pago.paciente.nombre}`.toLowerCase() : '';
+        const pacienteName = pago.paciente ? `${pago.paciente.nombre} ${pago.paciente.paterno}`.toLowerCase() : '';
         const recibo = pago.recibo?.toLowerCase() || '';
         const factura = pago.factura?.toLowerCase() || '';
         return pacienteName.includes(term) || recibo.includes(term) || factura.includes(term);
@@ -344,7 +344,7 @@ const PagosList: React.FC = () => {
                                 <tr key={pago.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                     <td className="p-3 text-gray-700 dark:text-gray-300">{formatDate(pago.fecha)}</td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">
-                                        {pago.paciente ? `${pago.paciente.paterno} ${pago.paciente.materno} ${pago.paciente.nombre}` : '-'}
+                                        {pago.paciente ? `${pago.paciente.nombre} ${pago.paciente.paterno} ${pago.paciente.materno || ''}`.trim() : '-'}
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">{pago.proforma ? `No. ${pago.proforma.numero}` : '-'}</td>
                                     <td className="p-3 font-bold" style={{ color: isDollar ? '#16a34a' : '#2563eb' }}>{displayMonto}</td>

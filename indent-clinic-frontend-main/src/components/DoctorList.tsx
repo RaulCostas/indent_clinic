@@ -443,7 +443,7 @@ const DoctorList: React.FC = () => {
                         <tbody>
                             ${allDoctors.map(doctor => `
                                 <tr>
-                                    <td>${doctor.nombre} ${doctor.paterno} ${doctor.materno}</td>
+                                    <td>${`${doctor.nombre} ${doctor.paterno} ${doctor.materno || ''}`.trim()}</td>
                                     <td>${doctor.celular}</td>
                                     <td>${doctor.direccion}</td>
                                     <td>${doctor.especialidad?.especialidad || 'N/A'}</td>
@@ -610,7 +610,7 @@ const DoctorList: React.FC = () => {
                         {doctors.map((doctor, index) => (
                             <tr key={doctor.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{(currentPage - 1) * limit + index + 1}</td>
-                                <td className="p-3 text-gray-800 dark:text-gray-300">{`${doctor.nombre} ${doctor.paterno} ${doctor.materno}`}</td>
+                                <td className="p-3 text-gray-800 dark:text-gray-300">{`${doctor.nombre} ${doctor.paterno} ${doctor.materno || ''}`.trim()}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{formatCelular(doctor.celular)}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{doctor.direccion || 'N/A'}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{doctor.especialidad?.especialidad || 'N/A'}</td>

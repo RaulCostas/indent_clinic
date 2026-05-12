@@ -191,7 +191,7 @@ const PersonalList: React.FC = () => {
             }
             const excelData = allData.map(p => ({
                 'ID': p.id,
-                'Nombre Completo': `${p.nombre} ${p.paterno} ${p.materno}`,
+                'Nombre Completo': `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
                 'CI': p.ci,
                 'Teléfono': p.telefono,
                 'Celular': formatCelular(p.celular),
@@ -262,7 +262,7 @@ const PersonalList: React.FC = () => {
 
             const tableData = allData.map((p, index) => [
                 index + 1,
-                `${p.nombre} ${p.paterno} ${p.materno}`,
+                `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
                 p.ci,
                 p.telefono,
                 formatCelular(p.celular),
@@ -470,7 +470,7 @@ const PersonalList: React.FC = () => {
                             ${allPersonal.map((p: Personal, i: number) => `
                                 <tr>
                                     <td>${i + 1}</td>
-                                    <td>${p.nombre} ${p.paterno} ${p.materno}</td>
+                                    <td>${`${p.nombre} ${p.paterno} ${p.materno || ''}`.trim()}</td>
                                     <td>${p.ci}</td>
                                     <td>${p.telefono}</td>
                                     <td>${formatCelular(p.celular)}</td>
@@ -629,7 +629,7 @@ const PersonalList: React.FC = () => {
                         {personal.map((p, index) => (
                             <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{(currentPage - 1) * limit + index + 1}</td>
-                                <td className="p-3 text-gray-800 dark:text-gray-300">{`${p.nombre} ${p.paterno} ${p.materno}`}</td>
+                                <td className="p-3 text-gray-800 dark:text-gray-300">{`${p.nombre} ${p.paterno} ${p.materno || ''}`.trim()}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{p.ci}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{p.telefono}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{formatCelular(p.celular)}</td>

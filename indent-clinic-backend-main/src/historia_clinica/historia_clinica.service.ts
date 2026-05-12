@@ -383,20 +383,29 @@ export class HistoriaClinicaService {
                 targetPrice = siblings.reduce((acc, s) => acc + Number(s.precio || 0), 0);
             }
 
-            // 2. Sumar todos los pagos vinculados a cualquiera de estos registros
+            // 2. Sumar todos los pagos y DESCUENTOS vinculados a cualquiera de estos registros
             const payments = await this.dataSource.query(
-                `SELECT SUM(CAST(monto AS NUMERIC)) as total FROM pagos WHERE "historiaClinicaId" = ANY($1)`,
+                `SELECT 
+                    SUM(CAST(monto AS NUMERIC)) as total,
+                    SUM(CAST(COALESCE(descuento, 0) AS NUMERIC)) as "totalDescuento"
+                 FROM pagos 
+                 WHERE "historiaClinicaId" = ANY($1)`,
                 [siblingsIds]
             );
             const totalPagadoGrupo = Number(payments[0]?.total || 0);
+            const totalDescuentoGrupo = Number(payments[0]?.totalDescuento || 0);
 
             // 3. Determinar estado
-            // El estado de cancelación se aplica a TODO el grupo si el total pagado cubre el precio objetivo
-            const isCancelado = totalPagadoGrupo >= (targetPrice - 0.05);
+            const netPriceGrupo = targetPrice - totalDescuentoGrupo;
+            // El estado de cancelación se aplica a TODO el grupo si el total pagado cubre el precio objetivo neto
+            const isCancelado = totalPagadoGrupo >= (netPriceGrupo - 0.05);
             
-            // Distribuir el monto pagado equitativamente entre los hermanos para reportes coherentes
+            // Distribuir el monto y descuento equitativamente entre los hermanos para reportes coherentes
             const montoPorHermano = totalPagadoGrupo / siblingsIds.length;
-            const saldoPorHermano = Math.max(0, (targetPrice / siblingsIds.length) - montoPorHermano);
+            const descuentoPorHermano = totalDescuentoGrupo / siblingsIds.length;
+            const precioHermano = targetPrice / siblingsIds.length;
+            const precioConDescuentoPorHermano = precioHermano - descuentoPorHermano;
+            const saldoPorHermano = Math.max(0, precioConDescuentoPorHermano - montoPorHermano);
 
             // 4. Actualizar todos los registros del grupo
             await this.dataSource.query(
@@ -404,9 +413,10 @@ export class HistoriaClinicaService {
                  SET cancelado = $1, 
                      "montoPagado" = $2,
                      saldo = $3,
-                     "precioConDescuento" = precio 
-                 WHERE id = ANY($4)`,
-                [isCancelado, montoPorHermano, saldoPorHermano, siblingsIds]
+                     descuento = $4,
+                     "precioConDescuento" = $5 
+                 WHERE id = ANY($6)`,
+                [isCancelado, montoPorHermano, saldoPorHermano, descuentoPorHermano, precioConDescuentoPorHermano, siblingsIds]
             );
 
             console.log(`[PAGOS_SYNC][${timestamp}] Grupo HC ${siblingsIds.join(',')} sincronizado. Total: ${totalPagadoGrupo}/${targetPrice}. Cancelado: ${isCancelado}`);

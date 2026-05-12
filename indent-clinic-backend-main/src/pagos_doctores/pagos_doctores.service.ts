@@ -61,8 +61,15 @@ export class PagosDoctoresService {
             .leftJoinAndSelect('pago.formaPago', 'formaPago')
             .leftJoinAndSelect('pago.detalles', 'detalles')
             .leftJoinAndSelect('detalles.historiaClinica', 'historiaClinica')
-            .leftJoinAndSelect('historiaClinica.paciente', 'paciente')
-            .orderBy('pago.fecha', 'DESC');
+            .leftJoinAndSelect('historiaClinica.paciente', 'paciente');
+
+        if (startDate && endDate) {
+            queryBuilder.orderBy('pago.fecha', 'ASC');
+        }
+        
+        queryBuilder.addOrderBy('doctor.nombre', 'ASC')
+            .addOrderBy('doctor.paterno', 'ASC')
+            .addOrderBy('doctor.materno', 'ASC');
 
         // Apply date filters
         if (startDate && endDate) {

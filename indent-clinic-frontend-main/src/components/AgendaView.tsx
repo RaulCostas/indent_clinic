@@ -621,7 +621,7 @@ const AgendaView: React.FC = () => {
                             <SearchableSelect
                                 options={doctors.map(d => ({
                                     id: d.id,
-                                    label: `${d.nombre} ${d.paterno}`,
+                                    label: `${d.nombre} ${d.paterno} ${d.materno || ''}`.trim(),
                                     subLabel: d.especialidad?.especialidad
                                 }))}
                                 value={selectedDoctorId || 0}
@@ -987,7 +987,7 @@ const AgendaView: React.FC = () => {
                                                 <tr key={cita.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{formatDate(cita.fecha)}</td>
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{cita.hora ? cita.hora.substring(0, 5) : '-'}</td>
-                                                    <td className="p-3 text-gray-700 dark:text-gray-300">{cita.doctor ? `Dr. ${cita.doctor.nombre}` : '-'}</td>
+                                                    <td className="p-3 text-gray-700 dark:text-gray-300">{cita.doctor ? `Dr. ${cita.doctor.nombre} ${cita.doctor.paterno} ${cita.doctor.materno || ''}`.trim() : '-'}</td>
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{cita.tratamiento || '-'}</td>
                                                     <td className="p-3">
                                                         <span className="px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: getStatusColor(cita.estado, !cita.pacienteId && !cita.paciente) }}>

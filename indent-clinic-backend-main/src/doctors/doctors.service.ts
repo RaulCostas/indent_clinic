@@ -73,6 +73,10 @@ export class DoctorsService {
         if (search) {
             queryBuilder.where('(doctor.nombre ILIKE :search OR doctor.paterno ILIKE :search OR doctor.materno ILIKE :search)', { search: `%${search}%` });
         }
+        queryBuilder
+            .orderBy('doctor.nombre', 'ASC')
+            .addOrderBy('doctor.paterno', 'ASC')
+            .addOrderBy('doctor.materno', 'ASC');
         const [data, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
         return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
     }

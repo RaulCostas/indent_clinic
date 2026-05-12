@@ -33,23 +33,33 @@ export class PagosPedidosService {
     }
 
     async findAll(fecha?: string, startDate?: string, endDate?: string, clinicaId?: number) {
-        const options: any = {
-            relations: ['pedido', 'pedido.proveedor'],
-            where: {},
-            order: { fecha: 'DESC' }
-        };
+        const queryBuilder = this.pagosPedidosRepository.createQueryBuilder('pago')
+            .leftJoinAndSelect('pago.pedido', 'pedido')
+            .leftJoinAndSelect('pedido.proveedor', 'proveedor');
+
+        if (startDate && endDate) {
+            queryBuilder.orderBy('pago.fecha', 'ASC');
+        }
+        
+        queryBuilder.addOrderBy('proveedor.proveedor', 'ASC');
 
         if (clinicaId) {
-            options.where.clinicaId = clinicaId;
+            queryBuilder.andWhere('pago.clinicaId = :clinicaId', { clinicaId });
         }
 
-        // Use Between with explicit time strings
         if (startDate && endDate) {
-            options.where.fecha = Between(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+            queryBuilder.andWhere('pago.fecha BETWEEN :startDate AND :endDate', {
+                startDate: `${startDate} 00:00:00`,
+                endDate: `${endDate} 23:59:59`
+            });
         } else if (fecha) {
-            options.where.fecha = Between(`${fecha} 00:00:00`, `${fecha} 23:59:59`);
+            queryBuilder.andWhere('pago.fecha BETWEEN :startDate AND :endDate', {
+                startDate: `${fecha} 00:00:00`,
+                endDate: `${fecha} 23:59:59`
+            });
         }
-        return this.pagosPedidosRepository.find(options);
+
+        return await queryBuilder.getMany();
     }
 
     async findOne(id: number) {

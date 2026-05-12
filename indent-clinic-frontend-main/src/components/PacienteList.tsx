@@ -211,7 +211,7 @@ const PacienteList: React.FC = () => {
             const allPacientes = Array.isArray(response.data.data) ? response.data.data : [];
 
             const dataToExport = allPacientes.map((p: any) => ({
-                Paciente: `${p.paterno} ${p.materno} ${p.nombre}`,
+                Paciente: `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
                 'Fecha de nacimiento': formatDate(p.fecha_nacimiento),
                 Celular: p.celular,
                 Seguro: p.seguro_medico || '-',
@@ -251,7 +251,7 @@ const PacienteList: React.FC = () => {
             doc.text("Lista de Pacientes", 20, 10);
             const tableColumn = ["Paciente", "Fecha de nacimiento", "Celular", "Seguro", "Venc. Seguro", "Dirección", "Correo", "Estado"];
             const tableRows = allPacientes.map((p: any) => [
-                `${p.paterno} ${p.materno} ${p.nombre}`,
+                `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
                 formatDate(p.fecha_nacimiento),
                 p.celular,
                 p.seguro_medico || '-',
@@ -428,7 +428,7 @@ const PacienteList: React.FC = () => {
                             ${allPacientes.map((p: Paciente, index: number) => `
                                 <tr>
                                     <td>${index + 1}</td>
-                                    <td>${p.paterno} ${p.materno} ${p.nombre}</td>
+                                    <td>${p.nombre} ${p.paterno} ${p.materno || ''}</td>
                                     <td>${p.celular}</td>
                                     <td>${formatDate(p.fecha_nacimiento)}</td>
 
@@ -999,7 +999,7 @@ const PacienteList: React.FC = () => {
                                             tabIndex={0}
                                             onKeyDown={e => e.key === 'Enter' && navigate(`/pacientes/${paciente.id}`)}
                                         >
-                                            {`${paciente.paterno} ${paciente.materno} ${paciente.nombre}`}
+                                            {`${paciente.nombre} ${paciente.paterno} ${paciente.materno || ''}`.trim()}
                                         </span>
                                         <div className="flex gap-2 mt-1">
                                             {paciente.clasificacion && (

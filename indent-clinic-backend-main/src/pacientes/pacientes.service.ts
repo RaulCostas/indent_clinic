@@ -204,6 +204,18 @@ export class PacientesService {
 
         const [data, total] = await queryBuilder.getManyAndCount();
 
+        // Check signatures for these patients
+        if (data.length > 0) {
+            const patientIds = data.map(p => p.id);
+            const signatures = await this.pacientesRepository.query(
+                `SELECT "documentoId" FROM firmas_digitales WHERE "tipoDocumento" = 'paciente' AND "documentoId" IN (${patientIds.join(',')})`
+            );
+            const signedIds = new Set(signatures.map((s: any) => s.documentoId));
+            data.forEach(p => {
+                (p as any).tieneFirmaFC = signedIds.has(p.id);
+            });
+        }
+
         return {
             data,
             total,

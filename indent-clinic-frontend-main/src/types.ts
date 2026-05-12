@@ -256,6 +256,7 @@ export interface Paciente {
     fichaMedica?: FichaMedica;
     clinicaId?: number;
     clinica?: Clinica;
+    tieneFirmaFC?: boolean;
 }
 
 export interface PersonalTipo {

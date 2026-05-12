@@ -348,7 +348,7 @@ export class VentasProductosService {
         });
     }
 
-    async pagarComisiones(body: { personalId: number; year: number; month: number; formaPagoId: number; total: number; clinicaId: number }) {
+    async pagarComisiones(body: { personalId: number; year: number; month: number; formaPagoId: number; total: number; clinicaId: number; fecha?: string }) {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -370,7 +370,7 @@ export class VentasProductosService {
                 detalle: `PAGO DE COMISIÓN: ${nombreCompleto} - PERIODO ${body.month}/${body.year}`,
                 monto: Number(body.total),
                 moneda: 'Bolivianos',
-                fecha: getBoliviaDate(),
+                fecha: body.fecha || getBoliviaDate(),
                 formaPago: { id: body.formaPagoId },
                 clinicaId: body.clinicaId
             });
@@ -381,7 +381,7 @@ export class VentasProductosService {
                 .update(VentaProducto)
                 .set({ 
                     comision_pagada: true,
-                    comision_fecha_pago: getBoliviaFullDate()
+                    comision_fecha_pago: body.fecha ? new Date(body.fecha + 'T12:00:00') : getBoliviaFullDate()
                 })
                 .where('personalId = :pid', { pid: body.personalId })
                 .andWhere('fecha BETWEEN :start AND :end', { start: startDate, end: endDate })

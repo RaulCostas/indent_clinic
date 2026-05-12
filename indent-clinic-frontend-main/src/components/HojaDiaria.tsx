@@ -135,8 +135,8 @@ const HojaDiaria: React.FC = () => {
         }];
 
     // Range Search State
-    const [rangeStart, setRangeStart] = useState<string>('');
-    const [rangeEnd, setRangeEnd] = useState<string>('');
+    const [rangeStart, setRangeStart] = useState<string>(getLocalDateString());
+    const [rangeEnd, setRangeEnd] = useState<string>(getLocalDateString());
     const [searchMode, setSearchMode] = useState<'single' | 'range'>('single');
 
     const [activeTab, setActiveTab] = useState<number>(0);
@@ -496,8 +496,8 @@ const HojaDiaria: React.FC = () => {
     };
 
     const handleClearRange = () => {
-        setRangeStart('');
-        setRangeEnd('');
+        setRangeStart(getLocalDateString());
+        setRangeEnd(getLocalDateString());
         setSearchMode('single');
         const today = getLocalDateString();
         setSelectedDate(today);

@@ -92,22 +92,43 @@ const ReporteComisiones: React.FC = () => {
             const formasPago = resFP.data.data || [];
             
             const options = (formasPago || []).map((fp: any) => `<option value="${fp.id}">${fp.forma_pago}</option>`).join('');
+            
+            // Fecha de hoy para el default del input
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // Detectar modo oscuro para aplicar estilos inline (más robusto para Swal)
+            const isDark = document.documentElement.classList.contains('dark');
+            const boxBg = isDark ? 'rgba(30, 58, 138, 0.3)' : '#eff6ff';
+            const boxBorder = isDark ? '#1e3a8a' : '#dbeafe';
+            const labelColor = isDark ? '#9ca3af' : '#4b5563'; // gray-400 : gray-600
+            const valueColor = isDark ? '#ffffff' : '#111827'; // white : gray-900
+            const mainLabelColor = isDark ? '#9ca3af' : '#6b7280'; // gray-400 : gray-500
 
             const { value: formValues } = await Swal.fire({
-                title: '<div class="flex items-center justify-center gap-3 text-blue-700"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Registrar Pago de Comisión</div>',
+                title: `<div class="flex items-center justify-center gap-3" style="color: ${isDark ? '#60a5fa' : '#1d4ed8'}; font-weight: bold;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> 
+                            Registrar Pago de Comisión
+                        </div>`,
                 html: `
                     <div style="text-align: left; padding: 10px;">
-                        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                            <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Personal:</strong> <span class="text-gray-900 dark:text-white font-semibold">${item.nombre} ${item.paterno} ${item.materno || ''}</span></p>
-                            <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Monto a Pagar:</strong> <span class="text-blue-600 dark:text-blue-400 font-bold text-lg">${Number(item.total_comision).toLocaleString()} Bs.</span></p>
+                        <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: ${boxBg}; border: 1px solid ${boxBorder}; border-radius: 0.5rem;">
+                            <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Personal:</strong> <span style="color: ${valueColor}; font-weight: 600;">${item.nombre} ${item.paterno} ${item.materno || ''}</span></p>
+                            <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Monto a Pagar:</strong> <span style="color: ${isDark ? '#60a5fa' : '#2563eb'}; font-weight: bold; font-size: 1.125rem;">${Number(item.total_comision).toLocaleString()} Bs.</span></p>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label for="swal-fecha" style="display: block; font-size: 0.75rem; font-weight: bold; color: ${mainLabelColor}; text-transform: uppercase; margin-bottom: 0.25rem; margin-left: 0.25rem;">Fecha de Pago:</label>
+                            <input type="date" id="swal-fecha" value="${todayStr}" class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm">
                         </div>
                         
-                        <label for="swal-fp" class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Forma de Pago:</label>
+                        <label for="swal-fp" style="display: block; font-size: 0.75rem; font-weight: bold; color: ${mainLabelColor}; text-transform: uppercase; margin-bottom: 0.25rem; margin-left: 0.25rem;">Forma de Pago:</label>
                         <select id="swal-fp" class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm">
                             ${options}
                         </select>
                     </div>
                 `,
+                background: isDark ? '#1f2937' : '#fff',
+                color: isDark ? '#f3f4f6' : '#111827',
                 focusConfirm: false,
                 showCancelButton: true,
                 confirmButtonText: '<div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Confirmar Pago</div>',
@@ -117,9 +138,22 @@ const ReporteComisiones: React.FC = () => {
                     cancelButton: 'bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2 mx-2'
                 },
                 buttonsStyling: false,
+                didOpen: () => {
+                    const fpSelect = document.getElementById('swal-fp');
+                    if (fpSelect) fpSelect.focus();
+                },
                 preConfirm: () => {
+                    const fecha = (document.getElementById('swal-fecha') as HTMLInputElement).value;
+                    const formaPagoId = (document.getElementById('swal-fp') as HTMLSelectElement).value;
+                    
+                    if (!fecha) {
+                        Swal.showValidationMessage('Por favor, seleccione la fecha del pago');
+                        return false;
+                    }
+                    
                     return {
-                        formaPagoId: (document.getElementById('swal-fp') as HTMLSelectElement).value
+                        formaPagoId,
+                        fecha
                     }
                 }
             });
@@ -130,6 +164,7 @@ const ReporteComisiones: React.FC = () => {
                     year: year,
                     month: month,
                     formaPagoId: parseInt(formValues.formaPagoId),
+                    fecha: formValues.fecha,
                     total: item.total_comision,
                     clinicaId: clinicaSeleccionada || 0
                 });

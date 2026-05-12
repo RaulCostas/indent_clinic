@@ -450,10 +450,14 @@ const PresupuestoList: React.FC = () => {
 
         doc.setFont('helvetica', 'bold');
 
-        doc.rect(penultColX, finalY - 4, penultColWidth, 7);
+        // Ensure the label box is wide enough for "TOTAL Bs."
+        const labelWidth = Math.max(penultColWidth, 30);
+        const labelX = lastColX - labelWidth;
+
+        doc.rect(labelX, finalY - 4, labelWidth, 7);
         doc.rect(lastColX, finalY - 4, lastColWidth, 7);
 
-        doc.text('TOTAL Bs.', penultColX + penultColWidth - 2, finalY + 1, { align: 'right' });
+        doc.text('TOTAL Bs.', labelX + labelWidth - 2, finalY + 1, { align: 'right' });
         doc.text(Number(proforma.total).toFixed(2), lastColX + lastColWidth - 2, finalY + 1, { align: 'right' });
 
         finalY += 10;
@@ -578,7 +582,8 @@ const PresupuestoList: React.FC = () => {
         doc.line(120, sigY + 7, 190, sigY + 7);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        doc.text(patientName, 155, sigY + 11, { align: 'center' });
+        const patientNameSignature = `${paciente?.paterno || ''} ${paciente?.materno || ''} ${paciente?.nombre || ''}`.trim().toUpperCase();
+        doc.text(patientNameSignature, 155, sigY + 11, { align: 'center' });
         doc.setFont('helvetica', 'normal');
         doc.text('PACIENTE', 155, sigY + 15, { align: 'center' });
 

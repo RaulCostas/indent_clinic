@@ -20,6 +20,14 @@ export class PropuestasController {
         return this.propuestasService.convertToProforma(+id, body.letra, body.usuarioId, body.clinicaId);
     }
 
+    @Post(':id/send-whatsapp')
+    sendWhatsApp(
+        @Param('id') id: string,
+        @Body() body: { letra: string, clinicaId: number }
+    ) {
+        return this.propuestasService.sendWhatsApp(+id, body.letra, body.clinicaId);
+    }
+
     @Get()
     findAll() {
         return this.propuestasService.findAll();

@@ -61,7 +61,7 @@ export class VentasProductosController {
     }
 
     @Post('comisiones/pagar')
-    async pagarComisiones(@Body() body: { personalId: number; year: number; month: number; formaPagoId: number; total: number; clinicaId: number }) {
+    async pagarComisiones(@Body() body: { personalId: number; year: number; month: number; formaPagoId: number; total: number; clinicaId: number; fecha?: string }) {
         return await this.ventasService.pagarComisiones(body);
     }
 

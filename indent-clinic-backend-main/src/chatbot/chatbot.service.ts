@@ -1447,4 +1447,18 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         });
         await this.sendMessage(remoteJid, menu, clinicId, instance);
     }
+
+    async sendPdf(jid: string, buffer: Buffer, fileName: string, clinicId: number, instance: number = 1) {
+        const session = this.getSession(clinicId, instance);
+        if (session.sock && session.status === 'connected') {
+            await session.sock.sendMessage(jid, {
+                document: buffer,
+                mimetype: 'application/pdf',
+                fileName: fileName
+            });
+            return { success: true };
+        } else {
+            throw new Error('Chatbot no conectado o no inicializado');
+        }
+    }
 }

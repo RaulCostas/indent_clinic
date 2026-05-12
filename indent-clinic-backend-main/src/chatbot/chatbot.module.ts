@@ -35,6 +35,6 @@ import { Especialidad } from '../especialidad/entities/especialidad.entity';
     ],
     controllers: [ChatbotController, ChatbotIntentosController],
     providers: [ChatbotService, ChatbotIntentosService, ChatbotPdfService],
-    exports: [ChatbotService],
+    exports: [ChatbotService, ChatbotPdfService],
 })
 export class ChatbotModule { }

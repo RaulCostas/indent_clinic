@@ -192,7 +192,7 @@ export class ChatbotPdfService {
                                 width: '*',
                                 stack: [
                                     { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 1 }] },
-                                    { text: `${patientName}${insurance}`, alignment: 'center', margin: [0, 5, 0, 0], fontSize: 10, bold: true },
+                                    { text: `${patientName}`, alignment: 'center', margin: [0, 5, 0, 0], fontSize: 10, bold: true },
                                     { text: 'PACIENTE', alignment: 'center', fontSize: 9 }
                                 ],
                                 alignment: 'center'

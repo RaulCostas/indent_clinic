@@ -8,6 +8,8 @@ import { PropuestaDetalle } from './entities/propuesta-detalle.entity';
 import { ProformasService } from '../proformas/proformas.service';
 import { CreateProformaDto } from '../proformas/dto/create-proforma.dto';
 import { getBoliviaDate } from '../common/utils/date.utils';
+import { ChatbotService } from '../chatbot/chatbot.service';
+import { ChatbotPdfService } from '../chatbot/chatbot-pdf.service';
 
 @Injectable()
 export class PropuestasService {
@@ -18,7 +20,47 @@ export class PropuestasService {
         private readonly detalleRepository: Repository<PropuestaDetalle>,
         private readonly dataSource: DataSource,
         private readonly proformasService: ProformasService,
+        private readonly chatbotService: ChatbotService,
+        private readonly pdfService: ChatbotPdfService,
     ) { }
+
+    async sendWhatsApp(id: number, letra: string, clinicaId: number) {
+        const propuesta = await this.propuestaRepository.findOne({
+            where: { id },
+            relations: ['paciente', 'clinica', 'detalles', 'detalles.arancel']
+        });
+
+        if (!propuesta) throw new NotFoundException('Propuesta no encontrada');
+        if (!propuesta.paciente?.celular) throw new Error('El paciente no tiene celular registrado');
+
+        let celular = propuesta.paciente.celular.replace(/\D/g, '');
+        if (!celular) throw new Error('El paciente no tiene número de celular válido');
+        if (celular.length === 8 && /^[67]/.test(celular)) celular = `591${celular}`;
+        const jid = `${celular}@s.whatsapp.net`;
+
+        // Calculate total for this specific letter
+        const filteredDetalles = propuesta.detalles.filter(d => d.letra === letra);
+        const totalLetra = filteredDetalles.reduce((acc, curr) => acc + Number(curr.total), 0);
+
+        // Prepare data for PDF generation (simulate a proforma structure)
+        const fakeProforma = {
+            ...propuesta,
+            numero: propuesta.numero,
+            fecha: propuesta.fecha,
+            total: totalLetra,
+            detalles: filteredDetalles
+        };
+
+        const pdfBuffer = await this.pdfService.generateProformasPdf(
+            propuesta.paciente,
+            [fakeProforma],
+            propuesta.clinica
+        );
+
+        const fileName = `propuesta_${propuesta.numero}_opcion_${letra}.pdf`;
+
+        return this.chatbotService.sendPdf(jid, pdfBuffer, fileName, clinicaId);
+    }
 
     async convertToProforma(id: number, letra: string, usuarioId: number, clinicaId?: number) {
         const propuesta = await this.findOne(id);

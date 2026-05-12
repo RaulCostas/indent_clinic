@@ -109,6 +109,25 @@ export class FirmasService {
         }
     }
 
+    async getFirmaBase64(id: number): Promise<{ base64: string }> {
+        const firma = await this.findOne(id);
+        if (!firma.firmaData) throw new BadRequestException('La firma no tiene datos de imagen');
+
+        // Si ya es base64, lo retornamos tal cual
+        if (firma.firmaData.startsWith('data:image')) {
+            return { base64: firma.firmaData };
+        }
+
+        // Si es una URL de Supabase, intentamos descargarla vía backend (donde tenemos acceso service_role)
+        try {
+            const base64 = await this.storageService.downloadAsBase64('clinica-media', firma.firmaData);
+            return { base64 };
+        } catch (error) {
+            console.error('[FirmasService] Error downloading image:', error);
+            throw new BadRequestException('No se pudo recuperar la imagen de la firma');
+        }
+    }
+
     /**
      * Get all signatures by user
      */

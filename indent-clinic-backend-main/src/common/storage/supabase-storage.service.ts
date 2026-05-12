@@ -81,4 +81,18 @@ export class SupabaseStorageService {
       this.logger.error(`Error deleting from Supabase: ${error.message}`);
     }
   }
+
+  async downloadAsBase64(bucket: string, path: string): Promise<string> {
+    const relativePath = path.includes(bucket) ? path.split(`${bucket}/`).pop() : path;
+    const { data, error } = await this.supabase.storage.from(bucket).download(relativePath);
+    
+    if (error) {
+      this.logger.error(`Error downloading from Supabase: ${error.message}`);
+      throw error;
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const contentType = data.type || 'image/png';
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  }
 }

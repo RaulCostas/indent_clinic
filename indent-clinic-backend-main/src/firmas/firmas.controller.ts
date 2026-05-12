@@ -48,6 +48,15 @@ export class FirmasController {
     }
 
     /**
+     * Get signature image as Base64 (Proxy)
+     * GET /firmas/:id/base64
+     */
+    @Get(':id/base64')
+    getBase64(@Param('id') id: string) {
+        return this.firmasService.getFirmaBase64(+id);
+    }
+
+    /**
      * Get a single signature
      * GET /firmas/:id
      */

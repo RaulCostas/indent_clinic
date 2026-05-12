@@ -105,6 +105,12 @@ export class PacientesService {
         if (createPacienteDto.celular) {
             createPacienteDto.celular = this.formatPhoneNumber(createPacienteDto.celular);
         }
+
+        // Clean names
+        createPacienteDto.nombre = (createPacienteDto.nombre || '').trim();
+        createPacienteDto.paterno = (createPacienteDto.paterno || '').trim();
+        createPacienteDto.materno = (createPacienteDto.materno || '').trim();
+
         const paciente = this.pacientesRepository.create(createPacienteDto);
         return await this.pacientesRepository.save(paciente);
     }
@@ -138,6 +144,9 @@ export class PacientesService {
             direccion_responsable: '',
             telefono_responsable: '',
             ...dto,
+            nombre: (dto.nombre || '').trim(),
+            paterno: (dto.paterno || '').trim(),
+            materno: (dto.materno || '').trim(),
             fecha: getBoliviaDate(),
             fecha_nacimiento: getBoliviaDate(), // Default to today if not provided
             estado: 'activo'
@@ -167,11 +176,15 @@ export class PacientesService {
         }
 
         if (search) {
-            const searchTerm = `%${search}%`;
-            queryBuilder.andWhere(
-                "(paciente.nombre ILIKE :search OR paciente.paterno ILIKE :search OR paciente.materno ILIKE :search OR CONCAT(paciente.nombre, ' ', paciente.paterno, ' ', paciente.materno) ILIKE :search OR CONCAT(paciente.paterno, ' ', paciente.materno, ' ', paciente.nombre) ILIKE :search)",
-                { search: searchTerm }
-            );
+            const terms = search.trim().split(/\s+/).filter(t => t.length > 0);
+            terms.forEach((term, index) => {
+                const paramName = `search${index}`;
+                const searchTerm = `%${term}%`;
+                queryBuilder.andWhere(
+                    `(paciente.nombre ILIKE :${paramName} OR paciente.paterno ILIKE :${paramName} OR paciente.materno ILIKE :${paramName} OR paciente.ci ILIKE :${paramName})`,
+                    { [paramName]: searchTerm }
+                );
+            });
         }
 
         if (clinicaId) {
@@ -183,9 +196,9 @@ export class PacientesService {
         }
 
         queryBuilder
-            .orderBy('paciente.paterno', 'ASC')
+            .orderBy('paciente.nombre', 'ASC')
+            .addOrderBy('paciente.paterno', 'ASC')
             .addOrderBy('paciente.materno', 'ASC')
-            .addOrderBy('paciente.nombre', 'ASC')
             .skip(skip)
             .take(limit);
 
@@ -229,6 +242,11 @@ export class PacientesService {
         if (updatePacienteDto.celular) {
             updatePacienteDto.celular = this.formatPhoneNumber(updatePacienteDto.celular);
         }
+
+        // Clean names in DTO
+        if (updatePacienteDto.nombre) updatePacienteDto.nombre = updatePacienteDto.nombre.trim();
+        if (updatePacienteDto.paterno) updatePacienteDto.paterno = updatePacienteDto.paterno.trim();
+        if (updatePacienteDto.materno) updatePacienteDto.materno = updatePacienteDto.materno.trim();
 
         // Merge main patient data
         this.pacientesRepository.merge(paciente, updatePacienteDto);
@@ -346,8 +364,11 @@ export class PacientesService {
 
         // 3. Search logic
         if (search) {
-            const st = `%${search.toLowerCase()}%`;
-            whereClause += ` AND (LOWER(p.nombre) LIKE '${st}' OR LOWER(p.paterno) LIKE '${st}' OR LOWER(p.materno) LIKE '${st}')`;
+            const terms = search.trim().split(/\s+/).filter(t => t.length > 0);
+            terms.forEach(term => {
+                const st = `%${term.toLowerCase()}%`;
+                whereClause += ` AND (LOWER(p.nombre) LIKE '${st}' OR LOWER(p.paterno) LIKE '${st}' OR LOWER(p.materno) LIKE '${st}' OR p.ci LIKE '${st}')`;
+            });
         }
 
         // Execution
@@ -387,7 +408,7 @@ export class PacientesService {
                    ORDER BY hc.fecha DESC LIMIT 1) as numero_presupuesto
             FROM pacientes p
             WHERE ${whereClause.replace(/CURRENT_DATE/g, `'${today}'`)}
-            ORDER BY p.paterno ASC, p.materno ASC, p.nombre ASC
+            ORDER BY p.nombre ASC, p.paterno ASC, p.materno ASC
             LIMIT ${limit} OFFSET ${skip}
         `;
 

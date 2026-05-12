@@ -98,7 +98,7 @@ const ReporteComisiones: React.FC = () => {
                 html: `
                     <div style="text-align: left; padding: 10px;">
                         <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                            <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Personal:</strong> <span class="text-gray-900 dark:text-white font-semibold">${item.nombre} ${item.paterno}</span></p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Personal:</strong> <span class="text-gray-900 dark:text-white font-semibold">${item.nombre} ${item.paterno} ${item.materno || ''}</span></p>
                             <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Monto a Pagar:</strong> <span class="text-blue-600 dark:text-blue-400 font-bold text-lg">${Number(item.total_comision).toLocaleString()} Bs.</span></p>
                         </div>
                         

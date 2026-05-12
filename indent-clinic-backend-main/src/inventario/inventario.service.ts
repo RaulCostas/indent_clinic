@@ -83,6 +83,7 @@ export class InventarioService {
         }
 
         const [data, total] = await queryBuilder
+            .orderBy('inventario.descripcion', 'ASC')
             .skip((page - 1) * limit)
             .take(limit)
             .getManyAndCount();
@@ -114,7 +115,9 @@ export class InventarioService {
             query.andWhere('inventario.clinicaId = :clinicaId', { clinicaId });
         }
 
-        return query.getMany();
+        return query
+            .orderBy('inventario.descripcion', 'ASC')
+            .getMany();
     }
 
     findOne(id: number) {

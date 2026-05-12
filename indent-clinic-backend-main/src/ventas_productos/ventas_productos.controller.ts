@@ -30,16 +30,6 @@ export class VentasProductosController {
         );
     }
 
-    @Get(':id')
-    async findOne(@Param('id') id: string) {
-        return await this.ventasService.findOneVenta(+id);
-    }
-
-    @Patch(':id')
-    async update(@Param('id') id: string, @Body() updateDto: CreateVentaProductoDto) {
-        return await this.ventasService.updateVenta(+id, updateDto);
-    }
-
     @Delete(':id')
     async remove(@Param('id') id: string) {
         return await this.ventasService.removeVenta(+id);
@@ -58,6 +48,16 @@ export class VentasProductosController {
             clinicaId ? +clinicaId : undefined,
             personalId ? +personalId : undefined
         );
+    }
+
+    @Get(':id')
+    async findOne(@Param('id') id: string) {
+        return await this.ventasService.findOneVenta(+id);
+    }
+
+    @Patch(':id')
+    async update(@Param('id') id: string, @Body() updateDto: CreateVentaProductoDto) {
+        return await this.ventasService.updateVenta(+id, updateDto);
     }
 
     @Post('comisiones/pagar')

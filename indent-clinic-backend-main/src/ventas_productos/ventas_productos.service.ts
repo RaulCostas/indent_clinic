@@ -33,6 +33,7 @@ export class VentasProductosService {
         await queryRunner.startTransaction();
 
         try {
+            const productNames: string[] = [];
             // 1. Validar Stock global de todos los productos primero
             for (const item of createDto.detalles) {
                 const producto = await queryRunner.manager.findOne(ProductoComercial, { where: { id: item.productoId } });
@@ -40,6 +41,7 @@ export class VentasProductosService {
                 if (producto.stock_actual < item.cantidad) {
                     throw new BadRequestException(`Stock insuficiente para ${producto.nombre}. Disponible: ${producto.stock_actual}`);
                 }
+                productNames.push(`${item.cantidad}x ${producto.nombre}`);
             }
 
             const venta = new VentaProducto();
@@ -144,9 +146,10 @@ export class VentasProductosService {
             await queryRunner.manager.save(savedVenta);
 
             // 5. Integración Financiera: Registrar en "Otros Ingresos"
+            const productDetail = productNames.join(', ');
             await this.otrosIngresosService.create({
                 fecha: createDto.fecha ? new Date(createDto.fecha + 'T12:00:00') : getBoliviaFullDate(),
-                detalle: `VENTA DE PRODUCTOS - REC: ${savedVenta.id}`,
+                detalle: `VENTA PRODUCTO: ${productDetail} - REC: ${savedVenta.id}`,
                 monto: createDto.total,
                 moneda: createDto.moneda || 'Bolivianos',
                 formaPagoId: createDto.formaPagoId,

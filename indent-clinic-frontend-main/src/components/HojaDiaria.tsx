@@ -403,13 +403,58 @@ const HojaDiaria: React.FC = () => {
                 api.get('/otros-ingresos', { params: { ...params, limit: 1000 } })
             ]);
 
-            setIngresos(resIngresos.data);
-            setEgresos(resEgresos.data.data || []);
-            setOtrosIngresos(resOtrosIngresos.data.data || []);
-            setPagosDoctores(resDoctores.data);
-            setPagosLaboratorios(resLaboratorios.data);
-            setPagosPedidos(resPedidos.data);
-            setPagosGastosFijos(resGastosFijos.data);
+            const sortData = (data: any[], type: string) => {
+                return [...data].sort((a, b) => {
+                    // Si es rango, primero ordenar por fecha ASC
+                    if (searchMode === 'range') {
+                        const dateA = new Date(a.fecha || a.createdAt || 0).getTime();
+                        const dateB = new Date(b.fecha || b.createdAt || 0).getTime();
+                        if (dateA !== dateB) return dateA - dateB;
+                    }
+
+                    // Ordenamiento secundario (o primario si es single)
+                    let valA = '';
+                    let valB = '';
+
+                    switch (type) {
+                        case 'ingresos':
+                            valA = `${a.paciente?.paterno || ''} ${a.paciente?.materno || ''} ${a.paciente?.nombre || ''}`.trim();
+                            valB = `${b.paciente?.paterno || ''} ${b.paciente?.materno || ''} ${b.paciente?.nombre || ''}`.trim();
+                            break;
+                        case 'otros-ingresos':
+                        case 'egresos':
+                            valA = (a.detalle || '').toLowerCase();
+                            valB = (b.detalle || '').toLowerCase();
+                            break;
+                        case 'pagos-doctores':
+                            valA = `${a.personal?.paterno || ''} ${a.personal?.materno || ''} ${a.personal?.nombre || ''}`.trim();
+                            valB = `${b.personal?.paterno || ''} ${b.personal?.materno || ''} ${b.personal?.nombre || ''}`.trim();
+                            break;
+                        case 'pagos-laboratorios':
+                            valA = (a.laboratorio?.nombre || '').toLowerCase();
+                            valB = (b.laboratorio?.nombre || '').toLowerCase();
+                            break;
+                        case 'pagos-pedidos':
+                            valA = (a.proveedor?.nombre || '').toLowerCase();
+                            valB = (b.proveedor?.nombre || '').toLowerCase();
+                            break;
+                        case 'pagos-gastos-fijos':
+                            valA = (a.gastoFijo?.nombre || '').toLowerCase();
+                            valB = (b.gastoFijo?.nombre || '').toLowerCase();
+                            break;
+                    }
+
+                    return valA.localeCompare(valB);
+                });
+            };
+
+            setIngresos(sortData(resIngresos.data, 'ingresos'));
+            setEgresos(sortData(resEgresos.data.data || [], 'egresos'));
+            setOtrosIngresos(sortData(resOtrosIngresos.data.data || [], 'otros-ingresos'));
+            setPagosDoctores(sortData(resDoctores.data, 'pagos-doctores'));
+            setPagosLaboratorios(sortData(resLaboratorios.data, 'pagos-laboratorios'));
+            setPagosPedidos(sortData(resPedidos.data, 'pagos-pedidos'));
+            setPagosGastosFijos(sortData(resGastosFijos.data, 'pagos-gastos-fijos'));
 
         } catch (error) {
             console.error("Error fetching Hoja Diaria:", error);

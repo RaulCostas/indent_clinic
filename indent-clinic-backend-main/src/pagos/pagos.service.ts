@@ -49,10 +49,19 @@ export class PagosService {
             if (createDto.assignments && createDto.assignments.length > 0) {
                 for (const asgn of createDto.assignments) {
                     const hcId = Number(asgn.historiaClinicaId);
+                    
+                    // Fallback robusto: si el descuento de la asignación es 0 pero hay un descuento global
+                    // y solo hay una asignación, usamos el descuento global.
+                    let finalDescuento = Number(asgn.descuento || 0);
+                    if (finalDescuento === 0 && createDto.assignments.length === 1 && createDto.descuento) {
+                        finalDescuento = Number(createDto.descuento);
+                        console.log(`[PAGOS_AUDIT] Aplicando fallback de descuento global (${finalDescuento}) a la única asignación.`);
+                    }
+
                     const pago = this.pagoRepository.create({
                         ...createDto,
                         monto: Number(asgn.monto),
-                        descuento: Number(asgn.descuento || 0),
+                        descuento: finalDescuento,
                         historiaClinicaId: hcId,
                         fecha: createDto.fecha || getBoliviaDate().split('T')[0],
                         clinicaId: finalClinicaId,
@@ -106,8 +115,15 @@ export class PagosService {
             .leftJoinAndSelect('proforma.historiaClinica', 'historiaClinica')
             .leftJoinAndSelect('proforma.pagos', 'proformaPagos')
             .leftJoinAndSelect('pago.comisionTarjeta', 'comisionTarjeta')
-            .leftJoinAndSelect('pago.formaPagoRel', 'formaPagoRel')
-            .orderBy('pago.fecha', 'DESC');
+            .leftJoinAndSelect('pago.formaPagoRel', 'formaPagoRel');
+            
+        if (startDate && endDate) {
+            qb.orderBy('pago.fecha', 'ASC');
+        }
+        
+        qb.addOrderBy('paciente.nombre', 'ASC')
+          .addOrderBy('paciente.paterno', 'ASC')
+          .addOrderBy('paciente.materno', 'ASC');
 
         if (startDate && endDate) {
             qb.andWhere('pago.fecha BETWEEN :start AND :end', {

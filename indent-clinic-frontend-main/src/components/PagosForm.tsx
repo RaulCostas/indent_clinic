@@ -474,9 +474,9 @@ const PagosForm: React.FC<PagosFormProps> = ({
             const response = await api.get(`/pagos/${pagoId}`);
             const pago = response.data;
             
-            // Extraer el descuento si existe en el Record de tratamientosDescuentos
-            let storedDescuento = '';
-            if (pago.tratamientosDescuentos) {
+            // Extraer el descuento de la columna o del Record de tratamientosDescuentos
+            let storedDescuento = String(pago.descuento || '');
+            if ((!storedDescuento || storedDescuento === '0') && pago.tratamientosDescuentos) {
                 const discounts = Object.values(pago.tratamientosDescuentos);
                 if (discounts.length > 0) {
                     storedDescuento = String(discounts[0]);
@@ -821,14 +821,13 @@ const PagosForm: React.FC<PagosFormProps> = ({
             return newData;
         });
 
-        // Sync main field changes back to the single assignment if we are in target mode
-        if (tratamientoIdProp && (name === 'monto' || name === 'descuento')) {
-            const tId = Number(tratamientoIdProp);
+        const targetId = tratamientoIdProp ? Number(tratamientoIdProp) : (selectedTreatments.length === 1 ? selectedTreatments[0] : (selectedTreatments.length > 0 ? selectedTreatments[0] : null));
+
+        if (targetId && (name === 'monto' || name === 'descuento')) {
+            const tId = Number(targetId);
             setAssignments(prev => {
                 const current = prev[tId] || { amount: 0, discount: 0 };
                 
-                // Si cambiamos descuento, el monto en la asignación también debe actualizarse 
-                // para mantener la consistencia con lo que el usuario ve en la caja principal
                 let newAmount = current.amount;
                 if (name === 'descuento' && montoProp && !isEditing) {
                     newAmount = Math.max(0, Number(montoProp) - (Number(value) || 0));
@@ -901,6 +900,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                     formData.formaPagoId && formasPago.find(fp => fp.id === formData.formaPagoId)?.forma_pago?.toLowerCase() === 'tarjeta' && Number(formData.comisionTarjetaId) > 0
                         ? (finalMonto * (comisiones.find(c => c.id === Number(formData.comisionTarjetaId))?.monto || 0)) / 100
                         : undefined,
+                descuento: Number(formData.descuento || 0),
                 // NEW: Send manual assignments based on selected treatments
                 assignments: (() => {
                     const asgns = selectedTreatments

@@ -83,7 +83,7 @@ export class SupabaseStorageService {
   }
 
   async downloadAsBase64(bucket: string, path: string): Promise<string> {
-    const relativePath = path.includes(bucket) ? path.split(`${bucket}/`).pop() : path;
+    const relativePath = (path.includes(bucket) ? path.split(`${bucket}/`).pop() : path) || path;
     const { data, error } = await this.supabase.storage.from(bucket).download(relativePath);
     
     if (error) {

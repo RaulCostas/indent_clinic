@@ -218,7 +218,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
         tratamientosPlan.forEach(t => {
             const det = proforma?.detalles?.find((d: any) => d.id === t.proformaDetalleId);
             const isSingleItem = det && Number(det.cantidad) <= 1;
-            const normPz = normalizePiezas(t.pieza);
+            const normPz = normalizePiezas(t.pieza || '');
             
             const key = t.proformaDetalleId 
                 ? (isSingleItem ? `det_${t.proformaDetalleId}` : `det_${t.proformaDetalleId}_pz_${normPz}`)

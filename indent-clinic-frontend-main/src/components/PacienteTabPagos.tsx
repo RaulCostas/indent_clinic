@@ -110,7 +110,7 @@ const PacienteTabPagos: React.FC = () => {
             // REGLA DE CONSOLIDACIÓN:
             // 1. Si es un ítem único (cantidad 1), agrupamos todo por proformaDetalleId (caso Virginia).
             // 2. Si tiene cantidad > 1, agrupamos por proformaDetalleId + Pieza (caso Tartrectomía/Múltiples piezas).
-            const normPz = normalizePiezas(h.pieza);
+            const normPz = normalizePiezas(h.pieza || '');
             const key = h.proformaDetalleId
                 ? (isSingleItem ? `det_${h.proformaDetalleId}` : `det_${h.proformaDetalleId}_pz_${normPz}`)
                 : `gen_${h.id}`;

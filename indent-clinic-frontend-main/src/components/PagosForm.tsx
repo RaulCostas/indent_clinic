@@ -206,15 +206,50 @@ const PagosForm: React.FC<PagosFormProps> = ({
 
         const discountValue = Number(formData.descuento) || 0;
         
-        // El descuento se aplica al tratamiento específico (tratamientoIdProp), 
-        // o si hay un solo tratamiento seleccionado
+        // 1. CONSOLIDAR: Igual que en PacienteTabPagos, agrupamos de forma inteligente
+        const normalizePiezas = (p: string) => {
+            if (!p) return '';
+            return p.split(/[-/,\s]+/).map(s => s.trim()).filter(Boolean).sort().join(',');
+        };
+
+        const proforma = filteredProformas.find(p => p.id === formData.proformaId);
+        
+        const map = new Map<string, any>();
+        tratamientosPlan.forEach(t => {
+            const det = proforma?.detalles?.find((d: any) => d.id === t.proformaDetalleId);
+            const isSingleItem = det && Number(det.cantidad) <= 1;
+            const normPz = normalizePiezas(t.pieza);
+            
+            const key = t.proformaDetalleId 
+                ? (isSingleItem ? `det_${t.proformaDetalleId}` : `det_${t.proformaDetalleId}_pz_${normPz}`)
+                : `gen_${t.id}`;
+
+            if (!map.has(key)) {
+                map.set(key, { ...t, allIds: [t.id] });
+            } else {
+                const master = map.get(key);
+                master.allIds.push(t.id);
+                // Si alguno está terminado, el consolidado está terminado
+                if ((t.estadoTratamiento || '').trim().toLowerCase() === 'terminado') {
+                    master.estadoTratamiento = 'terminado';
+                }
+                if (!master.pieza && t.pieza) master.pieza = t.pieza;
+                // Sumar montos pagados y recalcular saldo
+                master.montoPagado = Number(master.montoPagado) + Number(t.montoPagado);
+                master.saldo = Number(master.saldo) + Number(t.saldo);
+                // El precio base debería ser el mismo o el mayor registrado (porque son las mismas piezas)
+                master.precio = Math.max(Number(master.precio), Number(t.precio));
+                master.descuento = Math.max(Number(master.descuento), Number(t.descuento));
+            }
+        });
+        const consolidated = Array.from(map.values());
+
         const targetTratId = tratamientoIdProp 
             ? Number(tratamientoIdProp) 
             : (selectedTreatments.length === 1 ? selectedTreatments[0] : null);
 
-        // Rebalanceo: usamos los datos del servidor (montoPagado y saldo)
-        // pero si estamos editando, devolvemos virtualmente el monto de este pago al saldo
-        return tratamientosPlan.map(t => {
+        // 2. MAPEAR PARA LA VISTA
+        return consolidated.map(t => {
             let discountAmount = Number(t.descuento || 0);
             
             if (t.id === targetTratId) {
@@ -229,28 +264,16 @@ const PagosForm: React.FC<PagosFormProps> = ({
             // Recuperar el monto que ESTE pago en particular está aportando a este tratamiento
             let thisPaymentContribution = 0;
             if (isEditing && pagoIdProp) {
-                // Si el pago que editamos estaba vinculado a este tratamiento, lo sumamos al saldo disponible
                 const currentPago = allPagos.find(p => p.id === pagoIdProp);
                 if (currentPago) {
-                    if (Number(currentPago.historiaClinicaId) === t.id) {
+                    const allHCIds = t.allIds || [t.id];
+                    if (allHCIds.includes(Number(currentPago.historiaClinicaId))) {
                         thisPaymentContribution = Number(currentPago.monto);
-                    } else if (currentPago.tratamientosIds) {
-                        const ids = Array.isArray(currentPago.tratamientosIds) 
-                            ? currentPago.tratamientosIds.map(String) 
-                            : String(currentPago.tratamientosIds).split(',');
-                        if (ids.includes(String(t.id))) {
-                            // En pagos multi-tratamiento, el prorrateo es complejo, 
-                            // pero para simplificar, si está vinculado, asumimos que este pago cubría su parte.
-                            // Sin embargo, en el nuevo sistema usualmente es 1 a 1 o explícito.
-                            // Como fallback, usamos el monto total del pago si no hay más info.
-                            thisPaymentContribution = Number(currentPago.monto); 
-                        }
                     }
                 }
             }
 
             const netPrice = Math.max(0, Number(t.precio) - discountAmount);
-            // El saldo "disponible" para pagar es el saldo actual + lo que este pago ya aportó
             const availableSaldo = Number(t.saldo) + thisPaymentContribution;
             const paidSoFar = Number(t.montoPagado) - thisPaymentContribution;
 
@@ -260,7 +283,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                 netPrice,
                 balancedPaid: paidSoFar,
                 balancedSaldo: availableSaldo,
-                remainingToPay: availableSaldo // Usado por toggleTreatment
+                remainingToPay: availableSaldo
             };
         }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
     }, [tratamientosPlan, allPagos, formData.proformaId, formData.descuento, selectedTreatments, tratamientoIdProp, isModal, isOpen, isEditing, pagoIdProp]);

@@ -90,16 +90,29 @@ const PacienteTabPagos: React.FC = () => {
     // Si no consolidamos estas historias, el sistema facturará X veces el mismo precio de la misma corona.
     // IMPORTANTE: Si el tratamiento tiene piezas diferentes (ej: Obturación pieza 36 vs pieza 38),
     // cada pieza se trata como un item independiente con su propio precio.
+    const normalizePiezas = (p: string) => {
+        if (!p) return '';
+        return p.split(/[-/,\s]+/)
+            .map(s => s.trim())
+            .filter(Boolean)
+            .sort()
+            .join(',');
+    };
+
     const historiasConsolidadas = useMemo(() => {
         const map = new Map<string, any>();
+        
         historias.forEach(h => {
-            // Key logic: 
-            // - If it has proformaDetalleId and pieza, group by that (same treatment item on same tooth)
-            // - If it has ONLY proformaDetalleId, group by that (same treatment item)
-            // - If it is "General" (no proforma), DO NOT consolidate unless they have the same ID (which means they are the same record)
-            //   Actually, for general, we use the ID to ensure each session is its own debt row.
+            const pf = proformas.find(p => p.id === h.proformaId);
+            const det = pf?.detalles?.find((d: any) => d.id === h.proformaDetalleId);
+            const isSingleItem = det && Number(det.cantidad) <= 1;
+            
+            // REGLA DE CONSOLIDACIÓN:
+            // 1. Si es un ítem único (cantidad 1), agrupamos todo por proformaDetalleId (caso Virginia).
+            // 2. Si tiene cantidad > 1, agrupamos por proformaDetalleId + Pieza (caso Tartrectomía/Múltiples piezas).
+            const normPz = normalizePiezas(h.pieza);
             const key = h.proformaDetalleId
-                ? (h.pieza ? `det_${h.proformaDetalleId}_pz_${(h.pieza || '').trim()}` : `det_${h.proformaDetalleId}`)
+                ? (isSingleItem ? `det_${h.proformaDetalleId}` : `det_${h.proformaDetalleId}_pz_${normPz}`)
                 : `gen_${h.id}`;
                 
             if (!map.has(key)) {
@@ -108,24 +121,27 @@ const PacienteTabPagos: React.FC = () => {
                 const master = map.get(key);
                 master.allIds.push(h.id);
                 
-                // Normalizar estado: Si alguno está terminado, el consolidado se considera terminado
-                const hEstado = (h.estadoTratamiento || '').trim().toLowerCase();
-                if (hEstado === 'terminado') {
+                // Si alguno está terminado, ese grupo se considera terminado
+                if ((h.estadoTratamiento || '').trim().toLowerCase() === 'terminado') {
                     master.estadoTratamiento = 'terminado';
                 }
+                // Si el master no tiene pieza y el nuevo sí, la tomamos
+                if (!master.pieza && h.pieza) master.pieza = h.pieza;
+                
                 // Mantener la fecha más reciente
                 if (h.fecha && (!master.fecha || new Date(h.fecha) > new Date(master.fecha))) {
                     master.fecha = h.fecha;
                 }
                 
-                // Preservar valores máximos registrados para evitar que un seguimiento en 0 "pise" el precio del presupuesto
+                // Para el precio en grupos consolidados (mismas piezas), usamos el máximo
+                // para no duplicar deuda si el doctor guardó el precio completo en cada sesión.
                 master.precio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
                 master.descuento = Math.max(Number(master.descuento) || 0, Number(h.descuento) || 0);
                 master.precioConDescuento = Math.max(0, Number(master.precio) - Number(master.descuento));
             }
         });
         return Array.from(map.values());
-    }, [historias]);
+    }, [historias, proformas]);
 
     // Deuda por plan
     const { deudas, totalAdeudadoProformas } = useMemo(() => {

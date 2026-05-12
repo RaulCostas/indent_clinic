@@ -53,7 +53,6 @@ const AgendaView: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(getLocalDateString());
     const [dateValue, setDateValue] = useState<Value>(new Date());
     const [appointments, setAppointments] = useState<Agenda[]>([]);
-    const [globalAppointments, setGlobalAppointments] = useState<Agenda[]>([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<{ time: string, clinicaId: number | null }>({ time: '', clinicaId: null });
     const [editingAppointment, setEditingAppointment] = useState<Agenda | null>(null);
@@ -152,9 +151,11 @@ const AgendaView: React.FC = () => {
 
     useEffect(() => {
         fetchAppointments();
-        fetchGlobalAppointments();
-        fetchPatients();
     }, [currentDate, globalClinicaId, selectedDoctorId]);
+
+    useEffect(() => {
+        fetchPatients();
+    }, [globalClinicaId]);
 
     useEffect(() => {
         const fetchStatus = async () => {
@@ -273,15 +274,7 @@ const AgendaView: React.FC = () => {
         }
     };
 
-    const fetchGlobalAppointments = async () => {
-        try {
-            const url = `/agenda?date=${currentDate}`;
-            const response = await api.get(url);
-            setGlobalAppointments(response.data || []);
-        } catch (error) {
-            console.error('Error fetching global appointments:', error);
-        }
-    };
+
 
     const handlePrevDay = () => {
         const date = new Date(currentDate + 'T00:00:00'); // Force local time interpretation
@@ -395,18 +388,15 @@ const AgendaView: React.FC = () => {
             });
 
             fetchAppointments();
-            fetchGlobalAppointments();
         } catch (error: any) {
             console.error('Error updating status:', error);
             Swal.fire('Error', 'No se pudo actualizar el estado', 'error');
             fetchAppointments();
-            fetchGlobalAppointments();
         }
     };
 
     const handleFormSave = () => {
         fetchAppointments();
-        fetchGlobalAppointments();
         handleFormClose();
     };
 

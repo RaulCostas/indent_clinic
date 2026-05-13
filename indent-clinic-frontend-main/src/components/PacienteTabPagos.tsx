@@ -237,10 +237,6 @@ const PacienteTabPagos: React.FC = () => {
                 const det = pf.detalles.find(d => Number(d.id) === Number(t.proformaDetalleId));
                 if (det) {
                     basePrice = Number(det.precioUnitario) * Number(det.cantidad);
-                    // Si el descuento también es 0 en HC, quizás está en la proforma
-                    if (discount < 0.01 && det.descuento) {
-                        discount = Number(det.descuento);
-                    }
                 }
             }
 
@@ -249,7 +245,6 @@ const PacienteTabPagos: React.FC = () => {
                 const det = pf.detalles.find(d => (d.arancel?.detalle || '').trim().toLowerCase() === (t.tratamiento || '').trim().toLowerCase());
                 if (det) {
                     basePrice = Number(det.precioUnitario) * Number(det.cantidad);
-                    if (discount < 0.01 && det.descuento) discount = Number(det.descuento);
                 }
             }
 

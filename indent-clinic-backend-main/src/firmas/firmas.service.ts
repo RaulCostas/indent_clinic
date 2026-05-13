@@ -272,13 +272,33 @@ export class FirmasService {
             `);
             console.log(`[Migration] Recetas migrated.`);
 
-            // 4. Migrate Historia Clinica
-            console.log('[Migration] Migrating Historia Clinica...');
+            // 2. Migrate Historia Clinica signatures to Pacientes (Fallback for deleted HC table)
+            console.log('[Migration] Migrating HC signatures to Pacientes (Fallback)...');
+            await this.firmaRepository.query(`
+                UPDATE pacientes
+                SET "firmaFC" = fd."firmaData"
+                FROM firmas_digitales fd
+                WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = pacientes.id
+                AND (pacientes."firmaFC" IS NULL OR pacientes."firmaFC" = '');
+            `);
+
+            // 3. Migrate Historia Clinica signatures to current HC table (Normal join)
+            console.log('[Migration] Migrating to Historia Clinica table...');
             await this.firmaRepository.query(`
                 UPDATE historia_clinica
                 SET "firmaPaciente" = fd."firmaData"
                 FROM firmas_digitales fd
                 WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = historia_clinica.id
+                AND (historia_clinica."firmaPaciente" IS NULL OR historia_clinica."firmaPaciente" = '');
+            `);
+            
+            // 4. Try to link HC signatures to HC table via Paciente ID if ID doesn't match directly
+            // (Only for records where firmaPaciente is still null)
+            await this.firmaRepository.query(`
+                UPDATE historia_clinica
+                SET "firmaPaciente" = fd."firmaData"
+                FROM firmas_digitales fd
+                WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = historia_clinica."pacienteId"
                 AND (historia_clinica."firmaPaciente" IS NULL OR historia_clinica."firmaPaciente" = '');
             `);
             console.log(`[Migration] Historia Clinica migrated.`);

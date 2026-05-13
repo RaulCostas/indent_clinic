@@ -1,4 +1,5 @@
 import 'dotenv/config'; // Cargar variables de entorno
+import * as fs from 'fs';
 import { NestFactory } from '@nestjs/core'; // Force Rebuild 3
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -10,8 +11,13 @@ import { join } from 'path';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
-  // Serve static files from uploads directory
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+  // Serve static files from persistent disk if available, otherwise local uploads
+  const uploadDir = (fs.existsSync('/data') && process.platform !== 'win32') 
+    ? '/data' 
+    : join(process.cwd(), 'uploads');
+    
+  console.log(`[Main] Serving static assets from: ${uploadDir}`);
+  app.useStaticAssets(uploadDir, {
     prefix: '/uploads/',
   });
 

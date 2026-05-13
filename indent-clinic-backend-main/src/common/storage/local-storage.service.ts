@@ -5,9 +5,18 @@ import * as path from 'path';
 @Injectable()
 export class LocalStorageService {
   private readonly logger = new Logger(LocalStorageService.name);
-  private readonly uploadDir = path.join(process.cwd(), 'uploads');
+  private readonly uploadDir: string;
 
   constructor() {
+    // Priority: /data (Render Persistent Disk) -> uploads (local)
+    if (fs.existsSync('/data') && process.platform !== 'win32') {
+      this.uploadDir = '/data';
+      this.logger.log(`[LocalStorageService] Using persistent disk at ${this.uploadDir}`);
+    } else {
+      this.uploadDir = path.join(process.cwd(), 'uploads');
+      this.logger.log(`[LocalStorageService] Using local directory at ${this.uploadDir}`);
+    }
+
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }

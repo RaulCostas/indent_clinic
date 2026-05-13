@@ -9,6 +9,7 @@ import { UpdatePacienteDto } from './dto/update-paciente.dto';
 import { getBoliviaDate } from '../common/utils/date.utils';
 
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 
 @Injectable()
 export class PacientesService {
@@ -16,6 +17,7 @@ export class PacientesService {
         @InjectRepository(Paciente)
         private pacientesRepository: Repository<Paciente>,
         private readonly storageService: SupabaseStorageService,
+        private readonly localStorageService: LocalStorageService,
     ) { }
     
     private formatPhoneNumber(celular: string): string {
@@ -114,16 +116,20 @@ export class PacientesService {
         createPacienteDto.paterno = (createPacienteDto.paterno || '').trim();
         createPacienteDto.materno = (createPacienteDto.materno || '').trim();
 
-        // Handle Signature (Upload to Supabase if Base64)
+        // Handle Signature (Upload to Supabase if Base64, fallback to local storage)
         if (createPacienteDto.firmaFC && createPacienteDto.firmaFC.startsWith('data:image')) {
-            try {
-                createPacienteDto.firmaFC = await this.storageService.uploadBase64(
-                    'clinica-media', 
-                    `signature-fc-${Date.now()}`, 
-                    createPacienteDto.firmaFC
-                );
-            } catch (error) {
-                console.warn('[PacientesService] Supabase upload failed, saving as Base64:', error.message);
+            const bucket = 'clinica-media';
+            const fileName = `signature-fc-${Date.now()}`;
+            
+            if (this.storageService.isConfigured()) {
+                try {
+                    createPacienteDto.firmaFC = await this.storageService.uploadBase64(bucket, fileName, createPacienteDto.firmaFC);
+                } catch (error) {
+                    console.warn('[PacientesService] Supabase upload failed, falling back to local storage:', error.message);
+                    createPacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, createPacienteDto.firmaFC);
+                }
+            } else {
+                createPacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, createPacienteDto.firmaFC);
             }
         }
 
@@ -272,16 +278,20 @@ export class PacientesService {
             await this.checkDuplicateName(currentNombre, currentPaterno, currentMaterno, currentClinicaId, id);
         }
 
-        // Handle Signature update
+        // Handle Signature update (Upload to Supabase if Base64, fallback to local storage)
         if (updatePacienteDto.firmaFC && updatePacienteDto.firmaFC.startsWith('data:image')) {
-            try {
-                updatePacienteDto.firmaFC = await this.storageService.uploadBase64(
-                    'clinica-media', 
-                    `signature-fc-${id}-${Date.now()}`, 
-                    updatePacienteDto.firmaFC
-                );
-            } catch (error) {
-                console.warn('[PacientesService] Supabase upload failed during update:', error.message);
+            const bucket = 'clinica-media';
+            const fileName = `signature-fc-${id}-${Date.now()}`;
+
+            if (this.storageService.isConfigured()) {
+                try {
+                    updatePacienteDto.firmaFC = await this.storageService.uploadBase64(bucket, fileName, updatePacienteDto.firmaFC);
+                } catch (error) {
+                    console.warn('[PacientesService] Supabase upload failed during update, falling back to local storage:', error.message);
+                    updatePacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, updatePacienteDto.firmaFC);
+                }
+            } else {
+                updatePacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, updatePacienteDto.firmaFC);
             }
         }
 
@@ -538,7 +548,12 @@ export class PacientesService {
         }
 
         try {
-            const base64 = await this.storageService.downloadAsBase64('clinica-media', paciente.firmaFC);
+            let base64 = '';
+            if (paciente.firmaFC.includes('supabase') || (this.storageService.isConfigured() && !paciente.firmaFC.includes('localhost') && !paciente.firmaFC.includes('127.0.0.1'))) {
+                base64 = await this.storageService.downloadAsBase64('clinica-media', paciente.firmaFC);
+            } else {
+                base64 = await this.localStorageService.downloadAsBase64('clinica-media', paciente.firmaFC);
+            }
             return { base64 };
         } catch (error) {
             console.error('[PacientesService] Error downloading signature:', error);

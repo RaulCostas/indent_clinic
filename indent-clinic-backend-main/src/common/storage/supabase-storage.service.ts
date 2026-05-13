@@ -17,6 +17,10 @@ export class SupabaseStorageService {
     }
   }
 
+  isConfigured(): boolean {
+    return !!this.supabase;
+  }
+
   private sanitizePath(path: string): string {
     return path
       .toLowerCase()
@@ -28,11 +32,12 @@ export class SupabaseStorageService {
 
   async uploadFile(bucket: string, fullPath: string, fileBuffer: Buffer, contentType: string): Promise<string> {
     const cleanPath = this.sanitizePath(fullPath);
-    this.logger.log(`[SupabaseStorageService] Uploading to ${bucket}/${cleanPath}...`);
+    const keyType = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON/OTHER';
+    this.logger.log(`[SupabaseStorageService] Uploading to ${bucket}/${cleanPath} (Key Type: ${keyType})...`);
     
     if (!this.supabase) {
       this.logger.error('[SupabaseStorageService] Supabase client is not initialized!');
-      throw new Error('Supabase client not initialized');
+      throw new Error('Supabase client not initialized. Check SUPABASE_URL and SUPABASE_KEY.');
     }
 
     const { data, error } = await this.supabase.storage
@@ -42,6 +47,15 @@ export class SupabaseStorageService {
     if (error) {
       this.logger.error(`Error uploading to Supabase (${bucket}/${cleanPath}): ${error.message}`);
       this.logger.warn('[SupabaseStorageService] Error details:', JSON.stringify(error, null, 2));
+      
+      if ((error as any).status === 404 || error.message.includes('not found')) {
+          this.logger.error(`[SupabaseStorageService] BUCKET "${bucket}" NOT FOUND! Ensure it exists in Supabase.`);
+      }
+      
+      if ((error as any).status === 403 || error.message.includes('permission')) {
+          this.logger.error(`[SupabaseStorageService] PERMISSION DENIED! Ensure you are using the SERVICE_ROLE_KEY or bucket policies allow uploads.`);
+      }
+
       throw error;
     }
 

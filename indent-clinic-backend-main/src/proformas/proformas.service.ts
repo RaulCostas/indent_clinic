@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { CreateProformaDto } from './dto/create-proforma.dto';
@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { HistoriaClinica } from '../historia_clinica/entities/historia_clinica.entity';
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 import { getBoliviaDate } from '../common/utils/date.utils';
 import { Paciente } from '../pacientes/entities/paciente.entity';
 
@@ -28,6 +29,7 @@ export class ProformasService {
     private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
     private readonly storageService: SupabaseStorageService,
+    private readonly localStorageService: LocalStorageService,
     @Inject(forwardRef(() => ChatbotService))
     private readonly chatbotService: ChatbotService,
   ) { }
@@ -60,17 +62,20 @@ export class ProformasService {
         ? createProformaDto.fecha.split('T')[0]
         : getBoliviaDate();
 
-      // Handle Signature (Upload to Supabase if Base64)
+      // Handle Signature (Upload to Supabase if Base64, fallback to local storage)
       if (createProformaDto['firma'] && createProformaDto['firma'].startsWith('data:image')) {
-        try {
-          proforma.firma = await this.storageService.uploadBase64(
-            'clinica-media', 
-            `signature-proforma-${Date.now()}`, 
-            createProformaDto['firma']
-          );
-        } catch (error) {
-          console.warn('[ProformasService] Supabase upload failed, saving as Base64:', error.message);
-          proforma.firma = createProformaDto['firma'];
+        const bucket = 'clinica-media';
+        const fileName = `signature-proforma-${Date.now()}`;
+        
+        if (this.storageService.isConfigured()) {
+          try {
+            proforma.firma = await this.storageService.uploadBase64(bucket, fileName, createProformaDto['firma']);
+          } catch (error) {
+            console.warn('[ProformasService] Supabase upload failed, falling back to local storage:', error.message);
+            proforma.firma = await this.localStorageService.uploadBase64(bucket, fileName, createProformaDto['firma']);
+          }
+        } else {
+          proforma.firma = await this.localStorageService.uploadBase64(bucket, fileName, createProformaDto['firma']);
         }
       }
 
@@ -181,17 +186,20 @@ export class ProformasService {
       if (updateProformaDto.total !== undefined) proforma.total = updateProformaDto.total;
       if (updateProformaDto.clinicaId !== undefined) proforma.clinicaId = updateProformaDto.clinicaId;
 
-      // Handle Signature update
+      // Handle Signature update (Upload to Supabase if Base64, fallback to local storage)
       if (updateProformaDto['firma'] && updateProformaDto['firma'].startsWith('data:image')) {
-        try {
-          proforma.firma = await this.storageService.uploadBase64(
-            'clinica-media', 
-            `signature-proforma-${id}-${Date.now()}`, 
-            updateProformaDto['firma']
-          );
-        } catch (error) {
-          console.warn('[ProformasService] Supabase upload failed during update:', error.message);
-          proforma.firma = updateProformaDto['firma'];
+        const bucket = 'clinica-media';
+        const fileName = `signature-proforma-${id}-${Date.now()}`;
+
+        if (this.storageService.isConfigured()) {
+          try {
+            proforma.firma = await this.storageService.uploadBase64(bucket, fileName, updateProformaDto['firma']);
+          } catch (error) {
+            console.warn('[ProformasService] Supabase upload failed during update, falling back to local storage:', error.message);
+            proforma.firma = await this.localStorageService.uploadBase64(bucket, fileName, updateProformaDto['firma']);
+          }
+        } else {
+          proforma.firma = await this.localStorageService.uploadBase64(bucket, fileName, updateProformaDto['firma']);
         }
       } else if (updateProformaDto['firma'] !== undefined) {
         proforma.firma = updateProformaDto['firma'];
@@ -275,17 +283,39 @@ export class ProformasService {
   async uploadImage(proformaId: number, filename: string, buffer: Buffer, mimetype: string, descripcion?: string) {
     const proforma = await this.findOne(proformaId);
     
-    // Upload to Supabase
+    let publicUrl = '';
     const bucket = 'clinica-media';
-    const path = `proformas/${proformaId}/${Date.now()}-${filename}`;
-    const publicUrl = await this.storageService.uploadFile(bucket, path, buffer, mimetype);
+    const filePath = `proformas/${proformaId}/${Date.now()}-${filename}`;
 
-    const imagen = new ProformaImagen();
-    imagen.proforma = proforma;
-    imagen.nombre_archivo = filename;
-    imagen.ruta = publicUrl;
-    imagen.descripcion = descripcion || '';
-    return this.imagenRepository.save(imagen);
+    if (this.storageService.isConfigured()) {
+      try {
+        publicUrl = await this.storageService.uploadFile(bucket, filePath, buffer, mimetype);
+      } catch (error) {
+        console.error(`[ProformasService] Supabase upload failed for file ${filename}:`, error.message);
+        if (error.stack) console.error(error.stack);
+        
+        console.warn('[ProformasService] Falling back to local storage...');
+        publicUrl = await this.localStorageService.uploadFile(bucket, filePath, buffer);
+      }
+    } else {
+      console.log('[ProformasService] Supabase not configured, using local storage.');
+      publicUrl = await this.localStorageService.uploadFile(bucket, filePath, buffer);
+    }
+
+    try {
+      const imagen = new ProformaImagen();
+      imagen.proforma = proforma;
+      imagen.nombre_archivo = filename;
+      imagen.ruta = publicUrl;
+      imagen.descripcion = descripcion || '';
+      const saved = await this.imagenRepository.save(imagen);
+      console.log(`[ProformasService] Image saved to database with ID: ${saved.id}`);
+      return saved;
+    } catch (dbError) {
+      console.error('[ProformasService] Error saving image to database:', dbError.message);
+      if (dbError.stack) console.error(dbError.stack);
+      throw new BadRequestException(`Error al registrar la imagen en la base de datos: ${dbError.message}`);
+    }
   }
 
   async getImages(proformaId: number) {
@@ -299,8 +329,16 @@ export class ProformasService {
     const imagen = await this.imagenRepository.findOne({ where: { id } });
     if (!imagen) throw new NotFoundException('Imagen no encontrada');
 
-    // Remove from Supabase
-    await this.storageService.deleteFile('clinica-media', imagen.ruta);
+    // Remove from storage
+    if (imagen.ruta.includes('supabase') || (this.storageService.isConfigured() && !imagen.ruta.includes('localhost'))) {
+      try {
+        await this.storageService.deleteFile('clinica-media', imagen.ruta);
+      } catch (error) {
+        console.warn('[ProformasService] Error deleting from Supabase:', error.message);
+      }
+    } else {
+      await this.localStorageService.deleteFile('clinica-media', imagen.ruta);
+    }
 
     return this.imagenRepository.remove(imagen);
   }
@@ -344,7 +382,12 @@ export class ProformasService {
     }
 
     try {
-        const base64 = await this.storageService.downloadAsBase64('clinica-media', proforma.firma);
+        let base64 = '';
+        if (proforma.firma.includes('supabase') || (this.storageService.isConfigured() && !proforma.firma.includes('localhost') && !proforma.firma.includes('127.0.0.1'))) {
+            base64 = await this.storageService.downloadAsBase64('clinica-media', proforma.firma);
+        } else {
+            base64 = await this.localStorageService.downloadAsBase64('clinica-media', proforma.firma);
+        }
         return { base64 };
     } catch (error) {
         console.error('[ProformasService] Error downloading signature:', error);

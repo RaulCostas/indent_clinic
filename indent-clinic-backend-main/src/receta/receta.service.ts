@@ -5,6 +5,7 @@ import { Receta } from './entities/receta.entity';
 import { RecetaDetalle } from './entities/receta-detalle.entity';
 
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 
 @Injectable()
 export class RecetaService {
@@ -14,22 +15,27 @@ export class RecetaService {
         @InjectRepository(RecetaDetalle)
         private detalleRepository: Repository<RecetaDetalle>,
         private readonly storageService: SupabaseStorageService,
+        private readonly localStorageService: LocalStorageService,
     ) { }
 
     async create(createRecetaDto: any) {
         // Extract detalles from DTO
         const { detalles, ...recetaData } = createRecetaDto;
 
-        // Handle Signature (Upload to Supabase if Base64)
+        // Handle Signature (Upload to Supabase if Base64, fallback to local storage)
         if (recetaData.firma && recetaData.firma.startsWith('data:image')) {
-            try {
-                recetaData.firma = await this.storageService.uploadBase64(
-                    'clinica-media', 
-                    `signature-receta-${Date.now()}`, 
-                    recetaData.firma
-                );
-            } catch (error) {
-                console.warn('[RecetaService] Supabase upload failed, saving as Base64:', error.message);
+            const bucket = 'clinica-media';
+            const fileName = `signature-receta-${Date.now()}`;
+            
+            if (this.storageService.isConfigured()) {
+                try {
+                    recetaData.firma = await this.storageService.uploadBase64(bucket, fileName, recetaData.firma);
+                } catch (error) {
+                    console.warn('[RecetaService] Supabase upload failed, falling back to local storage:', error.message);
+                    recetaData.firma = await this.localStorageService.uploadBase64(bucket, fileName, recetaData.firma);
+                }
+            } else {
+                recetaData.firma = await this.localStorageService.uploadBase64(bucket, fileName, recetaData.firma);
             }
         }
 
@@ -82,16 +88,20 @@ export class RecetaService {
     }
 
     async update(id: number, updateRecetaDto: any) {
-        // Handle Signature update
+        // Handle Signature update (Upload to Supabase if Base64, fallback to local storage)
         if (updateRecetaDto.firma && updateRecetaDto.firma.startsWith('data:image')) {
-            try {
-                updateRecetaDto.firma = await this.storageService.uploadBase64(
-                    'clinica-media', 
-                    `signature-receta-${id}-${Date.now()}`, 
-                    updateRecetaDto.firma
-                );
-            } catch (error) {
-                console.warn('[RecetaService] Supabase upload failed during update:', error.message);
+            const bucket = 'clinica-media';
+            const fileName = `signature-receta-${id}-${Date.now()}`;
+
+            if (this.storageService.isConfigured()) {
+                try {
+                    updateRecetaDto.firma = await this.storageService.uploadBase64(bucket, fileName, updateRecetaDto.firma);
+                } catch (error) {
+                    console.warn('[RecetaService] Supabase upload failed during update, falling back to local storage:', error.message);
+                    updateRecetaDto.firma = await this.localStorageService.uploadBase64(bucket, fileName, updateRecetaDto.firma);
+                }
+            } else {
+                updateRecetaDto.firma = await this.localStorageService.uploadBase64(bucket, fileName, updateRecetaDto.firma);
             }
         }
 
@@ -125,7 +135,12 @@ export class RecetaService {
         }
 
         try {
-            const base64 = await this.storageService.downloadAsBase64('clinica-media', receta.firma);
+            let base64 = '';
+            if (receta.firma.includes('supabase') || (this.storageService.isConfigured() && !receta.firma.includes('localhost') && !receta.firma.includes('127.0.0.1'))) {
+                base64 = await this.storageService.downloadAsBase64('clinica-media', receta.firma);
+            } else {
+                base64 = await this.localStorageService.downloadAsBase64('clinica-media', receta.firma);
+            }
             return { base64 };
         } catch (error) {
             console.error('[RecetaService] Error downloading signature:', error);

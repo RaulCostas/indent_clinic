@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Res, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, Res, Query, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProformasService } from './proformas.service';
 import { CreateProformaDto } from './dto/create-proforma.dto';
@@ -47,14 +47,23 @@ export class ProformasController {
   }
 
   @Post(':id/send-whatsapp')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024 }
+  }))
   async sendWhatsApp(@Param('id') id: string, @UploadedFile() file: any) {
     return this.proformasService.sendWhatsApp(+id, file.buffer);
   }
 
   @Post(':id/imagenes')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  }))
   async uploadImage(@Param('id') id: string, @UploadedFile() file: any, @Body('descripcion') descripcion?: string) {
+    if (!file) {
+      console.error(`[ProformasController] No file received for proforma #${id}`);
+      throw new BadRequestException('No se recibió ninguna imagen');
+    }
+    console.log(`[ProformasController] Uploading image for proforma #${id}: ${file.originalname} (${file.size} bytes)`);
     return this.proformasService.uploadImage(+id, file.originalname, file.buffer, file.mimetype, descripcion);
   }
 

@@ -225,7 +225,7 @@ export class PacientesService {
             const patientIds = data.map(p => p.id);
             // Check BOTH the new column AND the old table for backward compatibility during migration
             const signatures = await this.pacientesRepository.query(
-                `SELECT "documentoId" FROM firmas_digitales WHERE "tipoDocumento" = 'paciente' AND "documentoId" IN (${patientIds.join(',')})`
+                `SELECT "documentoId" FROM firmas_digitales WHERE "tipoDocumento" = 'paciente' AND "firmaData" != '' AND "documentoId" IN (${patientIds.join(',')})`
             );
             const signedIdsInOldTable = new Set(signatures.map((s: any) => s.documentoId));
             
@@ -242,7 +242,10 @@ export class PacientesService {
     }
 
     async findOne(id: number): Promise<Paciente> {
-        const paciente = await this.pacientesRepository.findOne({ where: { id }, relations: ['fichaMedica'] });
+        const paciente = await this.pacientesRepository.findOne({ 
+            where: { id }, 
+            relations: ['fichaMedica', 'historiaClinica'] 
+        });
         if (!paciente) {
             throw new Error('Paciente not found');
         }

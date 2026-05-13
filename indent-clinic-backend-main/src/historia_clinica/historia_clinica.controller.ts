@@ -71,6 +71,11 @@ export class HistoriaClinicaController {
         return this.historiaClinicaService.remove(+id);
     }
 
+    @Get(':id/firma-base64')
+    getFirmaBase64(@Param('id') id: string) {
+        return this.historiaClinicaService.getFirmaBase64(+id);
+    }
+
     @Post('send-whatsapp/:pacienteId/:proformaId')
     async sendWhatsApp(
         @Param('pacienteId') pacienteId: string,

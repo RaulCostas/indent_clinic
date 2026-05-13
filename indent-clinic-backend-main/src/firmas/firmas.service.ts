@@ -346,5 +346,43 @@ export class FirmasService {
             console.error('[Migration] Failed to setup database:', error.message);
             throw new BadRequestException(`Setup failed: ${error.message}`);
         }
+    async migrateToBase64() {
+        const queryRunner = this.firmasRepository.manager.connection.createQueryRunner();
+        await queryRunner.connect();
+        
+        const signatures = await queryRunner.query(`
+            SELECT id, "tipoDocumento", "documentoId", "firmaData" 
+            FROM firmas_digitales 
+            WHERE "firmaData" LIKE 'https%'
+        `);
+
+        let count = 0;
+        const axios = require('axios');
+
+        for (const f of signatures) {
+            try {
+                const res = await axios.get(f.firmaData, { responseType: 'arraybuffer' });
+                const base64 = `data:${res.headers['content-type']};base64,${Buffer.from(res.data).toString('base64')}`;
+                
+                // Update main table
+                await queryRunner.query('UPDATE firmas_digitales SET "firmaData" = $1 WHERE id = $2', [base64, f.id]);
+                
+                // Sync with modules
+                if (f.tipoDocumento === 'paciente') {
+                    await queryRunner.query('UPDATE pacientes SET "firmaFC" = $1 WHERE id = $2', [base64, f.documentoId]);
+                } else if (f.tipoDocumento === 'proforma' || f.tipoDocumento === 'presupuesto') {
+                    await queryRunner.query('UPDATE proformas SET "firma" = $1 WHERE id = $2', [base64, f.documentoId]);
+                } else if (f.tipoDocumento === 'receta') {
+                    await queryRunner.query('UPDATE receta SET "firma" = $1 WHERE id = $2', [base64, f.documentoId]);
+                } else if (f.tipoDocumento === 'historia_clinica') {
+                    await queryRunner.query('UPDATE historia_clinica SET "firmaPaciente" = $1 WHERE id = $2', [base64, f.documentoId]);
+                }
+                count++;
+            } catch (e) {
+                console.error(`Error migrating signature ${f.id}:`, e.message);
+            }
+        }
+        await queryRunner.release();
+        return { message: 'Migración completada', total: signatures.length, convertidas: count };
     }
 }

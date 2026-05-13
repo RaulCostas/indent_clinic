@@ -26,6 +26,18 @@ export class HistoriaClinicaService {
         private readonly storageService: SupabaseStorageService,
     ) { }
 
+    async getFirmaBase64(id: number): Promise<{ base64: string }> {
+        const hc = await this.historiaClinicaRepository.findOne({ where: { id } });
+        if (!hc || !hc.firmaPaciente) {
+            throw new NotFoundException('Firma no encontrada');
+        }
+        if (hc.firmaPaciente.startsWith('data:image')) {
+            return { base64: hc.firmaPaciente };
+        }
+        const base64 = await this.storageService.downloadAsBase64('clinica-media', hc.firmaPaciente);
+        return { base64 };
+    }
+
     async create(createDto: CreateHistoriaClinicaDto): Promise<HistoriaClinica> {
         if (createDto.firmaPaciente && createDto.firmaPaciente.startsWith('data:image')) {
             try {

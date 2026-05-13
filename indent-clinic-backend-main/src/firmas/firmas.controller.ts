@@ -21,6 +21,11 @@ export class FirmasController {
      * Get all signatures for a document
      * GET /firmas/documento/:tipo/:id
      */
+    @Get('migrar-base64')
+    migrate() {
+        return this.firmasService.migrateToBase64();
+    }
+
     @Get('documento/:tipo/:id')
     findByDocumento(
         @Param('tipo') tipo: string,

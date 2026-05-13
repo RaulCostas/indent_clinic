@@ -96,4 +96,9 @@ export class FirmasController {
     async runMigration() {
         return this.firmasService.runMigration();
     }
+
+    @Get('migrate/stats')
+    async getMigrationStats() {
+        return this.firmasService.getMigrationStats();
+    }
 }

@@ -203,6 +203,18 @@ export class FirmasService {
     /**
      * Run the database migration to copy signatures to entities
      */
+    async getMigrationStats() {
+        const counts = await this.firmaRepository.query(`
+            SELECT 
+                (SELECT COUNT(*) FROM firmas_digitales) as total_firmas,
+                (SELECT COUNT(*) FROM pacientes WHERE "firmaFC" IS NOT NULL) as pacientes_migrados,
+                (SELECT COUNT(*) FROM proformas WHERE "firma" IS NOT NULL) as proformas_migradas,
+                (SELECT COUNT(*) FROM receta WHERE "firma" IS NOT NULL) as recetas_migradas,
+                (SELECT COUNT(*) FROM historia_clinica WHERE "firmaPaciente" IS NOT NULL) as hc_migradas
+        `);
+        return counts[0];
+    }
+
     async runMigration() {
         console.log('[Migration] Starting signature migration...');
         

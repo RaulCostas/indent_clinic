@@ -303,7 +303,30 @@ const PresupuestoList: React.FC = () => {
             console.error('Error fetching signatures for PDF:', error);
         }
 
-        const patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente');
+        let patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente');
+        
+        // Fallback: If no budget signature, use patient's general consent signature (firmaFC)
+        if (!patientSignature && paciente && paciente.firmaFC) {
+            patientSignature = {
+                firmaData: paciente.firmaFC,
+                rolFirmante: 'paciente'
+            };
+        }
+
+        if (patientSignature && patientSignature.firmaData && !patientSignature.firmaData.startsWith('data:image')) {
+            // Use proxy based on whether it's a legacy signature with ID or a direct patient signature
+            try {
+                if (patientSignature.id) {
+                    const proxyRes = await api.get<{ base64: string }>(`/firmas/${patientSignature.id}/base64`);
+                    patientSignature.firmaData = proxyRes.data.base64;
+                } else if (paciente?.id) {
+                    const proxyRes = await api.get<{ base64: string }>(`/pacientes/${paciente.id}/firma-base64`);
+                    patientSignature.firmaData = proxyRes.data.base64;
+                }
+            } catch (e) {
+                console.error('Error loading patient signature via proxy:', e);
+            }
+        }
         
         // Use legacy clinic signature only if direct one was not found
         const legacyClinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
@@ -317,34 +340,6 @@ const PresupuestoList: React.FC = () => {
                 console.error('Error loading legacy proforma signature via proxy:', e);
             }
         }
-
-
-
-        // [Same Date/Salutation/Table Logic - lines 131-216 are unchanged, but I need to be careful not to delete them if I'm not replacing them. 
-        // Wait, replace_file_content needs me to replace the function definition if I change the signature.
-        // I'll start the replacement at the function definition line.]
-
-        // ... (I will reuse the existing logic but I need to provide the full function or a chunk).
-        // It's a large function (lines 128-299).
-        // I will do two edits.
-        // 1. Update signature and Payment System logic.
-        // 2. Update the buttons in the table.
-
-        // This tool call is for step 1: Update signature and logic? 
-        // No, I can't easily change signature without rewriting the whole function body in replace_file_content or using specific targeted replaces if possible.
-        // I'll change the signature first.
-
-        // Actually, I'll update the whole `generatePDF` opening and the specific section 7.
-        // But `replace_file_content` works best with contiguous blocks.
-        // Use `multi_replace_file_content`? I don't have that tool enabled for me? I do! `multi_replace_file_content`.
-        // Ah, checked tools... yes I have `multi_replace_file_content`.
-
-        // I will use `replace_file_content` for the signature change and payment section?
-        // No, signature is line 128. Section 7 is line 256. They are far apart.
-        // I'll use `multi_replace_file_content`.
-
-
-
         // 1. Header (Logo)
         try {
             const logoSrc = clinicaActual?.logo || '';

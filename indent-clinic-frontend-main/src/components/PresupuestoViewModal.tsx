@@ -98,12 +98,57 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
         return totalCompleted >= (detalle.cantidad || 1);
     };
 
-    const patientSignature = firmas.find((f: any) => f.rolFirmante === 'paciente')?.firmaData || historySignature;
-    const clinicSignatureData = firmas.find((f: any) =>
-        f.rolFirmante === 'doctor' || f.rolFirmante === 'personal' || f.rolFirmante === 'administrador'
-    );
-    const clinicSignature = clinicSignatureData?.firmaData;
-    const clinicName = clinicSignatureData ? `${clinicSignatureData.usuario?.name || clinicSignatureData.usuario?.nombre || ''} ${clinicSignatureData.usuario?.apellido || ''}`.trim() : null;
+    const [patientSignature, setPatientSignature] = useState<string | null>(null);
+    const [clinicSignature, setClinicSignature] = useState<string | null>(null);
+    const [clinicName, setClinicName] = useState<string | null>(null);
+
+    // Signature resolution
+    useEffect(() => {
+        const resolveSignatures = async () => {
+            let pSig = firmas.find((f: any) => f.rolFirmante === 'paciente')?.firmaData || historySignature;
+            let cSigData = firmas.find((f: any) =>
+                f.rolFirmante === 'doctor' || f.rolFirmante === 'personal' || f.rolFirmante === 'administrador'
+            );
+            let cSig = cSigData?.firmaData;
+            
+            // Resolve Patient Signature
+            if (pSig && !pSig.startsWith('data:image')) {
+                const fItem = firmas.find((f: any) => f.rolFirmante === 'paciente');
+                if (fItem?.id) {
+                    try {
+                        const res = await api.get<{ base64: string }>(`/firmas/${fItem.id}/base64`);
+                        pSig = res.data.base64;
+                    } catch (e) { console.error(e); }
+                } else if (proformaId) {
+                    // Fallback to proforma proxy if it's the main signature
+                    try {
+                        const res = await api.get<{ base64: string }>(`/proformas/${proformaId}/firma-base64`);
+                        pSig = res.data.base64;
+                    } catch (e) { console.error(e); }
+                }
+            }
+
+            // Resolve Clinic Signature
+            if (cSig && !cSig.startsWith('data:image') && cSigData?.id) {
+                try {
+                    const res = await api.get<{ base64: string }>(`/firmas/${cSigData.id}/base64`);
+                    cSig = res.data.base64;
+                } catch (e) { console.error(e); }
+            }
+
+            setPatientSignature(pSig);
+            setClinicSignature(cSig);
+            setClinicName(cSigData ? `${cSigData.usuario?.name || cSigData.usuario?.nombre || ''} ${cSigData.usuario?.apellido || ''}`.trim() : null);
+        };
+
+        if (firmas.length > 0 || historySignature) {
+            resolveSignatures();
+        } else {
+            setPatientSignature(null);
+            setClinicSignature(null);
+            setClinicName(null);
+        }
+    }, [firmas, historySignature, proformaId]);
 
     return (
         <div

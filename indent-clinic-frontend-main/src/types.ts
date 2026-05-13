@@ -258,6 +258,7 @@ export interface Paciente {
     clinica?: Clinica;
     tieneFirmaFC?: boolean;
     firmaFC?: string;
+    historiaClinica?: HistoriaClinica[];
 }
 
 export interface PersonalTipo {

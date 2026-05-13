@@ -240,8 +240,41 @@ const HistoriaClinica: React.FC = () => {
 
         // Table
         if (filteredHistoria.length > 0) {
+            // Pre-process signatures to Base64 (including legacy fallback)
+            const processedHistoria = await Promise.all(filteredHistoria.map(async (item) => {
+                let sign = item.firmaPaciente;
+
+                // 1. If no direct signature, try to find it in legacy table
+                if (!sign) {
+                    try {
+                        const legacyRes = await api.get(`/firmas/documento/historia_clinica/${item.id}`);
+                        const signatures = Array.isArray(legacyRes.data) ? legacyRes.data : [];
+                        const pSig = signatures.find(s => s.rolFirmante === 'paciente');
+                        if (pSig && pSig.firmaData) {
+                            sign = pSig.firmaData;
+                            // If legacy is a URL, use proxy
+                            if (sign && !sign.startsWith('data:image') && pSig.id) {
+                                const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
+                                sign = proxyRes.data.base64;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Could not fetch legacy signature for HC #${item.id}`);
+                    }
+                } else if (sign && !sign.startsWith('data:image')) {
+                    // 2. If it is a direct URL signature, use proxy
+                    try {
+                        const res = await api.get<{ base64: string }>(`/historia-clinica/${item.id}/firma-base64`);
+                        sign = res.data.base64;
+                    } catch (e) {
+                        console.error(`Error loading signature for HC #${item.id}:`, e);
+                    }
+                }
+                return { ...item, firmaPaciente: sign || null };
+            }));
+
             const tableColumn = ["Fecha", "Pieza", "Tratamiento", "Observaciones", "Cant.", "Doctor", "Diagnóstico", "Estado", "Firma"];
-            const tableRows = filteredHistoria.map(item => [
+            const tableRows = processedHistoria.map(item => [
                 formatDate(item.fecha),
                 item.pieza || '-',
                 item.tratamiento || '-',
@@ -289,7 +322,7 @@ const HistoriaClinica: React.FC = () => {
                 },
                 didParseCell: (data) => {
                     if (data.section === 'body') {
-                        const item = filteredHistoria[data.row.index];
+                        const item = processedHistoria[data.row.index];
                         if (item.firmaPaciente) {
                             data.row.height = 20; // Set a fixed height for rows with signatures
                         }
@@ -297,7 +330,7 @@ const HistoriaClinica: React.FC = () => {
                 },
                 didDrawCell: (data) => {
                     if (data.section === 'body' && data.column.index === 8) {
-                        const item = filteredHistoria[data.row.index];
+                        const item = processedHistoria[data.row.index];
                         if (item.firmaPaciente) {
                             try {
                                 doc.addImage(item.firmaPaciente, 'PNG', data.cell.x + 2, data.cell.y + 2, data.cell.width - 4, data.cell.height - 4);

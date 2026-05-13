@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { HistoriaClinica } from '../types';
 
+import api from '../services/api';
+
 interface HistoriaClinicaListProps {
     historia: HistoriaClinica[];
     onDelete: (id: number) => void;
@@ -193,8 +195,17 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         <span className="truncate">{item.observaciones || '-'}</span>
                                         {item.firmaPaciente && (
                                             <button
-                                                onClick={() => {
-                                                    setSelectedSignature(item.firmaPaciente!);
+                                                onClick={async () => {
+                                                    let sign = item.firmaPaciente!;
+                                                    if (!sign.startsWith('data:image')) {
+                                                        try {
+                                                            const res = await api.get<{ base64: string }>(`/historia-clinica/${item.id}/firma-base64`);
+                                                            sign = res.data.base64;
+                                                        } catch (e) {
+                                                            console.error('Error loading signature via proxy:', e);
+                                                        }
+                                                    }
+                                                    setSelectedSignature(sign);
                                                     setShowSignatureModal(true);
                                                 }}
                                                 className="text-xs flex items-center gap-1 text-blue-600 hover:text-white dark:text-blue-400 font-semibold bg-blue-50 hover:bg-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-600 px-2 py-0.5 rounded shadow-sm transition-all w-fit"

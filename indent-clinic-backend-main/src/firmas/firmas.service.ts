@@ -215,7 +215,24 @@ export class FirmasService {
         const types = await this.firmaRepository.query(`
             SELECT "tipoDocumento", COUNT(*) as count FROM firmas_digitales GROUP BY "tipoDocumento"
         `);
-        return { counts: counts[0], types };
+        
+        // Check how many HC signatures have a matching HC record
+        const hcMatches = await this.firmaRepository.query(`
+            SELECT COUNT(*) as valid_hc_ids 
+            FROM firmas_digitales fd
+            INNER JOIN historia_clinica hc ON fd."documentoId" = hc.id
+            WHERE fd."tipoDocumento" = 'historia_clinica'
+        `);
+
+        // Check if maybe documentoId is actually pacienteId for HC?
+        const hcMatchesAsPaciente = await this.firmaRepository.query(`
+            SELECT COUNT(*) as valid_paciente_ids_for_hc 
+            FROM firmas_digitales fd
+            INNER JOIN pacientes p ON fd."documentoId" = p.id
+            WHERE fd."tipoDocumento" = 'historia_clinica'
+        `);
+
+        return { counts: counts[0], types, hcMatches: hcMatches[0], hcMatchesAsPaciente: hcMatchesAsPaciente[0] };
     }
 
     async runMigration() {

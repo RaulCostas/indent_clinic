@@ -258,7 +258,9 @@ export class FirmasService {
         } catch (error) {
             console.error('[Migration] Error running migration:', error);
             throw new BadRequestException('Migration failed: ' + error.message);
-        }
+            }
+    }
+
     async setupDb() {
         try {
             console.log('[Migration] Setting up database columns...');

@@ -34,8 +34,8 @@ export class LocalStorageService {
 
     // Return the relative URL to be served by the backend
     const port = process.env.PORT || 3000;
-    const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
-    return `${baseUrl}/uploads/${bucket}/${fullPath}`;
+    const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+    return `${baseUrl}/uploads/${bucket}/${cleanPath}`;
   }
 
   async deleteFile(bucket: string, fileUrl: string): Promise<void> {

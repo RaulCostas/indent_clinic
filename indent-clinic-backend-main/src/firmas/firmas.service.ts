@@ -259,5 +259,38 @@ export class FirmasService {
             console.error('[Migration] Error running migration:', error);
             throw new BadRequestException('Migration failed: ' + error.message);
         }
+    async setupDb() {
+        try {
+            console.log('[Migration] Setting up database columns...');
+            
+            // Add firmaFC to pacientes
+            await this.firmaRepository.query(`
+                ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS "firmaFC" text;
+            `);
+            
+            // Add firma to proformas
+            await this.firmaRepository.query(`
+                ALTER TABLE proformas ADD COLUMN IF NOT EXISTS "firma" text;
+            `);
+            
+            // Add firma to receta
+            await this.firmaRepository.query(`
+                ALTER TABLE receta ADD COLUMN IF NOT EXISTS "firma" text;
+            `);
+            
+            // Add firmaPaciente to historia_clinica (just in case)
+            await this.firmaRepository.query(`
+                ALTER TABLE historia_clinica ADD COLUMN IF NOT EXISTS "firmaPaciente" text;
+            `);
+
+            console.log('[Migration] Database columns ensured.');
+            return {
+                success: true,
+                message: 'Database columns created successfully'
+            };
+        } catch (error) {
+            console.error('[Migration] Failed to setup database:', error.message);
+            throw new BadRequestException(`Setup failed: ${error.message}`);
+        }
     }
 }

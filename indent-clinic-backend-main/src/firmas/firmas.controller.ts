@@ -87,6 +87,11 @@ export class FirmasController {
      * Temporary Migration Endpoint
      * POST /firmas/migrate/run
      */
+    @Post('migrate/setup-db')
+    async setupDb() {
+        return this.firmasService.setupDb();
+    }
+
     @Post('migrate/run')
     async runMigration() {
         return this.firmasService.runMigration();

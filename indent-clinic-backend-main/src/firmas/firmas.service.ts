@@ -212,7 +212,10 @@ export class FirmasService {
                 (SELECT COUNT(*) FROM receta WHERE "firma" IS NOT NULL) as recetas_migradas,
                 (SELECT COUNT(*) FROM historia_clinica WHERE "firmaPaciente" IS NOT NULL) as hc_migradas
         `);
-        return counts[0];
+        const types = await this.firmaRepository.query(`
+            SELECT "tipoDocumento", COUNT(*) as count FROM firmas_digitales GROUP BY "tipoDocumento"
+        `);
+        return { counts: counts[0], types };
     }
 
     async runMigration() {

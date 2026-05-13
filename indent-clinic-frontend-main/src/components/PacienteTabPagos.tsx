@@ -229,23 +229,31 @@ const PacienteTabPagos: React.FC = () => {
             const pf = proformas.find(p => p.id === t.proformaId || (t.proforma && p.id === t.proforma.id));
             
             // BUSCAR PRECIO ROBUSTO:
-            // a) Precio base menos descuento registrado
-            let price = Number(t.precio) - (Number(t.descuento) || 0);
+            let basePrice = Number(t.precio) || 0;
+            let discount = Number(t.descuento) || 0;
             
-            // b) Si el precio resultante es casi 0, PERO no hay descuento, 
-            // buscamos en los detalles de la proforma (por si el precio no se cargó en HC)
-            if (price < 0.01 && (Number(t.descuento) || 0) === 0 && t.proformaDetalleId && pf?.detalles) {
+            // Si el precio base es 0, intentamos recuperarlo de la proforma
+            if (basePrice < 0.01 && t.proformaDetalleId && pf?.detalles) {
                 const det = pf.detalles.find(d => Number(d.id) === Number(t.proformaDetalleId));
                 if (det) {
-                    price = Number(det.total) || (Number(det.precioUnitario) * Number(det.cantidad));
+                    basePrice = Number(det.precioUnitario) * Number(det.cantidad);
+                    // Si el descuento también es 0 en HC, quizás está en la proforma
+                    if (discount < 0.01 && det.descuento) {
+                        discount = Number(det.descuento);
+                    }
                 }
             }
 
-            // c) Si sigue siendo casi 0, intentamos ver si el arancel de la proforma tiene el precio
-            if (price < 0.01 && pf?.detalles) {
+            // Si sigue siendo 0, buscamos por nombre de tratamiento
+            if (basePrice < 0.01 && pf?.detalles) {
                 const det = pf.detalles.find(d => (d.arancel?.detalle || '').trim().toLowerCase() === (t.tratamiento || '').trim().toLowerCase());
-                if (det) price = Number(det.total);
+                if (det) {
+                    basePrice = Number(det.precioUnitario) * Number(det.cantidad);
+                    if (discount < 0.01 && det.descuento) discount = Number(det.descuento);
+                }
             }
+
+            const price = Math.max(0, basePrice - discount);
 
             const allHCIds: number[] = (t.allIds || [t.id]).map((id: any) => Number(id));
             // CALCULO REAL: Solo confiar en el array de pagos del paciente, NO en las columnas montoPagado/saldo del backend

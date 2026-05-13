@@ -8,11 +8,14 @@ import { UpdatePacienteDto } from './dto/update-paciente.dto';
 
 import { getBoliviaDate } from '../common/utils/date.utils';
 
+import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+
 @Injectable()
 export class PacientesService {
     constructor(
         @InjectRepository(Paciente)
         private pacientesRepository: Repository<Paciente>,
+        private readonly storageService: SupabaseStorageService,
     ) { }
     
     private formatPhoneNumber(celular: string): string {
@@ -111,6 +114,19 @@ export class PacientesService {
         createPacienteDto.paterno = (createPacienteDto.paterno || '').trim();
         createPacienteDto.materno = (createPacienteDto.materno || '').trim();
 
+        // Handle Signature (Upload to Supabase if Base64)
+        if (createPacienteDto.firmaFC && createPacienteDto.firmaFC.startsWith('data:image')) {
+            try {
+                createPacienteDto.firmaFC = await this.storageService.uploadBase64(
+                    'clinica-media', 
+                    `signature-fc-${Date.now()}`, 
+                    createPacienteDto.firmaFC
+                );
+            } catch (error) {
+                console.warn('[PacientesService] Supabase upload failed, saving as Base64:', error.message);
+            }
+        }
+
         const paciente = this.pacientesRepository.create(createPacienteDto);
         return await this.pacientesRepository.save(paciente);
     }
@@ -207,12 +223,14 @@ export class PacientesService {
         // Check signatures for these patients
         if (data.length > 0) {
             const patientIds = data.map(p => p.id);
+            // Check BOTH the new column AND the old table for backward compatibility during migration
             const signatures = await this.pacientesRepository.query(
                 `SELECT "documentoId" FROM firmas_digitales WHERE "tipoDocumento" = 'paciente' AND "documentoId" IN (${patientIds.join(',')})`
             );
-            const signedIds = new Set(signatures.map((s: any) => s.documentoId));
+            const signedIdsInOldTable = new Set(signatures.map((s: any) => s.documentoId));
+            
             data.forEach(p => {
-                (p as any).tieneFirmaFC = signedIds.has(p.id);
+                (p as any).tieneFirmaFC = !!p.firmaFC || signedIdsInOldTable.has(p.id);
             });
         }
 
@@ -249,6 +267,19 @@ export class PacientesService {
             await this.checkDuplicateCi(currentCi, currentClinicaId, id);
         } else {
             await this.checkDuplicateName(currentNombre, currentPaterno, currentMaterno, currentClinicaId, id);
+        }
+
+        // Handle Signature update
+        if (updatePacienteDto.firmaFC && updatePacienteDto.firmaFC.startsWith('data:image')) {
+            try {
+                updatePacienteDto.firmaFC = await this.storageService.uploadBase64(
+                    'clinica-media', 
+                    `signature-fc-${id}-${Date.now()}`, 
+                    updatePacienteDto.firmaFC
+                );
+            } catch (error) {
+                console.warn('[PacientesService] Supabase upload failed during update:', error.message);
+            }
         }
 
         if (updatePacienteDto.celular) {
@@ -493,5 +524,22 @@ export class PacientesService {
         });
 
         return monthlyStats;
+    }
+
+    async getFirmaBase64(id: number): Promise<{ base64: string }> {
+        const paciente = await this.findOne(id);
+        if (!paciente.firmaFC) throw new BadRequestException('El paciente no tiene firma registrada');
+
+        if (paciente.firmaFC.startsWith('data:image')) {
+            return { base64: paciente.firmaFC };
+        }
+
+        try {
+            const base64 = await this.storageService.downloadAsBase64('clinica-media', paciente.firmaFC);
+            return { base64 };
+        } catch (error) {
+            console.error('[PacientesService] Error downloading signature:', error);
+            throw new BadRequestException('No se pudo recuperar la imagen de la firma');
+        }
     }
 }

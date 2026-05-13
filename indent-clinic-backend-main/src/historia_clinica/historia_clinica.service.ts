@@ -114,8 +114,20 @@ export class HistoriaClinicaService {
 
         qb.orderBy('hc.fecha', 'ASC');
 
-        const candidatos = await qb.getMany();
-        console.log(`[PAGOS_DOCTORES][${timestamp}] #${candidatos.length} candidatos potenciales de DB.`);
+        const rawCandidatos = await qb.getMany();
+        console.log(`[PAGOS_DOCTORES][${timestamp}] #${rawCandidatos.length} candidatos potenciales de DB.`);
+
+        // Consolidar para evitar duplicados del mismo tratamiento (mismo detalle y pieza)
+        const candidatosMap = new Map<string, HistoriaClinica>();
+        rawCandidatos.forEach(hc => {
+            const key = `${hc.proformaDetalleId || 'null'}-${hc.pieza || 'null'}`;
+            // Mantenemos el primero que encontremos (el más reciente por el orden DESC de la consulta)
+            if (!candidatosMap.has(key)) {
+                candidatosMap.set(key, hc);
+            }
+        });
+
+        const candidatos = Array.from(candidatosMap.values());
 
         const resultados = await Promise.all(candidatos.map(async (hc) => {
             // 1. Verificar si YA se pagó al doctor (en la tabla de detalles)
@@ -379,8 +391,8 @@ export class HistoriaClinicaService {
                     [pId, detId, pieza]
                 );
                 siblingsIds = siblings.map(s => s.id);
-                // El precio objetivo es la suma de los precios registrados para estas piezas específicas
-                targetPrice = siblings.reduce((acc, s) => acc + Number(s.precio || 0), 0);
+                // El precio objetivo es el precio del tratamiento (no la suma, ya que son sesiones del mismo tratamiento en la misma pieza)
+                targetPrice = siblings.length > 0 ? Math.max(...siblings.map(s => Number(s.precio || 0))) : Number(hc.precio || 0);
             }
 
             // 2. Sumar todos los pagos y DESCUENTOS vinculados a cualquiera de estos registros

@@ -80,6 +80,11 @@ export class PacientesController {
         return this.pacientesService.findOne(+id);
     }
 
+    @Get(':id/firma-base64')
+    getFirmaBase64(@Param('id') id: string) {
+        return this.pacientesService.getFirmaBase64(+id);
+    }
+
     @Patch(':id')
     update(@Param('id') id: string, @Body() updatePacienteDto: UpdatePacienteDto) {
         return this.pacientesService.update(+id, updatePacienteDto);

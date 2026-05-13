@@ -188,27 +188,35 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             const { version, isLatest } = await fetchLatestBaileysVersion();
             console.log(`[Chatbot] [Clinic ${clinicId}] [Instance ${instance}] Initializing (WA version: ${version.join('.')}, isLatest: ${isLatest})...`);
 
-            session.sock = makeWASocket({
-                version,
-                logger: pino({ level: 'error' }) as any,
-                auth: {
-                    creds: state.creds,
-                    keys: state.keys,
-                },
-                generateHighQualityLinkPreview: true,
-                browser: [`Clinica ${clinicId} Chatbot ${instance}`, 'Chrome', '1.0.0'],
-                connectTimeoutMs: 60000,
-                defaultQueryTimeoutMs: 60000,
-                keepAliveIntervalMs: 10000,
-                emitOwnEvents: true,
-                retryRequestDelayMs: 250,
-                getMessage: async (key) => {
-                    if (key.id && session.pollStore.has(key.id)) {
-                        return session.pollStore.get(key.id)!.message;
+            try {
+                session.sock = makeWASocket({
+                    version,
+                    logger: pino({ level: 'error' }) as any,
+                    auth: {
+                        creds: state.creds,
+                        keys: state.keys,
+                    },
+                    generateHighQualityLinkPreview: true,
+                    browser: [`Clinica ${clinicId} Chatbot ${instance}`, 'Chrome', '1.0.0'],
+                    connectTimeoutMs: 60000,
+                    defaultQueryTimeoutMs: 60000,
+                    keepAliveIntervalMs: 10000,
+                    emitOwnEvents: true,
+                    retryRequestDelayMs: 250,
+                    getMessage: async (key) => {
+                        if (key.id && session.pollStore.has(key.id)) {
+                            return session.pollStore.get(key.id)!.message;
+                        }
+                        return undefined;
                     }
-                    return undefined;
-                }
-            });
+                });
+            } catch (sockError) {
+                console.error(`[Chatbot] [Clinic ${clinicId}] CRITICAL ERROR creating socket:`, sockError);
+                session.status = 'disconnected';
+                // Try to clear corrupted session data if possible
+                await this.whatsappSessionRepository.delete({ clinicId, instanceNumber: instance, type: 'creds' });
+                return;
+            }
 
             console.log(`[Chatbot] [Clinic ${clinicId}] Socket created. Setting up event listeners...`);
 
@@ -408,8 +416,17 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             where: { clinicId, instanceNumber: instance, type: 'creds' }
         });
 
-        if (sessionCreds) {
-            creds = JSON.parse(JSON.stringify(sessionCreds.data), BufferJSON.reviver);
+        if (sessionCreds && sessionCreds.data) {
+            try {
+                creds = JSON.parse(JSON.stringify(sessionCreds.data), BufferJSON.reviver);
+                if (!creds) {
+                    console.warn(`[Chatbot] [Clinic ${clinicId}] Credentials found but parsed as null. Initializing new ones.`);
+                    creds = initAuthCreds();
+                }
+            } catch (err) {
+                console.error(`[Chatbot] [Clinic ${clinicId}] Failed to parse credentials from DB:`, err);
+                creds = initAuthCreds();
+            }
         } else {
             creds = initAuthCreds();
         }
@@ -528,6 +545,12 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             const phonePart = senderJid.split('@')[0];
             const phone = phonePart.split(':')[0];
             const isGroup = remoteJid.endsWith('@g.us');
+
+            // ─── PRIORIDAD 0: Ignorar grupos ──────────────────────────────────────────
+            if (isGroup) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Message from group ${remoteJid} ignored.`);
+                return;
+            }
 
             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
             const normalizedText = text.toLowerCase();
@@ -732,9 +755,6 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 session.userSessions.delete(remoteJid);
                 return;
             }
-
-            // ─── PRIORIDAD 2: Detener si es un grupo ──────────────────────────────────
-            if (isGroup) return;
 
             // ─── PRIORIDAD 3: Si el mensaje es un número del menú (1-8) dentro de sesión activa ──
             const menuOptions = ['1', '2', '3', '4', '5', '6', '7', '8'];

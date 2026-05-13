@@ -96,4 +96,8 @@ export class CreatePacienteDto {
     @IsOptional()
     @IsNumber()
     usuarioId?: number;
+
+    @IsOptional()
+    @IsString()
+    firmaFC?: string;
 }

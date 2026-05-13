@@ -1,5 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { FirmasService } from '../firmas/firmas.service';
+import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PdfPrinter = require('pdfmake');
 
@@ -9,7 +10,8 @@ export class RecetaPdfService {
 
     constructor(
         @Inject(forwardRef(() => FirmasService))
-        private readonly firmasService: FirmasService
+        private readonly firmasService: FirmasService,
+        private readonly storageService: SupabaseStorageService
     ) {
         const fonts = {
             Helvetica: {
@@ -24,9 +26,35 @@ export class RecetaPdfService {
 
 
     async generateRecetaPdf(receta: any): Promise<Buffer> {
-        // Fetch signatures
-        const signatures = await this.firmasService.findByDocumento('receta', receta.id);
-        const doctorSignature = signatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        let signatureData: string | null = null;
+        let signatureName: string = receta.user ? receta.user.name : 'Doctor';
+        let signatureDate: string | Date = new Date().toISOString();
+        let signatureHash: string = '';
+
+        // 1. Check direct firma field
+        if (receta.firma) {
+            if (receta.firma.startsWith('data:image')) {
+                signatureData = receta.firma;
+            } else {
+                try {
+                    signatureData = await this.storageService.downloadAsBase64('clinica-media', receta.firma);
+                } catch (e) {
+                    console.error('Error downloading receta signature for PDF:', e);
+                }
+            }
+        } 
+        
+        // 2. Fallback to old firmas table
+        if (!signatureData) {
+            const signatures = await this.firmasService.findByDocumento('receta', receta.id);
+            const doctorSignature = signatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+            if (doctorSignature) {
+                signatureData = doctorSignature.firmaData;
+                signatureName = doctorSignature.usuario.name;
+                signatureDate = doctorSignature.timestamp;
+                signatureHash = doctorSignature.hashDocumento;
+            }
+        }
 
         return new Promise((resolve, reject) => {
             const content: any[] = [];
@@ -144,29 +172,29 @@ export class RecetaPdfService {
 
                     // Signature only on the last page
                     if (currentPage === pageCount) {
-                        if (doctorSignature) {
+                        if (signatureData) {
                             footerStack.push({
                                 stack: [
                                     {
-                                        image: doctorSignature.firmaData,
+                                        image: signatureData,
                                         width: 100,
                                         alignment: 'center',
                                         margin: [0, 0, 0, 5]
                                     },
                                     {
-                                        text: `DIGITALMENTE FIRMADO POR: ${doctorSignature.usuario.name}`,
+                                        text: `DIGITALMENTE FIRMADO POR: ${signatureName}`,
                                         fontSize: 7,
                                         alignment: 'center',
                                         color: '#7f8c8d'
                                     },
-                                    {
-                                        text: `HASH: ${doctorSignature.hashDocumento}`,
+                                    signatureHash ? {
+                                        text: `HASH: ${signatureHash}`,
                                         fontSize: 6,
                                         alignment: 'center',
                                         color: '#bdc3c7'
-                                    },
+                                    } : { text: '' },
                                     {
-                                        text: `FECHA: ${new Date(doctorSignature.timestamp).toLocaleString()}`,
+                                        text: `FECHA: ${new Date(signatureDate).toLocaleString()}`,
                                         fontSize: 6,
                                         alignment: 'center',
                                         color: '#bdc3c7',
@@ -174,7 +202,7 @@ export class RecetaPdfService {
                                     },
                                     { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 1, lineColor: '#000' }] },
                                     { text: 'Firma y Sello Digital', alignment: 'center', fontSize: 10, margin: [0, 5, 0, 0] },
-                                    { text: doctorSignature.usuario.name, alignment: 'center', fontSize: 8, color: '#7f8c8d' }
+                                    { text: signatureName, alignment: 'center', fontSize: 8, color: '#7f8c8d' }
                                 ],
                                 alignment: 'center',
                                 margin: [0, 0, 0, 15]

@@ -7,11 +7,24 @@ import { VerifyFirmaDto } from './dto/verify-firma.dto';
 import * as crypto from 'crypto';
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 
+import { Paciente } from '../pacientes/entities/paciente.entity';
+import { Proforma } from '../proformas/entities/proforma.entity';
+import { Receta } from '../receta/entities/receta.entity';
+import { HistoriaClinica } from '../historia_clinica/entities/historia_clinica.entity';
+
 @Injectable()
 export class FirmasService {
     constructor(
         @InjectRepository(FirmaDigital)
         private firmaRepository: Repository<FirmaDigital>,
+        @InjectRepository(Paciente)
+        private pacienteRepository: Repository<Paciente>,
+        @InjectRepository(Proforma)
+        private proformaRepository: Repository<Proforma>,
+        @InjectRepository(Receta)
+        private recetaRepository: Repository<Receta>,
+        @InjectRepository(HistoriaClinica)
+        private hcRepository: Repository<HistoriaClinica>,
         private readonly storageService: SupabaseStorageService,
     ) { }
 
@@ -45,13 +58,29 @@ export class FirmasService {
             });
         }
 
-        const firma = this.firmaRepository.create({
+        const firma = await this.firmaRepository.save(this.firmaRepository.create({
             ...createFirmaDto,
             usuarioId,
             timestamp: new Date(),
-        });
+        }));
 
-        return await this.firmaRepository.save(firma);
+        // ─── SYNC TO ENTITY ───
+        try {
+            const { tipoDocumento, documentoId, firmaData } = firma;
+            if (tipoDocumento === 'paciente') {
+                await this.pacienteRepository.update(documentoId, { firmaFC: firmaData });
+            } else if (tipoDocumento === 'proforma' || tipoDocumento === 'presupuesto') {
+                await this.proformaRepository.update(documentoId, { firma: firmaData });
+            } else if (tipoDocumento === 'receta') {
+                await this.recetaRepository.update(documentoId, { firma: firmaData });
+            } else if (tipoDocumento === 'historia_clinica') {
+                await this.hcRepository.update(documentoId, { firmaPaciente: firmaData });
+            }
+        } catch (error) {
+            console.error('[FirmasService] Failed to sync signature to entity:', error.message);
+        }
+
+        return firma;
     }
 
     /**
@@ -169,5 +198,66 @@ export class FirmasService {
             noVerificadas: total - verificadas,
             porTipo,
         };
+    }
+
+    /**
+     * Run the database migration to copy signatures to entities
+     */
+    async runMigration() {
+        console.log('[Migration] Starting signature migration...');
+        
+        try {
+            // 1. Migrate Pacientes
+            console.log('[Migration] Migrating Pacientes...');
+            await this.firmaRepository.query(`
+                UPDATE pacientes
+                SET "firmaFC" = fd."firmaData"
+                FROM firmas_digitales fd
+                WHERE fd."tipoDocumento" = 'paciente' AND fd."documentoId" = pacientes.id
+                AND (pacientes."firmaFC" IS NULL OR pacientes."firmaFC" = '');
+            `);
+            console.log(`[Migration] Pacientes migrated.`);
+
+            // 2. Migrate Proformas
+            console.log('[Migration] Migrating Proformas...');
+            await this.firmaRepository.query(`
+                UPDATE proformas
+                SET firma = fd."firmaData"
+                FROM firmas_digitales fd
+                WHERE fd."tipoDocumento" = 'proforma' AND fd."documentoId" = proformas.id
+                AND (proformas.firma IS NULL OR proformas.firma = '');
+            `);
+            console.log(`[Migration] Proformas migrated.`);
+
+            // 3. Migrate Recetas
+            console.log('[Migration] Migrating Recetas...');
+            await this.firmaRepository.query(`
+                UPDATE receta
+                SET firma = fd."firmaData"
+                FROM firmas_digitales fd
+                WHERE fd."tipoDocumento" = 'receta' AND fd."documentoId" = receta.id
+                AND (receta.firma IS NULL OR receta.firma = '');
+            `);
+            console.log(`[Migration] Recetas migrated.`);
+
+            // 4. Migrate Historia Clinica
+            console.log('[Migration] Migrating Historia Clinica...');
+            await this.firmaRepository.query(`
+                UPDATE historia_clinica
+                SET "firmaPaciente" = fd."firmaData"
+                FROM firmas_digitales fd
+                WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = historia_clinica.id
+                AND (historia_clinica."firmaPaciente" IS NULL OR historia_clinica."firmaPaciente" = '');
+            `);
+            console.log(`[Migration] Historia Clinica migrated.`);
+
+            return {
+                success: true,
+                message: 'Migration completed successfully'
+            };
+        } catch (error) {
+            console.error('[Migration] Error running migration:', error);
+            throw new BadRequestException('Migration failed: ' + error.message);
+        }
     }
 }

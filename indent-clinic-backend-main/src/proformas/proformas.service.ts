@@ -56,10 +56,23 @@ export class ProformasService {
       const patient = await queryRunner.manager.findOne(Paciente as any, { where: { id: proforma.pacienteId } });
       proforma.clinicaId = createProformaDto.clinicaId || (patient as any)?.clinicaId || null;
 
-      // Use provided fecha or default to current date
       proforma.fecha = createProformaDto.fecha
         ? createProformaDto.fecha.split('T')[0]
         : getBoliviaDate();
+
+      // Handle Signature (Upload to Supabase if Base64)
+      if (createProformaDto['firma'] && createProformaDto['firma'].startsWith('data:image')) {
+        try {
+          proforma.firma = await this.storageService.uploadBase64(
+            'clinica-media', 
+            `signature-proforma-${Date.now()}`, 
+            createProformaDto['firma']
+          );
+        } catch (error) {
+          console.warn('[ProformasService] Supabase upload failed, saving as Base64:', error.message);
+          proforma.firma = createProformaDto['firma'];
+        }
+      }
 
       // Totals calculation
       proforma.total = createProformaDto.detalles.reduce((sum, item) => item.posible ? sum : sum + Number(item.total), 0);
@@ -167,6 +180,22 @@ export class ProformasService {
 
       if (updateProformaDto.total !== undefined) proforma.total = updateProformaDto.total;
       if (updateProformaDto.clinicaId !== undefined) proforma.clinicaId = updateProformaDto.clinicaId;
+
+      // Handle Signature update
+      if (updateProformaDto['firma'] && updateProformaDto['firma'].startsWith('data:image')) {
+        try {
+          proforma.firma = await this.storageService.uploadBase64(
+            'clinica-media', 
+            `signature-proforma-${id}-${Date.now()}`, 
+            updateProformaDto['firma']
+          );
+        } catch (error) {
+          console.warn('[ProformasService] Supabase upload failed during update:', error.message);
+          proforma.firma = updateProformaDto['firma'];
+        }
+      } else if (updateProformaDto['firma'] !== undefined) {
+        proforma.firma = updateProformaDto['firma'];
+      }
 
       // Recalculate total if details are provided
       if (updateProformaDto.detalles) {
@@ -302,6 +331,24 @@ export class ProformasService {
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
       throw new Error('Error al enviar mensaje de WhatsApp');
+    }
+  }
+
+  async getFirmaBase64(id: number): Promise<{ base64: string }> {
+    const proforma = await this.findOne(id);
+    if (!proforma) throw new NotFoundException('Proforma no encontrada');
+    if (!proforma.firma) throw new NotFoundException('La proforma no tiene firma registrada');
+
+    if (proforma.firma.startsWith('data:image')) {
+        return { base64: proforma.firma };
+    }
+
+    try {
+        const base64 = await this.storageService.downloadAsBase64('clinica-media', proforma.firma);
+        return { base64 };
+    } catch (error) {
+        console.error('[ProformasService] Error downloading signature:', error);
+        throw new NotFoundException('No se pudo recuperar la imagen de la firma');
     }
   }
 }

@@ -82,4 +82,13 @@ export class FirmasController {
     remove(@Param('id') id: string) {
         return this.firmasService.remove(+id);
     }
+
+    /**
+     * Temporary Migration Endpoint
+     * POST /firmas/migrate/run
+     */
+    @Post('migrate/run')
+    async runMigration() {
+        return this.firmasService.runMigration();
+    }
 }

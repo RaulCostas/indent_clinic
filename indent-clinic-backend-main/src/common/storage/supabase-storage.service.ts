@@ -83,11 +83,33 @@ export class SupabaseStorageService {
   }
 
   async downloadAsBase64(bucket: string, path: string): Promise<string> {
-    const relativePath = (path.includes(bucket) ? path.split(`${bucket}/`).pop() : path) || path;
+    let relativePath = path;
+    
+    if (path.startsWith('http')) {
+        try {
+            // Extraer la parte del path después del nombre del bucket
+            // URL: https://.../object/public/bucket-name/folder/file.png
+            const url = new URL(path);
+            const pathParts = url.pathname.split(`/${bucket}/`);
+            if (pathParts.length > 1) {
+                relativePath = pathParts[pathParts.length - 1];
+            } else {
+                // Fallback si la estructura es diferente
+                relativePath = path.split(`${bucket}/`).pop() || path;
+            }
+        } catch (e) {
+            relativePath = path.split(`${bucket}/`).pop() || path;
+        }
+    } else {
+        relativePath = (path.includes(bucket) ? path.split(`${bucket}/`).pop() : path) || path;
+    }
+
+    this.logger.log(`[SupabaseStorageService] Downloading from bucket "${bucket}" with path "${relativePath}"`);
+    
     const { data, error } = await this.supabase.storage.from(bucket).download(relativePath);
     
     if (error) {
-      this.logger.error(`Error downloading from Supabase: ${error.message}`);
+      this.logger.error(`Error downloading from Supabase (${bucket}/${relativePath}): ${error.message}`);
       throw error;
     }
 

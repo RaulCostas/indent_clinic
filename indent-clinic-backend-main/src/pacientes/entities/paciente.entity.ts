@@ -103,6 +103,9 @@ export class Paciente {
     @OneToMany('Propuesta', (propuesta: any) => propuesta.paciente)
     propuestas: any[];
 
+    @Column({ type: 'text', nullable: true })
+    firmaFC: string;
+
     @CreateDateColumn()
     createdAt: Date;
 

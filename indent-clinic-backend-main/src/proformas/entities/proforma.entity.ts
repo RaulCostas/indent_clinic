@@ -68,6 +68,9 @@ export class Proforma {
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
 
+    @Column({ type: 'text', nullable: true })
+    firma: string;
+
     @UpdateDateColumn()
     updatedAt: Date;
 }

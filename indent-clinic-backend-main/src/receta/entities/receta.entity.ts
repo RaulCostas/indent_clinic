@@ -38,4 +38,7 @@ export class Receta {
     @ManyToOne(() => Clinica, { nullable: true, eager: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ type: 'text', nullable: true })
+    firma: string;
 }

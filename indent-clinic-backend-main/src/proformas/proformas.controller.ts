@@ -29,6 +29,11 @@ export class ProformasController {
     return this.proformasService.findOne(+id);
   }
 
+  @Get(':id/firma-base64')
+  getFirmaBase64(@Param('id') id: string) {
+    return this.proformasService.getFirmaBase64(+id);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateProformaDto: UpdateProformaDto) {
     console.log(`Updating proforma #${id} with payload:`, JSON.stringify(updateProformaDto, null, 2));

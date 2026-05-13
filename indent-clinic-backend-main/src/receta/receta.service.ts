@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Receta } from './entities/receta.entity';
 import { RecetaDetalle } from './entities/receta-detalle.entity';
 
+import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+
 @Injectable()
 export class RecetaService {
     constructor(
@@ -11,11 +13,25 @@ export class RecetaService {
         private recetaRepository: Repository<Receta>,
         @InjectRepository(RecetaDetalle)
         private detalleRepository: Repository<RecetaDetalle>,
+        private readonly storageService: SupabaseStorageService,
     ) { }
 
     async create(createRecetaDto: any) {
         // Extract detalles from DTO
         const { detalles, ...recetaData } = createRecetaDto;
+
+        // Handle Signature (Upload to Supabase if Base64)
+        if (recetaData.firma && recetaData.firma.startsWith('data:image')) {
+            try {
+                recetaData.firma = await this.storageService.uploadBase64(
+                    'clinica-media', 
+                    `signature-receta-${Date.now()}`, 
+                    recetaData.firma
+                );
+            } catch (error) {
+                console.warn('[RecetaService] Supabase upload failed, saving as Base64:', error.message);
+            }
+        }
 
         // Create and save the receta first WITHOUT detalles
         const newReceta = this.recetaRepository.create(recetaData);
@@ -66,6 +82,19 @@ export class RecetaService {
     }
 
     async update(id: number, updateRecetaDto: any) {
+        // Handle Signature update
+        if (updateRecetaDto.firma && updateRecetaDto.firma.startsWith('data:image')) {
+            try {
+                updateRecetaDto.firma = await this.storageService.uploadBase64(
+                    'clinica-media', 
+                    `signature-receta-${id}-${Date.now()}`, 
+                    updateRecetaDto.firma
+                );
+            } catch (error) {
+                console.warn('[RecetaService] Supabase upload failed during update:', error.message);
+            }
+        }
+
         // Use save to handle relation updates/cascades if 'detalles' are provided
         // First preload to ensure it exists
         const receta = await this.recetaRepository.preload({
@@ -84,5 +113,23 @@ export class RecetaService {
             return await this.recetaRepository.remove(receta);
         }
         return null;
+    }
+
+    async getFirmaBase64(id: number): Promise<{ base64: string }> {
+        const receta = await this.findOne(id);
+        if (!receta) throw new Error('La receta no existe');
+        if (!receta.firma) throw new Error('La receta no tiene firma registrada');
+
+        if (receta.firma.startsWith('data:image')) {
+            return { base64: receta.firma };
+        }
+
+        try {
+            const base64 = await this.storageService.downloadAsBase64('clinica-media', receta.firma);
+            return { base64 };
+        } catch (error) {
+            console.error('[RecetaService] Error downloading signature:', error);
+            throw new Error('No se pudo recuperar la imagen de la firma');
+        }
     }
 }

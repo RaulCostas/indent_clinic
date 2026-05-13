@@ -26,6 +26,7 @@ interface Ingreso {
     formaPagoRel?: { forma_pago: string };
     comisionTarjeta?: { redBanco: string; monto: number }; // Updated interface
     tc?: number; // Added TC
+    descuento: number; // Added Discount
 }
 
 interface Egreso {
@@ -765,7 +766,8 @@ const HojaDiaria: React.FC = () => {
                             <th>Paciente</th>
                             <th style="width: 80px;">Plan de Trat.</th>
                             <th>Tratamientos</th>
-                            <th style="text-align: right; width: 100px;">Monto</th>
+                            <th style="text-align: right; width: 80px;">Desc.</th>
+                            <th style="text-align: right; width: 100px;">Monto Pago</th>
                             <th style="width: 100px;">Forma Pago</th>
                             <th>Observaciones</th>
                         </tr>
@@ -784,6 +786,7 @@ const HojaDiaria: React.FC = () => {
                                          ? getCoveredTreatmentsForPaymentLocal(r).map((h: any) => `<div>• ${h.tratamiento}${h.pieza ? ` (Pz. ${h.pieza})` : ''}</div>`).join('')
                                          : '-')}
                                 </td>
+                                <td style="text-align: right; color: #dc2626; font-weight: 600;">${Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}</td>
                                 <td class="amount">${formatMoney(Number(r.monto), r.moneda)}${r.moneda === 'Dólares' && r.tc ? ` (TC ${Number(r.tc).toFixed(2)})` : ''}</td>
                                 <td>${r.formaPagoRel?.forma_pago || 'N/A'}${r.formaPagoRel?.forma_pago?.toLowerCase() === 'tarjeta' && r.comisionTarjeta?.redBanco ? ` (${r.comisionTarjeta.redBanco})` : ''}</td>
                                 <td style="font-size: 10px;">${r.observaciones || '-'}</td>
@@ -1588,6 +1591,7 @@ const HojaDiaria: React.FC = () => {
                                 ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
                                 <th>Paciente</th>
                                 <th>Plan/Tratamientos</th>
+                                <th style="text-align: right;">Desc.</th>
                                 <th style="text-align: right;">Monto</th>
                                 <th>F. Pago</th>
                             </tr>
@@ -1601,6 +1605,7 @@ const HojaDiaria: React.FC = () => {
                                         <strong>#${r.proforma?.numero || 'Gen'}</strong>: 
                                         ${getCoveredTreatmentsLocal(r).map((h: any) => h.tratamiento).join(', ') || r.observaciones || '-'}
                                     </td>
+                                    <td class="amount" style="color: #dc2626;">${Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}</td>
                                     <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
                                     <td>${r.formaPagoRel?.forma_pago || 'N/A'}</td>
                                 </tr>
@@ -2066,7 +2071,15 @@ const HojaDiaria: React.FC = () => {
                         }
                     },
                     {
-                        header: 'Monto',
+                        header: 'Desc.',
+                        accessor: r => (
+                            <span className="text-red-600 dark:text-red-400 font-semibold">
+                                {Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}
+                            </span>
+                        )
+                    },
+                    {
+                        header: 'Monto Pago',
                         accessor: r => {
                             const isDollar = r.moneda === 'Dólares';
                             return (

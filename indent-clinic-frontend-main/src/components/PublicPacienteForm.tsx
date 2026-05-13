@@ -261,21 +261,16 @@ const PublicPacienteForm: React.FC = () => {
         if (!newPatientId) return;
 
         try {
-            await api.post('/firmas', {
-                tipoDocumento: 'paciente',
-                documentoId: newPatientId,
-                rolFirmante: 'paciente',
-                firmaData: signatureData,
-                tipoFirma: 'dibujada',
-                usuarioId: 1, // Default admin
-                timestamp: new Date().toISOString()
+            // SAVE DIRECTLY TO PACIENTE TABLE
+            await api.patch(`/pacientes/${newPatientId}`, {
+                firmaFC: signatureData
             });
 
             setCurrentStep('success');
             window.scrollTo(0, 0);
         } catch (error: any) {
-            console.error("Error salvando firma:", error);
-            const errorMsg = error.response?.data?.message || 'No se pudo guardar la firma digital. Intente de nuevo.';
+            console.error("Error salvando firma directa:", error);
+            const errorMsg = error.response?.data?.message || 'No se pudo guardar la firma digital en su ficha. Intente de nuevo.';
             Swal.fire({
                 icon: 'error',
                 title: 'Error al Guardar Firma',

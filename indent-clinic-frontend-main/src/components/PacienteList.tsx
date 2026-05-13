@@ -13,6 +13,7 @@ import { FileText, Download, Printer, Users, CheckCircle } from 'lucide-react';
 import SignatureModal from './SignatureModal';
 import { useClinica } from '../context/ClinicaContext';
 import PacienteViewModal from './PacienteViewModal';
+import SignatureThumbnail from './SignatureThumbnail';
 
 
 const PacienteList: React.FC = () => {
@@ -285,6 +286,44 @@ const PacienteList: React.FC = () => {
                 return;
             }
 
+            // Fetch signatures for all signed patients to show in print
+            const signedPacientes = allPacientes.filter((p: any) => p.tieneFirmaFC);
+            const signaturesMap = new Map<number, string>();
+            
+            if (signedPacientes.length > 0) {
+                Swal.fire({
+                    title: 'Preparando firmas...',
+                    text: 'Cargando imágenes de firmas para el reporte',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                await Promise.all(signedPacientes.map(async (p: any) => {
+                    try {
+                        let signData = p.firmaFC;
+                        
+                        // If we have direct firmaFC
+                        if (signData) {
+                            if (!signData.startsWith('data:image')) {
+                                try {
+                                    const proxyRes = await api.get<{ base64: string }>(`/pacientes/${p.id}/firma-base64`);
+                                    signData = proxyRes.data.base64;
+                                } catch (proxyErr) {
+                                    console.error('Error fetching signature via proxy in list:', proxyErr);
+                                    signData = null; // Mark as failed
+                                }
+                            }
+                        }
+
+                        if (signData) {
+                            signaturesMap.set(p.id, signData);
+                        }
+                    } catch (e) {
+                        console.error(`Error loading signature for patient ${p.id}:`, e);
+                    }
+                }));
+                Swal.close();
+            }
 
             const printContent = `
                 <!DOCTYPE html>
@@ -310,11 +349,6 @@ const PacienteList: React.FC = () => {
                             margin-bottom: 20px;
                             padding-bottom: 15px;
                             border-bottom: 2px solid #3498db;
-                        }
-                        
-                        .header img {
-                            height: 60px;
-                            margin-right: 20px;
                         }
                         
                         h1 {
@@ -394,25 +428,22 @@ const PacienteList: React.FC = () => {
                 <body>
                     <div class="header">
                         <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-3">
-                        <Users className="text-blue-600" size={32} />
-                        Lista de Pacientes
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Gestión integral de pacientes y sus historias clínicas</p>
-                </div>
+                            <h1>Lista de Pacientes</h1>
+                            <p style="color: #666; margin-top: 5px;">Gestión integral de pacientes y sus historias clínicas</p>
+                        </div>
                     </div>
                     
                     <table>
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Paciente</th>
-                                <th>Celular</th>
-                                <th>Fecha Nac.</th>
-
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
+                                 <th>#</th>
+                                 <th>Paciente</th>
+                                 <th>Celular</th>
+                                 <th>Fecha Nac.</th>
+                                 <th>Estado</th>
+                                 <th>Firma FC</th>
+                             </tr>
+                         </thead>
                         <tbody>
                             ${allPacientes.map((p: Paciente, index: number) => `
                                 <tr>
@@ -420,18 +451,22 @@ const PacienteList: React.FC = () => {
                                     <td>${p.nombre} ${p.paterno} ${p.materno || ''}</td>
                                     <td>${p.celular}</td>
                                     <td>${formatDate(p.fecha_nacimiento)}</td>
-
                                     <td class="${p.estado === 'activo' ? 'status-active' : 'status-inactive'}">
-                                        ${p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}
+                                         ${p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}
                                     </td>
-                                </tr>
+                                    <td>
+                                         ${signaturesMap.has(p.id) ? `
+                                             <img src="${signaturesMap.get(p.id)}" style="max-height: 40px; max-width: 80px; object-fit: contain;" />
+                                         ` : '<span style="color: #ccc; font-size: 8px;">Sin firma</span>'}
+                                    </td>
+                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
 
                     <div class="footer">
                         <div>Sistema de Gestión</div>
-                        <div>Página 1</div>
+                        <div>Reporte Generado: ${new Date().toLocaleDateString()}</div>
                     </div>
                 </body>
                 </html>
@@ -441,7 +476,13 @@ const PacienteList: React.FC = () => {
             doc.write(printContent);
             doc.close();
 
+            const images = Array.from(doc.querySelectorAll('img'));
+            let loadedCount = 0;
+            let printTriggered = false;
+
             const doPrint = () => {
+                if (printTriggered) return;
+                printTriggered = true;
                 try {
                     iframe.contentWindow?.focus();
                     iframe.contentWindow?.print();
@@ -456,14 +497,24 @@ const PacienteList: React.FC = () => {
                 }
             };
 
-            const logo = doc.querySelector('img');
-            if (logo) {
-                if (logo.complete) {
-                    doPrint();
-                } else {
-                    logo.onload = doPrint;
-                    logo.onerror = doPrint;
-                }
+            if (images.length > 0) {
+                images.forEach(img => {
+                    if (img.complete) {
+                        loadedCount++;
+                        if (loadedCount === images.length) doPrint();
+                    } else {
+                        img.onload = () => {
+                            loadedCount++;
+                            if (loadedCount === images.length) doPrint();
+                        };
+                        img.onerror = () => {
+                            loadedCount++;
+                            if (loadedCount === images.length) doPrint();
+                        };
+                    }
+                });
+                // Fallback timeout for images
+                setTimeout(doPrint, 5000);
             } else {
                 doPrint();
             }
@@ -488,26 +539,21 @@ const PacienteList: React.FC = () => {
             const fullPaciente = res.data;
             const ficha = fullPaciente.fichaMedica;
 
-            // Fetch signatures
-            const resSign = await api.get(`/firmas/documento/paciente/${fullPaciente.id}`);
-            const signatures = Array.isArray(resSign.data) ? resSign.data : [];
-            const patientSignature = signatures.sort((a, b) => new Date(b.createdAt || b.timestamp).getTime() - new Date(a.createdAt || a.timestamp).getTime())[0];
-
             let finalSignatureData = '';
-            if (patientSignature?.firmaData) {
-                if (patientSignature.firmaData.startsWith('data:image')) {
-                    finalSignatureData = patientSignature.firmaData;
-                } 
-                else if (patientSignature.id) {
+            
+            // Try direct firmaFC from patient record
+            if (fullPaciente.firmaFC) {
+                finalSignatureData = fullPaciente.firmaFC;
+                if (!finalSignatureData.startsWith('data:image')) {
                     try {
-                        const proxyRes = await api.get<{ base64: string }>(`/firmas/${patientSignature.id}/base64`);
+                        const proxyRes = await api.get<{ base64: string }>(`/pacientes/${fullPaciente.id}/firma-base64`);
                         finalSignatureData = proxyRes.data.base64;
                     } catch (e) {
                         console.error('Error loading signature via proxy:', e);
-                        finalSignatureData = patientSignature.firmaData;
+                        finalSignatureData = '';
                     }
                 }
-            }
+            } 
 
             const checkIcon = (val: boolean | undefined) => val ? '☒' : '☐';
 

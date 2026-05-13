@@ -274,16 +274,16 @@ const PagosForm: React.FC<PagosFormProps> = ({
             }
 
             const netPrice = Math.max(0, Number(t.precio) - discountAmount);
-            const availableSaldo = Number(t.saldo) + thisPaymentContribution;
             const paidSoFar = Number(t.montoPagado) - thisPaymentContribution;
+            const balancedSaldo = Math.max(0, netPrice - paidSoFar);
 
             return {
                 ...t,
                 computedDiscount: discountAmount,
                 netPrice,
                 balancedPaid: paidSoFar,
-                balancedSaldo: availableSaldo,
-                remainingToPay: availableSaldo
+                balancedSaldo,
+                remainingToPay: balancedSaldo
             };
         }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
     }, [tratamientosPlan, allPagos, formData.proformaId, formData.descuento, selectedTreatments, tratamientoIdProp, isModal, isOpen, isEditing, pagoIdProp]);
@@ -310,13 +310,34 @@ const PagosForm: React.FC<PagosFormProps> = ({
     };
 
     const updateAssignment = (id: number, field: 'amount' | 'discount', value: number) => {
-        setAssignments(prev => ({
-            ...prev,
-            [id]: {
-                ...(prev[id] || { amount: 0, discount: 0 }),
-                [field]: value
+        setAssignments(prev => {
+            const current = prev[id] || { amount: 0, discount: 0 };
+            const trat = balancedTreatments.find(t => t.id === id);
+            // El precio base es el saldo disponible + lo que ya estamos aportando en este form
+            const baseBalance = trat ? trat.balancedSaldo + current.amount : 999999;
+            
+            let newAmount = current.amount;
+            let newDiscount = current.discount;
+            
+            if (field === 'discount') {
+                newDiscount = value;
+                // Si el descuento cubre parte del monto ya asignado, reducimos el monto
+                if (newAmount + newDiscount > baseBalance) {
+                    newAmount = Math.max(0, baseBalance - newDiscount);
+                }
+            } else {
+                newAmount = value;
+                // Si el monto + descuento supera el balance, reducimos el descuento
+                if (newAmount + newDiscount > baseBalance) {
+                    newDiscount = Math.max(0, baseBalance - newAmount);
+                }
             }
-        }));
+            
+            return {
+                ...prev,
+                [id]: { amount: newAmount, discount: newDiscount }
+            };
+        });
     };
     useEffect(() => {
         if (montoProp !== undefined && montoProp !== null) {
@@ -848,12 +869,16 @@ const PagosForm: React.FC<PagosFormProps> = ({
 
         if (targetId && (name === 'monto' || name === 'descuento')) {
             const tId = Number(targetId);
+            const trat = balancedTreatments.find(t => t.id === tId);
+            
             setAssignments(prev => {
                 const current = prev[tId] || { amount: 0, discount: 0 };
                 
                 let newAmount = current.amount;
-                if (name === 'descuento' && montoProp && !isEditing) {
-                    newAmount = Math.max(0, Number(montoProp) - (Number(value) || 0));
+                const baseMonto = montoProp ? Number(montoProp) : (trat ? trat.balancedSaldo + current.amount : 0);
+
+                if (name === 'descuento' && baseMonto > 0 && !isEditing) {
+                    newAmount = Math.max(0, baseMonto - (Number(value) || 0));
                 } else if (name === 'monto') {
                     newAmount = Number(value) || 0;
                 }
@@ -1527,11 +1552,17 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 { title: 'Tratamientos Terminados (Saldo Pendiente)', filter: 'terminado', color: 'orange' },
                                 { title: 'Tratamientos en Curso / Otros', filter: 'curso', color: 'blue' }
                             ].map(section => {
-                                const list = balancedTreatments.filter(t => 
-                                    section.filter === 'terminado' 
+                                const list = balancedTreatments.filter(t => {
+                                    // Mostrar si tiene saldo pendiente (no cancelado) O si ya está seleccionado (para edición)
+                                    const isSelected = selectedTreatments.includes(t.id);
+                                    const hasBalance = t.balancedSaldo > 0.01 && !t.cancelado;
+
+                                    if (!isSelected && !hasBalance) return false;
+
+                                    return section.filter === 'terminado' 
                                         ? t.estadoTratamiento === 'terminado' 
-                                        : t.estadoTratamiento !== 'terminado'
-                                );
+                                        : t.estadoTratamiento !== 'terminado';
+                                });
 
                                 if (list.length === 0) return null;
 

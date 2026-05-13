@@ -257,6 +257,7 @@ export interface Paciente {
     clinicaId?: number;
     clinica?: Clinica;
     tieneFirmaFC?: boolean;
+    firmaFC?: string;
 }
 
 export interface PersonalTipo {
@@ -301,6 +302,7 @@ export interface Proforma {
     clinica?: Clinica;
     createdAt: string;
     updatedAt: string;
+    firma?: string;
 }
 
 export interface HistoriaClinica {
@@ -633,6 +635,7 @@ export interface Receta {
     fecha: string;
     clinicaId?: number;
     detalles?: RecetaDetalle[];
+    firma?: string;
 }
 
 export interface RecetaDetalle {

@@ -28,6 +28,7 @@ interface Proforma {
     detalles: any[];
     usuarioAprobado?: { name: string };
     fecha_aprobado?: string;
+    firma?: string;
 }
 
 const PresupuestoList: React.FC = () => {
@@ -273,7 +274,28 @@ const PresupuestoList: React.FC = () => {
         const doc = new jsPDF();
 
         // Fetch signatures before generating PDF
+        let finalClinicSignature: any = null;
         let pdfSignatures: any[] = [];
+        
+        // 1. Try to load direct signature
+        if (proforma.firma) {
+            let base64Data = proforma.firma;
+            if (!base64Data.startsWith('data:image')) {
+                try {
+                    const proxyRes = await api.get<{ base64: string }>(`/proformas/${proforma.id}/firma-base64`);
+                    base64Data = proxyRes.data.base64;
+                } catch (e) {
+                    console.error('Error loading direct proforma signature via proxy:', e);
+                }
+            }
+            finalClinicSignature = {
+                firmaData: base64Data,
+                usuario: proforma.usuario || { name: 'Doctor' },
+                rolFirmante: 'doctor'
+            };
+        }
+
+        // 2. Fetch from legacy table for patient signature or fallback clinic signature
         try {
             const response = await api.get(`/firmas/documento/presupuesto/${proforma.id}`);
             pdfSignatures = response.data;
@@ -282,7 +304,19 @@ const PresupuestoList: React.FC = () => {
         }
 
         const patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente');
-        const clinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        
+        // Use legacy clinic signature only if direct one was not found
+        const legacyClinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        const clinicSignature = finalClinicSignature || legacyClinicSignature;
+
+        if (!finalClinicSignature && clinicSignature && clinicSignature.firmaData && !clinicSignature.firmaData.startsWith('data:image') && clinicSignature.id) {
+             try {
+                const proxyRes = await api.get<{ base64: string }>(`/firmas/${clinicSignature.id}/base64`);
+                clinicSignature.firmaData = proxyRes.data.base64;
+            } catch (e) {
+                console.error('Error loading legacy proforma signature via proxy:', e);
+            }
+        }
 
 
 

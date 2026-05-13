@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { Paciente } from '../types';
 import { formatDate } from '../utils/dateUtils';
+import SignatureThumbnail from './SignatureThumbnail';
 import { User, FileText, Phone, MapPin, Shield, Heart, AlertCircle } from 'lucide-react';
 
 interface PacienteViewModalProps {
@@ -196,6 +197,19 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                         <Field label="Motivo de Consulta" value={(paciente as any).fichaMedica?.motivo_consulta || paciente.motivo} />
                                     </div>
                                 </section>
+
+                                {/* Firma */}
+                                {(paciente as any).tieneFirmaFC && (
+                                    <section>
+                                        <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3">
+                                            <FileText size={14} /> Firma Digital
+                                        </h3>
+                                        <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center gap-2">
+                                            <SignatureThumbnail pacienteId={paciente.id} className="!max-w-[200px] !max-h-[100px]" />
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase">Firmado Digitalmente</span>
+                                        </div>
+                                    </section>
+                                )}
                             </div>
                         ) : (
                             /* TAB: Ficha Médica */

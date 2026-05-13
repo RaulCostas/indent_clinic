@@ -138,6 +138,7 @@ const PacienteTabPagos: React.FC = () => {
                 master.precio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
                 master.descuento = Math.max(Number(master.descuento) || 0, Number(h.descuento) || 0);
                 master.precioConDescuento = Math.max(0, Number(master.precio) - Number(master.descuento));
+                master.cancelado = master.cancelado || h.cancelado;
             }
         });
         return Array.from(map.values());
@@ -228,11 +229,12 @@ const PacienteTabPagos: React.FC = () => {
             const pf = proformas.find(p => p.id === t.proformaId || (t.proforma && p.id === t.proforma.id));
             
             // BUSCAR PRECIO ROBUSTO:
-            // a) Precio directo en el registro consolidado
-            let price = Number(t.precioConDescuento) || (Number(t.precio) - (Number(t.descuento) || 0));
+            // a) Precio base menos descuento registrado
+            let price = Number(t.precio) - (Number(t.descuento) || 0);
             
-            // b) Si es casi 0 y hay proforma, buscar en los detalles de la proforma
-            if (price < 0.01 && t.proformaDetalleId && pf?.detalles) {
+            // b) Si el precio resultante es casi 0, PERO no hay descuento, 
+            // buscamos en los detalles de la proforma (por si el precio no se cargó en HC)
+            if (price < 0.01 && (Number(t.descuento) || 0) === 0 && t.proformaDetalleId && pf?.detalles) {
                 const det = pf.detalles.find(d => Number(d.id) === Number(t.proformaDetalleId));
                 if (det) {
                     price = Number(det.total) || (Number(det.precioUnitario) * Number(det.cantidad));
@@ -268,6 +270,7 @@ const PacienteTabPagos: React.FC = () => {
     const deudasTratamientosFiltradas = useMemo(() => 
         deudasTratamientos.filter(d => 
             d.saldo > 0.01 && 
+            !d.tratamiento.cancelado &&
             (d.tratamiento.estadoTratamiento || '').trim().toLowerCase() === 'terminado'
         ),
     [deudasTratamientos]);
@@ -275,6 +278,7 @@ const PacienteTabPagos: React.FC = () => {
     const deudasTratamientosEnCurso = useMemo(() => 
         deudasTratamientos.filter(d => 
             d.saldo > 0.01 && 
+            !d.tratamiento.cancelado &&
             (d.tratamiento.estadoTratamiento || '').trim().toLowerCase() !== 'terminado'
         ),
     [deudasTratamientos]);

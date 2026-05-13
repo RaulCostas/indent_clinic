@@ -346,8 +346,10 @@ export class FirmasService {
             console.error('[Migration] Failed to setup database:', error.message);
             throw new BadRequestException(`Setup failed: ${error.message}`);
         }
+    }
+
     async migrateToBase64() {
-        const queryRunner = this.firmasRepository.manager.connection.createQueryRunner();
+        const queryRunner = this.firmaRepository.manager.connection.createQueryRunner();
         await queryRunner.connect();
         
         const signatures = await queryRunner.query(`

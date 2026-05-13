@@ -101,6 +101,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
     const [patientSignature, setPatientSignature] = useState<string | null>(null);
     const [clinicSignature, setClinicSignature] = useState<string | null>(null);
     const [clinicName, setClinicName] = useState<string | null>(null);
+    const [clinicRole, setClinicRole] = useState<string | null>(null);
 
     // Signature resolution
     useEffect(() => {
@@ -139,6 +140,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setPatientSignature(pSig);
             setClinicSignature(cSig);
             setClinicName(cSigData ? `${cSigData.usuario?.name || cSigData.usuario?.nombre || ''} ${cSigData.usuario?.apellido || ''}`.trim() : null);
+            setClinicRole(cSigData?.rolFirmante || null);
         };
 
         if (firmas.length > 0 || historySignature) {
@@ -147,6 +149,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setPatientSignature(null);
             setClinicSignature(null);
             setClinicName(null);
+            setClinicRole(null);
         }
     }, [firmas, historySignature, proformaId]);
 
@@ -347,7 +350,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                         {clinicName}
                                                     </p>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">
-                                                        {clinicSignatureData?.rolFirmante === 'doctor' ? 'Odontólogo' : ''}
+                                                        {clinicRole === 'doctor' ? 'Odontólogo' : ''}
                                                     </p>
                                                 </div>
                                             </div>

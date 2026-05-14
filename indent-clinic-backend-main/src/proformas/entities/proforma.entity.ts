@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToMany, OneToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToMany, OneToOne, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { User } from '../../users/entities/user.entity';
 import { ProformaDetalle } from './proforma-detalle.entity';
@@ -10,6 +10,10 @@ import { HistoriaClinica } from '../../historia_clinica/entities/historia_clinic
 // import { SecuenciaTratamiento } from '../../secuencia_tratamiento/entities/secuencia_tratamiento.entity';
 
 @Entity('proformas')
+@Index(['pacienteId'])
+@Index(['clinicaId'])
+@Index(['fecha'])
+@Index(['numero'])
 export class Proforma {
     @PrimaryGeneratedColumn()
     id: number;

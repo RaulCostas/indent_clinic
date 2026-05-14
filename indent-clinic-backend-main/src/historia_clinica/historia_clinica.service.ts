@@ -79,22 +79,39 @@ export class HistoriaClinicaService {
     }
 
     async findAll(): Promise<HistoriaClinica[]> {
-        return await this.historiaClinicaRepository.find({
-            relations: ['paciente', 'doctor', 'especialidad', 'proforma', 'proformaDetalle', 'proformaDetalle.arancel'],
-            order: { fecha: 'DESC' }
-        });
+        // Optimized for general list views
+        return await this.historiaClinicaRepository.createQueryBuilder('hc')
+            .leftJoin('hc.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno'])
+            .leftJoinAndSelect('hc.doctor', 'doctor')
+            .leftJoinAndSelect('hc.especialidad', 'especialidad')
+            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .leftJoinAndSelect('hc.proformaDetalle', 'proformaDetalle')
+            .leftJoinAndSelect('proformaDetalle.arancel', 'arancel')
+            .orderBy('hc.fecha', 'DESC')
+            .getMany();
     }
 
     async findAllByPaciente(pacienteId: number): Promise<any[]> {
-        const hcs = await this.historiaClinicaRepository.find({
-            where: { pacienteId },
-            relations: ['paciente', 'doctor', 'especialidad', 'proforma', 'proformaDetalle'],
-            order: { fecha: 'DESC', id: 'DESC' }
-        });
+        // Highly optimized for clinical history tab
+        const hcs = await this.historiaClinicaRepository.createQueryBuilder('hc')
+            .leftJoin('hc.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular'])
+            .leftJoinAndSelect('hc.doctor', 'doctor')
+            .leftJoinAndSelect('hc.especialidad', 'especialidad')
+            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .leftJoinAndSelect('hc.proformaDetalle', 'proformaDetalle')
+            .where('hc.pacienteId = :pacienteId', { pacienteId })
+            .orderBy('hc.fecha', 'DESC')
+            .addOrderBy('hc.id', 'DESC')
+            .getMany();
 
         // Add payment status flag using persistent fields
         return await Promise.all(hcs.map(async (hc) => {
-            const hasDoctorPayment = await this.pagosDetalleDoctoresRepository.findOne({ where: { idhistoria_clinica: hc.id } });
+            const hasDoctorPayment = await this.pagosDetalleDoctoresRepository.findOne({ 
+                where: { idhistoria_clinica: hc.id },
+                select: ['id'] // Only need to check existence
+            });
             
             return {
                 ...hc,

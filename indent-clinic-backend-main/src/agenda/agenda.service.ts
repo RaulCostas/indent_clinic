@@ -282,13 +282,23 @@ export class AgendaService {
 
     async findAll(date?: string, fechaInicio?: string, fechaFinal?: string, pacienteId?: number, usuarioId?: number, clinicaId?: number, doctorId?: number): Promise<Agenda[]> {
         const query = this.agendaRepository.createQueryBuilder('agenda')
-            .leftJoinAndSelect('agenda.paciente', 'paciente')
-
+            // Essential fields only to avoid heavy signatures/photos
+            .leftJoin('agenda.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular', 'paciente.ci'])
+            
             .leftJoinAndSelect('agenda.doctor', 'doctor')
-            .leftJoinAndSelect('agenda.proforma', 'proforma')
-            .leftJoinAndSelect('agenda.clinica', 'clinica')
+            
+            .leftJoin('agenda.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total', 'proforma.fecha'])
+            
+            .leftJoin('agenda.clinica', 'clinica')
+            .addSelect(['clinica.id', 'clinica.nombre', 'clinica.slug'])
+            
             .leftJoinAndSelect('agenda.sucursal', 'sucursal')
-            .leftJoinAndSelect('agenda.usuario', 'usuario')
+            
+            .leftJoin('agenda.usuario', 'usuario')
+            .addSelect(['usuario.id', 'usuario.name'])
+            
             .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
             .where("agenda.estado != 'eliminado'"); // Filter out deleted
 
@@ -330,11 +340,21 @@ export class AgendaService {
     }
 
     async findAllByPaciente(pacienteId: number): Promise<Agenda[]> {
-        return await this.agendaRepository.find({
-            where: { pacienteId }, // Return all history for this patient
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva', 'sucursal'],
-            order: { fecha: 'DESC', hora: 'ASC' }
-        });
+        // Optimizing to exclude heavy signatures/photos in history view
+        return await this.agendaRepository.createQueryBuilder('agenda')
+            .leftJoin('agenda.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno'])
+            .leftJoinAndSelect('agenda.doctor', 'doctor')
+            .leftJoin('agenda.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total'])
+            .leftJoin('agenda.usuario', 'usuario')
+            .addSelect(['usuario.id', 'usuario.name'])
+            .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
+            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
+            .where('agenda.pacienteId = :pacienteId', { pacienteId })
+            .orderBy('agenda.fecha', 'DESC')
+            .addOrderBy('agenda.hora', 'ASC')
+            .getMany();
     }
 
     async findOne(id: number): Promise<Agenda> {
@@ -410,14 +430,24 @@ export class AgendaService {
     }
 
     async findAllByDoctor(doctorId: number): Promise<Agenda[]> {
-        return await this.agendaRepository.find({
-            where: { 
-                doctorId, 
-                estado: In(['agendado', 'confirmado', 'sala de espera'])
-            } as any,
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'clinica', 'doctorDeriva', 'sucursal'],
-            order: { fecha: 'ASC', hora: 'ASC' }
-        });
+        // Optimized query for doctor specific view
+        return await this.agendaRepository.createQueryBuilder('agenda')
+            .leftJoin('agenda.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular'])
+            .leftJoinAndSelect('agenda.doctor', 'doctor')
+            .leftJoin('agenda.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero'])
+            .leftJoin('agenda.usuario', 'usuario')
+            .addSelect(['usuario.id', 'usuario.name'])
+            .leftJoin('agenda.clinica', 'clinica')
+            .addSelect(['clinica.id', 'clinica.nombre'])
+            .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
+            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
+            .where('agenda.doctorId = :doctorId', { doctorId })
+            .andWhere('agenda.estado IN (:...estados)', { estados: ['agendado', 'confirmado', 'sala de espera'] })
+            .orderBy('agenda.fecha', 'ASC')
+            .addOrderBy('agenda.hora', 'ASC')
+            .getMany();
     }
 
     async deleteAll(): Promise<{ message: string; deletedCount: number }> {

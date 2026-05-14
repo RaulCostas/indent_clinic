@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToOne, OneToMany, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 import { FichaMedica } from '../../ficha_medica/entities/ficha_medica.entity';
 import { HistoriaClinica } from '../../historia_clinica/entities/historia_clinica.entity';
@@ -6,6 +6,10 @@ import { Clinica } from '../../clinicas/entities/clinica.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('pacientes')
+@Index(['clinicaId'])
+@Index(['ci'])
+@Index(['paterno', 'materno', 'nombre'])
+@Index(['estado'])
 export class Paciente {
     @PrimaryGeneratedColumn()
     id: number;

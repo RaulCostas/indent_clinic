@@ -80,6 +80,11 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
         }
     }, [isOpen, proformaId]);
 
+    const [patientSignature, setPatientSignature] = useState<string | null>(null);
+    const [clinicSignature, setClinicSignature] = useState<string | null>(null);
+    const [clinicName, setClinicName] = useState<string | null>(null);
+    const [clinicRole, setClinicRole] = useState<string | null>(null);
+
     if (!isOpen) return null;
 
     // Check if a specific detail item is completed
@@ -97,11 +102,6 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
         const totalCompleted = matchingHistory.reduce((sum: number, h: any) => sum + (h.cantidad || 0), 0);
         return totalCompleted >= (detalle.cantidad || 1);
     };
-
-    const [patientSignature, setPatientSignature] = useState<string | null>(null);
-    const [clinicSignature, setClinicSignature] = useState<string | null>(null);
-    const [clinicName, setClinicName] = useState<string | null>(null);
-    const [clinicRole, setClinicRole] = useState<string | null>(null);
 
     // Signature resolution
     useEffect(() => {

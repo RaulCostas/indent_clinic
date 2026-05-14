@@ -22,6 +22,10 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
     const [firmas, setFirmas] = useState<any[]>([]);
     const [historySignature, setHistorySignature] = useState<string | null>(null);
     const [isTerminado, setIsTerminado] = useState(false);
+    const [patientSignature, setPatientSignature] = useState<string | null>(null);
+    const [clinicSignature, setClinicSignature] = useState<string | null>(null);
+    const [clinicName, setClinicName] = useState<string | null>(null);
+    const [clinicRole, setClinicRole] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen && proformaId) {
@@ -80,29 +84,6 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
         }
     }, [isOpen, proformaId]);
 
-    const [patientSignature, setPatientSignature] = useState<string | null>(null);
-    const [clinicSignature, setClinicSignature] = useState<string | null>(null);
-    const [clinicName, setClinicName] = useState<string | null>(null);
-    const [clinicRole, setClinicRole] = useState<string | null>(null);
-
-    if (!isOpen) return null;
-
-    // Check if a specific detail item is completed
-    const isItemCompleted = (detalle: any): boolean => {
-        const matchingHistory = historiaClinica.filter((h: any) => {
-            if (h.estadoTratamiento !== 'terminado') return false;
-            if (h.proformaDetalleId) {
-                return detalle.id && h.proformaDetalleId === detalle.id;
-            }
-            if (h.proformaId === proformaId) {
-                return h.tratamiento === (detalle.arancel?.detalle || detalle.descripcion);
-            }
-            return false;
-        });
-        const totalCompleted = matchingHistory.reduce((sum: number, h: any) => sum + (h.cantidad || 0), 0);
-        return totalCompleted >= (detalle.cantidad || 1);
-    };
-
     // Signature resolution
     useEffect(() => {
         const resolveSignatures = async () => {
@@ -152,6 +133,24 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setClinicRole(null);
         }
     }, [firmas, historySignature, proformaId]);
+
+    if (!isOpen) return null;
+
+    // Check if a specific detail item is completed
+    const isItemCompleted = (detalle: any): boolean => {
+        const matchingHistory = historiaClinica.filter((h: any) => {
+            if (h.estadoTratamiento !== 'terminado') return false;
+            if (h.proformaDetalleId) {
+                return detalle.id && h.proformaDetalleId === detalle.id;
+            }
+            if (h.proformaId === proformaId) {
+                return h.tratamiento === (detalle.arancel?.detalle || detalle.descripcion);
+            }
+            return false;
+        });
+        const totalCompleted = matchingHistory.reduce((sum: number, h: any) => sum + (h.cantidad || 0), 0);
+        return totalCompleted >= (detalle.cantidad || 1);
+    };
 
     return (
         <div

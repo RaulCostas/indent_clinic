@@ -34,47 +34,36 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setFirmas([]);
             setIsTerminado(false);
 
-            api.get(`/proformas/${proformaId}`)
-                .then(async (res) => {
-                    const data = res.data;
-                    setProforma(data);
+            // Parallel fetch for everything related to this proforma
+            Promise.all([
+                api.get(`/proformas/${proformaId}`),
+                api.get(`/historia-clinica/proforma/${proformaId}`),
+                api.get(`/firmas/documento/presupuesto/${proformaId}`).catch(() => ({ data: [] }))
+            ])
+            .then(([profRes, histRes, firmaRes]) => {
+                const data = profRes.data;
+                setProforma(data);
+                
+                const historia = histRes.data || [];
+                setHistoriaClinica(historia);
+                setFirmas(firmaRes.data || []);
 
-                    // Fetch Historia Clinica for this patient to check completed items
-                    const pacienteId = data.pacienteId;
-                    if (pacienteId) {
-                        try {
-                            const hRes = await api.get(`/historia-clinica/paciente/${pacienteId}`);
-                            const historia: any[] = hRes.data || [];
-                            setHistoriaClinica(historia);
+                // Check if budget is overall terminated
+                const terminado = historia.some(
+                    (h: any) => h.proformaId === proformaId && h.estadoPresupuesto === 'terminado'
+                );
+                setIsTerminado(terminado);
 
-                            // Check if budget is overall terminated
-                            const terminado = historia.some(
-                                (h: any) => h.proformaId === proformaId && h.estadoPresupuesto === 'terminado'
-                            );
-                            setIsTerminado(terminado);
-
-                            // Find patient signature in history if not already found in firmas table
-                            const historiaConFirma = historia.find(
-                                (h: any) => h.proformaId === proformaId && h.firmaPaciente
-                            );
-                            if (historiaConFirma && historiaConFirma.firmaPaciente) {
-                                setHistorySignature(historiaConFirma.firmaPaciente);
-                            }
-                        } catch (e) {
-                            console.error('Error loading historia clinica:', e);
-                        }
-                    }
-
-                    // Fetch signatures
-                    try {
-                        const firmaRes = await api.get(`/firmas/documento/presupuesto/${proformaId}`);
-                        setFirmas(firmaRes.data || []);
-                    } catch (e) {
-                        // No signatures is normal
-                    }
-                })
-                .catch(err => console.error('Error loading proforma:', err))
-                .finally(() => setLoading(false));
+                // Find patient signature in history
+                const historiaConFirma = historia.find(
+                    (h: any) => h.proformaId === proformaId && h.firmaPaciente
+                );
+                if (historiaConFirma && historiaConFirma.firmaPaciente) {
+                    setHistorySignature(historiaConFirma.firmaPaciente);
+                }
+            })
+            .catch(err => console.error('Error loading budget data:', err))
+            .finally(() => setLoading(false));
         } else {
             setProforma(null);
             setHistoriaClinica([]);
@@ -84,7 +73,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
         }
     }, [isOpen, proformaId]);
 
-    // Signature resolution
+    // Signature resolution - Optimized with parallel Base64 fetching
     useEffect(() => {
         const resolveSignatures = async () => {
             let pSig = firmas.find((f: any) => f.rolFirmante === 'paciente')?.firmaData || historySignature;
@@ -93,33 +82,40 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             );
             let cSig = cSigData?.firmaData;
             
-            // Resolve Patient Signature
-            if (pSig && !pSig.startsWith('data:image')) {
-                const fItem = firmas.find((f: any) => f.rolFirmante === 'paciente');
-                if (fItem?.id) {
+            const tasks: Promise<any>[] = [];
+
+            // Task for Patient Signature
+            const resolvePatientTask = async () => {
+                if (pSig && !pSig.startsWith('data:image')) {
+                    const fItem = firmas.find((f: any) => f.rolFirmante === 'paciente');
                     try {
-                        const res = await api.get<{ base64: string }>(`/firmas/${fItem.id}/base64`);
-                        pSig = res.data.base64;
-                    } catch (e) { console.error(e); }
-                } else if (proformaId) {
-                    // Fallback to proforma proxy if it's the main signature
-                    try {
-                        const res = await api.get<{ base64: string }>(`/proformas/${proformaId}/firma-base64`);
-                        pSig = res.data.base64;
-                    } catch (e) { console.error(e); }
+                        if (fItem?.id) {
+                            const res = await api.get<{ base64: string }>(`/firmas/${fItem.id}/base64`);
+                            setPatientSignature(res.data.base64);
+                        } else if (proformaId) {
+                            const res = await api.get<{ base64: string }>(`/proformas/${proformaId}/firma-base64`);
+                            setPatientSignature(res.data.base64);
+                        }
+                    } catch (e) { console.error('Error resolving patient signature:', e); }
+                } else {
+                    setPatientSignature(pSig);
                 }
-            }
+            };
 
-            // Resolve Clinic Signature
-            if (cSig && !cSig.startsWith('data:image') && cSigData?.id) {
-                try {
-                    const res = await api.get<{ base64: string }>(`/firmas/${cSigData.id}/base64`);
-                    cSig = res.data.base64;
-                } catch (e) { console.error(e); }
-            }
+            // Task for Clinic Signature
+            const resolveClinicTask = async () => {
+                if (cSig && !cSig.startsWith('data:image') && cSigData?.id) {
+                    try {
+                        const res = await api.get<{ base64: string }>(`/firmas/${cSigData.id}/base64`);
+                        setClinicSignature(res.data.base64);
+                    } catch (e) { console.error('Error resolving clinic signature:', e); }
+                } else {
+                    setClinicSignature(cSig);
+                }
+            };
 
-            setPatientSignature(pSig);
-            setClinicSignature(cSig);
+            await Promise.all([resolvePatientTask(), resolveClinicTask()]);
+            
             setClinicName(cSigData ? `${cSigData.usuario?.name || cSigData.usuario?.nombre || ''} ${cSigData.usuario?.apellido || ''}`.trim() : null);
             setClinicRole(cSigData?.rolFirmante || null);
         };

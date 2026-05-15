@@ -579,6 +579,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
             let actor: any = null;
             let isDoctor = false;
+            let isPersonal = false;
+            let isPaciente = false;
 
             try {
                 // Búsqueda inicial de actor (paciente o personal) con protección de error
@@ -589,13 +591,13 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 if (!actor) {
                     for (const p of phoneVariations) {
                         actor = await this.personalService.findByCelular(p);
-                        if (actor) break;
+                        if (actor) { isPersonal = true; break; }
                     }
                 }
                 if (!actor) {
                     for (const p of phoneVariations) {
                         actor = await this.pacientesService.findByCelular(p);
-                        if (actor) break;
+                        if (actor) { isPaciente = true; break; }
                     }
                 }
             } catch (identError) {
@@ -791,8 +793,9 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 }
             }
 
-            if (matchedIntent?.target === 'USUARIO' && !isDoctor && !actor) {
-                await this.sendMessage(remoteJid, 'Lo siento, esta función está reservada para el personal de la clínica.', clinicId, instance);
+            if (matchedIntent?.target === 'USUARIO' && !isDoctor && !isPersonal) {
+                // Silencio total para pacientes que usen palabras clave de staff (citas, stock, inventario, etc.)
+                // Tal como solicitó el usuario, no enviamos el mensaje de "función reservada".
                 return;
             }
 
@@ -803,13 +806,13 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                             await this.sendMenu(remoteJid, actor, clinicId, instance);
                             break;
                         case 'CONSULTAR_CITA' as any:
-                            // Solo para USUARIO (doctores/personal)
-                            if (isDoctor && actor) {
+                            // Para doctores o personal administrativo
+                            if (isDoctor || isPersonal) {
                                 await this.checkDoctorAppointments(actor, remoteJid, clinicId, instance);
                             }
                             break;
-                        case 'CONSULTAR_CITA_HOY':
-                            if (isDoctor && actor) {
+                        case 'CONSULTAR_CITA_HOY' as any:
+                            if (isDoctor || isPersonal) {
                                 await this.checkDoctorAppointmentsToday(actor, remoteJid, clinicId, instance);
                             }
                             break;

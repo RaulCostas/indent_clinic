@@ -157,10 +157,26 @@ export class ProformasService {
   }
 
   async findOne(id: number) {
-    const proforma = await this.proformaRepository.findOne({
-      where: { id },
-      relations: ['paciente', 'usuario', 'detalles', 'detalles.arancel'],
-    });
+    const proforma = await this.proformaRepository.createQueryBuilder('proforma')
+      .leftJoinAndSelect('proforma.paciente', 'paciente')
+      .leftJoinAndSelect('proforma.usuario', 'usuario')
+      .leftJoinAndSelect('proforma.detalles', 'detalles')
+      .leftJoinAndSelect('detalles.arancel', 'arancel')
+      .leftJoinAndSelect('proforma.clinica', 'clinica')
+      .where('proforma.id = :id', { id })
+      // Seleccionamos campos específicos para evitar traer la 'firma' (Base64 pesado)
+      .select([
+        'proforma.id', 'proforma.pacienteId', 'proforma.numero', 'proforma.fecha', 
+        'proforma.total', 'proforma.nota', 'proforma.usuarioId', 'proforma.clinicaId',
+        'proforma.createdAt', 'proforma.updatedAt',
+        'paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno',
+        'usuario.id', 'usuario.name',
+        'detalles.id', 'detalles.arancelId', 'detalles.precioUnitario', 'detalles.piezas', 'detalles.cantidad', 'detalles.total', 'detalles.posible', 'detalles.tipoPrecio',
+        'arancel.id', 'arancel.detalle',
+        'clinica.id', 'clinica.nombre'
+      ])
+      .getOne();
+
     if (!proforma) throw new NotFoundException(`Proforma #${id} not found`);
     return proforma;
   }

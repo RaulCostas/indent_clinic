@@ -284,7 +284,7 @@ export class AgendaService {
         const query = this.agendaRepository.createQueryBuilder('agenda')
             // Essential fields only to avoid heavy signatures/photos
             .leftJoin('agenda.paciente', 'paciente')
-            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular', 'paciente.ci'])
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular', 'paciente.ci', 'paciente.seguro_medico', 'paciente.fecha_vencimiento'])
             
             .leftJoinAndSelect('agenda.doctor', 'doctor')
             
@@ -343,7 +343,7 @@ export class AgendaService {
         // Optimizing to exclude heavy signatures/photos in history view
         return await this.agendaRepository.createQueryBuilder('agenda')
             .leftJoin('agenda.paciente', 'paciente')
-            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno'])
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.seguro_medico', 'paciente.fecha_vencimiento'])
             .leftJoinAndSelect('agenda.doctor', 'doctor')
             .leftJoin('agenda.proforma', 'proforma')
             .addSelect(['proforma.id', 'proforma.numero', 'proforma.total'])
@@ -433,7 +433,7 @@ export class AgendaService {
         // Optimized query for doctor specific view
         return await this.agendaRepository.createQueryBuilder('agenda')
             .leftJoin('agenda.paciente', 'paciente')
-            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular'])
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular', 'paciente.seguro_medico', 'paciente.fecha_vencimiento'])
             .leftJoinAndSelect('agenda.doctor', 'doctor')
             .leftJoin('agenda.proforma', 'proforma')
             .addSelect(['proforma.id', 'proforma.numero'])

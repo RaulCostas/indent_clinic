@@ -21,7 +21,6 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [historiaClinica, setHistoriaClinica] = useState<any[]>([]);
     const [firmas, setFirmas] = useState<any[]>([]);
-    const [historySignature, setHistorySignature] = useState<string | null>(null);
     const [isTerminado, setIsTerminado] = useState(false);
     const [patientSignature, setPatientSignature] = useState<string | null>(null);
     const [clinicSignature, setClinicSignature] = useState<string | null>(null);
@@ -54,14 +53,6 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                     (h: any) => h.proformaId === proformaId && h.estadoPresupuesto === 'terminado'
                 );
                 setIsTerminado(terminado);
-
-                // Find patient signature in history
-                const historiaConFirma = historia.find(
-                    (h: any) => h.proformaId === proformaId && h.firmaPaciente
-                );
-                if (historiaConFirma && historiaConFirma.firmaPaciente) {
-                    setHistorySignature(historiaConFirma.firmaPaciente);
-                }
             })
             .catch(err => console.error('Error loading budget data:', err))
             .finally(() => setLoading(false));
@@ -69,59 +60,74 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setProforma(null);
             setHistoriaClinica([]);
             setFirmas([]);
-            setHistorySignature(null);
             setIsTerminado(false);
         }
     }, [isOpen, proformaId]);
 
-    // Signature resolution - Optimized with parallel Base64 fetching
+    // Signature resolution - Optimized
     useEffect(() => {
         const resolveSignatures = async () => {
-            let pSig = firmas.find((f: any) => f.rolFirmante === 'paciente')?.firmaData || historySignature;
-            let cSigData = firmas.find((f: any) =>
+            // Find patient and clinic signatures in the firmas array
+            const pSigItem = firmas.find((f: any) => f.rolFirmante === 'paciente');
+            const cSigItem = firmas.find((f: any) =>
                 f.rolFirmante === 'doctor' || f.rolFirmante === 'personal' || f.rolFirmante === 'administrador'
             );
-            let cSig = cSigData?.firmaData;
-            
-            const tasks: Promise<any>[] = [];
 
-            // Task for Patient Signature
-            const resolvePatientTask = async () => {
-                if (pSig && !pSig.startsWith('data:image')) {
-                    const fItem = firmas.find((f: any) => f.rolFirmante === 'paciente');
+            const resolveTask = async (item: any, setter: (val: string | null) => void) => {
+                if (!item) {
+                    setter(null);
+                    return;
+                }
+
+                const data = item.firmaData;
+                if (data && data.startsWith('data:image')) {
+                    setter(data);
+                } else if (data && item.id) {
                     try {
-                        if (fItem?.id) {
-                            const res = await api.get<{ base64: string }>(`/firmas/${fItem.id}/base64`);
-                            setPatientSignature(res.data.base64);
-                        } else if (proformaId) {
-                            const res = await api.get<{ base64: string }>(`/proformas/${proformaId}/firma-base64`);
-                            setPatientSignature(res.data.base64);
-                        }
-                    } catch (e) { console.error('Error resolving patient signature:', e); }
+                        const res = await api.get<{ base64: string }>(`/firmas/${item.id}/base64`);
+                        setter(res.data.base64);
+                    } catch (e) {
+                        console.error('Error resolving signature:', e);
+                        setter(null);
+                    }
                 } else {
-                    setPatientSignature(pSig);
+                    setter(null);
                 }
             };
 
-            // Task for Clinic Signature
-            const resolveClinicTask = async () => {
-                if (cSig && !cSig.startsWith('data:image') && cSigData?.id) {
+            // Patient signature might also be in the proforma itself (fallback)
+            const resolvePatientSignature = async () => {
+                if (pSigItem) {
+                    await resolveTask(pSigItem, setPatientSignature);
+                } else if (proformaId) {
+                    // Try to fetch from proforma as fallback if not in firmas table
                     try {
-                        const res = await api.get<{ base64: string }>(`/firmas/${cSigData.id}/base64`);
-                        setClinicSignature(res.data.base64);
-                    } catch (e) { console.error('Error resolving clinic signature:', e); }
+                        const res = await api.get<{ base64: string }>(`/proformas/${proformaId}/firma-base64`);
+                        setPatientSignature(res.data.base64);
+                    } catch (e) {
+                        setPatientSignature(null);
+                    }
                 } else {
-                    setClinicSignature(cSig);
+                    setPatientSignature(null);
                 }
             };
 
-            await Promise.all([resolvePatientTask(), resolveClinicTask()]);
+            await Promise.all([
+                resolvePatientSignature(),
+                resolveTask(cSigItem, setClinicSignature)
+            ]);
             
-            setClinicName(cSigData ? `${cSigData.usuario?.name || cSigData.usuario?.nombre || ''} ${cSigData.usuario?.apellido || ''}`.trim() : null);
-            setClinicRole(cSigData?.rolFirmante || null);
+            if (cSigItem) {
+                const name = `${cSigItem.usuario?.name || cSigItem.usuario?.nombre || ''} ${cSigItem.usuario?.apellido || ''}`.trim();
+                setClinicName(name || 'Personal Autorizado');
+                setClinicRole(cSigItem.rolFirmante);
+            } else {
+                setClinicName(null);
+                setClinicRole(null);
+            }
         };
 
-        if (firmas.length > 0 || historySignature) {
+        if (isOpen && (firmas.length > 0 || proformaId)) {
             resolveSignatures();
         } else {
             setPatientSignature(null);
@@ -129,7 +135,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setClinicName(null);
             setClinicRole(null);
         }
-    }, [firmas, historySignature, proformaId]);
+    }, [isOpen, firmas, proformaId]);
 
     if (!isOpen) return null;
 

@@ -374,29 +374,48 @@ export class HistoriaClinicaService {
         dateLimit.setDate(dateLimit.getDate() - 2);
         dateLimit.setHours(0, 0, 0, 0);
 
-        const where: any = {
-            pacienteId,
-            fecha: Between(dateLimit, now),
-            precio: MoreThan(0)
-        };
+        const qb = this.historiaClinicaRepository.createQueryBuilder('hc')
+            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .where('hc.pacienteId = :pacienteId', { pacienteId })
+            .andWhere('hc.fecha BETWEEN :dateLimit AND :now', { dateLimit, now })
+            .andWhere('hc.precio > 0')
+            // Excluimos 'firmaPaciente'
+            .select([
+                'hc.id', 'hc.pacienteId', 'hc.fecha', 'hc.pieza', 'hc.montoPagado', 'hc.saldo', 
+                'hc.cantidad', 'hc.proformaDetalleId', 'hc.observaciones', 'hc.especialidadId',
+                'hc.doctorId', 'hc.diagnostico', 'hc.estadoTratamiento', 'hc.estadoPresupuesto',
+                'hc.proformaId', 'hc.tratamiento', 'hc.casoClinico', 'hc.pagado', 'hc.cancelado',
+                'hc.precio', 'hc.descuento', 'hc.precioConDescuento', 'hc.clinicaId', 'hc.usuarioId',
+                'proforma.id', 'proforma.numero'
+            ])
+            .orderBy('hc.fecha', 'DESC')
+            .addOrderBy('hc.id', 'DESC');
 
         if (proformaId) {
-            where.proformaId = proformaId;
+            qb.andWhere('hc.proformaId = :proformaId', { proformaId });
         }
 
-        return await this.historiaClinicaRepository.find({
-            where,
-            relations: ['proforma'],
-            order: { fecha: 'DESC', id: 'DESC' }
-        });
+        return await qb.getMany();
     }
 
     async findByProforma(proformaId: number): Promise<HistoriaClinica[]> {
-        return await this.historiaClinicaRepository.find({
-            where: { proformaId },
-            relations: ['proforma', 'proformaDetalle'],
-            order: { fecha: 'DESC', id: 'DESC' }
-        });
+        return await this.historiaClinicaRepository.createQueryBuilder('hc')
+            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .leftJoinAndSelect('hc.proformaDetalle', 'proformaDetalle')
+            .where('hc.proformaId = :proformaId', { proformaId })
+            // Excluimos 'firmaPaciente' para optimizar la carga
+            .select([
+                'hc.id', 'hc.pacienteId', 'hc.fecha', 'hc.pieza', 'hc.montoPagado', 'hc.saldo', 
+                'hc.cantidad', 'hc.proformaDetalleId', 'hc.observaciones', 'hc.especialidadId',
+                'hc.doctorId', 'hc.diagnostico', 'hc.estadoTratamiento', 'hc.estadoPresupuesto',
+                'hc.proformaId', 'hc.tratamiento', 'hc.casoClinico', 'hc.pagado', 'hc.cancelado',
+                'hc.precio', 'hc.descuento', 'hc.precioConDescuento', 'hc.clinicaId', 'hc.usuarioId',
+                'proforma.id', 'proforma.numero',
+                'proformaDetalle.id', 'proformaDetalle.arancelId'
+            ])
+            .orderBy('hc.fecha', 'DESC')
+            .addOrderBy('hc.id', 'DESC')
+            .getMany();
     }
 
     async syncTreatmentStatus(id: number): Promise<void> {

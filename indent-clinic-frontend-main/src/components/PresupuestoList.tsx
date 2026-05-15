@@ -6,7 +6,7 @@ import type { Paciente } from '../types';
 import jsPDF from 'jspdf';
 import Pagination from './Pagination';
 import autoTable from 'jspdf-autotable';
-import { formatDateSpanish, numberToWords } from '../utils/formatters';
+import { formatDateSpanish, numberToWords, formatNumber } from '../utils/formatters';
 import { formatDate } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
@@ -389,8 +389,8 @@ const PresupuestoList: React.FC = () => {
                 item.piezas,
                 isPosible ? `${item.arancel.detalle} (*)` : item.arancel.detalle,
                 item.cantidad,
-                Number(item.precioUnitario).toFixed(2),
-                isPosible ? '-' : sub.toFixed(2)  // posible items show '-' in total
+                formatNumber(Number(item.precioUnitario)),
+                isPosible ? '-' : formatNumber(sub)  // posible items show '-' in total
             ];
             tableRows.push(row);
             tableStyles.push(isPosible ? { fontStyle: 'italic', textColor: [120, 90, 0] } : {});
@@ -487,7 +487,7 @@ const PresupuestoList: React.FC = () => {
         doc.rect(lastColX, finalY - 4, lastColWidth, 7);
 
         doc.text('TOTAL Bs.', labelX + labelWidth - 2, finalY + 1, { align: 'right' });
-        doc.text(Number(proforma.total).toFixed(2), lastColX + lastColWidth - 2, finalY + 1, { align: 'right' });
+        doc.text(formatNumber(Number(proforma.total)), lastColX + lastColWidth - 2, finalY + 1, { align: 'right' });
 
         finalY += 10;
 
@@ -744,7 +744,7 @@ const PresupuestoList: React.FC = () => {
                                         {proforma.usuario?.name || 'Sistema'}
                                     </td>
                                     <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-gray-800 dark:text-gray-200">
-                                        {Number(proforma.total).toFixed(2)}
+                                        {formatNumber(Number(proforma.total))}
                                     </td>
                                     <td className="px-5 py-4 whitespace-nowrap text-center no-print">
                                         <button

@@ -1,4 +1,17 @@
 
+export const formatNumber = (num: any): string => {
+    const val = Number(num) || 0;
+    const parts = val.toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return parts.join(',');
+};
+
+export const formatMoney = (amount: number, currency: string = 'Bolivianos'): string => {
+    const formatted = formatNumber(amount);
+    const symbol = (currency === 'Bolivianos' || currency === 'Bs' || currency === 'BOB') ? 'Bs.' : '$us';
+    return `${formatted} ${symbol}`;
+};
+
 export const formatDateSpanish = (dateString: string): string => {
     // const date = new Date(dateString);
     // Adjust for timezone if necessary, but assuming dateString is YYYY-MM-DD or ISO

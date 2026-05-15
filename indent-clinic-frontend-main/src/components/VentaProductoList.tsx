@@ -9,6 +9,7 @@ import {
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
 import type { VentaProducto } from '../types';
 import Pagination from './Pagination';
+import { formatNumber } from '../utils/formatters';
 import VentaProductoForm from './VentaProductoForm';
 import ManualModal, { type ManualSection } from './ManualModal';
 
@@ -251,7 +252,7 @@ const VentaProductoList: React.FC = () => {
                                         {v.personal ? `${v.personal.nombre} ${v.personal.paterno} ${v.personal.materno || ''}` : 'N/A'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-black text-gray-900 dark:text-white">
-                                        {Number(v.total).toLocaleString()} Bs.
+                                        {formatNumber(Number(v.total))} Bs.
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                         {v.comision_pagada ? (
@@ -383,15 +384,15 @@ const VentaProductoList: React.FC = () => {
                                             <tr key={d.id}>
                                                 <td className="px-4 py-3 text-gray-800 dark:text-gray-300 font-medium">{d.producto?.nombre}</td>
                                                 <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{d.cantidad}</td>
-                                                <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{Number(d.precio_unitario).toFixed(2)}</td>
-                                                <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{Number(d.subtotal).toFixed(2)}</td>
+                                                <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{formatNumber(Number(d.precio_unitario))}</td>
+                                                <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{formatNumber(Number(d.subtotal))}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                     <tfoot className="bg-gray-50 dark:bg-gray-700/50 font-black">
                                         <tr>
                                             <td colSpan={3} className="px-4 py-3 text-right text-gray-800 dark:text-white uppercase text-xs">Total Venta:</td>
-                                            <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-400 text-lg">{Number(viewVenta.total).toLocaleString()} Bs.</td>
+                                            <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-400 text-lg">{formatNumber(Number(viewVenta.total))} Bs.</td>
                                         </tr>
                                     </tfoot>
                                 </table>

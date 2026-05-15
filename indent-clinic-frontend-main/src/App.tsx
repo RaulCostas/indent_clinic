@@ -29,6 +29,7 @@ import HistoriaClinica from './components/HistoriaClinica';
 import PagosForm from './components/PagosForm';
 import ComisionTarjetaList from './components/ComisionTarjetaList';
 import PagosPedidosList from './components/PagosPedidosList';
+import PagosPedidosForm from './components/PagosPedidosForm';
 import GastosFijosList from './components/GastosFijosList';
 import AgendaView from './components/AgendaView';
 import CorreosList from './components/CorreosList';
@@ -253,6 +254,8 @@ function App() {
                                 {/* Pagos Config */}
                                 <Route element={<ProtectedRoute moduleId="pagos" />}>
                                     <Route path="/pagos-pedidos" element={<PagosPedidosList />} />
+                                    <Route path="/pagos-pedidos/create" element={<PagosPedidosForm isOpen={true} onClose={() => window.history.back()} onSaveSuccess={() => window.history.back()} />} />
+                                    <Route path="/pagos-pedidos/edit/:id" element={<PagosPedidosForm isOpen={true} onClose={() => window.history.back()} onSaveSuccess={() => window.history.back()} />} />
                                     <Route path="/comision-tarjeta" element={<ComisionTarjetaList />} />
                                     <Route path="/forma-pago" element={<FormaPagoList />} />
                                 </Route>

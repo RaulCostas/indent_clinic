@@ -6,6 +6,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Pagination from './Pagination';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Download, Printer, AlertCircle, Users } from 'lucide-react';
 
@@ -68,7 +69,7 @@ const PacientesDeudores: React.FC = () => {
     };
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(amount);
+        return `${formatNumber(amount)} Bs.`;
     };
 
     const handleEnviarSaldo = async (deudor: Deudor) => {
@@ -766,7 +767,7 @@ const PacientesDeudores: React.FC = () => {
                             <div>
                                 <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-tighter block leading-none">Total Deuda Pacientes Activos</span>
                                 <span className="text-lg font-bold text-blue-900 dark:text-blue-200">
-                                    {new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(totalDeudaActivos)}
+                                    {formatCurrency(totalDeudaActivos)}
                                 </span>
                             </div>
                         </div>
@@ -776,7 +777,7 @@ const PacientesDeudores: React.FC = () => {
                             <div>
                                 <span className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-tighter block leading-none">Total Deuda Pacientes Inactivos</span>
                                 <span className="text-lg font-bold text-red-900 dark:text-red-200">
-                                    {new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(totalDeudaInactivos)}
+                                    {formatCurrency(totalDeudaInactivos)}
                                 </span>
                             </div>
                         </div>

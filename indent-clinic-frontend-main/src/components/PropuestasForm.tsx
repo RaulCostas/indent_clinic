@@ -8,6 +8,7 @@ import ManualModal, { type ManualSection } from './ManualModal';
 import ArancelForm from './ArancelForm';
 import SearchableSelect from './SearchableSelect';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 
 interface DetalleItem {
     id?: number;
@@ -454,25 +455,25 @@ const PropuestasForm: React.FC = () => {
                                                     const parts = [];
                                                     // Solo mostrar los precios relevantes al seguro del paciente
                                                     if (isAlianzaGold) {
-                                                        if (a.precio_gold != null) parts.push(`Gold: ${Number(a.precio_gold).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_gold != null) parts.push(`Gold: ${formatNumber(a.precio_gold)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     } else if (isAlianzaSilver) {
-                                                        if (a.precio_silver != null) parts.push(`Silver: ${Number(a.precio_silver).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_silver != null) parts.push(`Silver: ${formatNumber(a.precio_silver)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     } else if (isAlianzaOdonto) {
-                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${Number(a.precio_odontologico).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${formatNumber(a.precio_odontologico)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     } else {
                                                         // Sin seguro específico: mostrar todos
-                                                        if (a.precio_gold != null) parts.push(`Gold: ${Number(a.precio_gold).toFixed(2)}`);
-                                                        if (a.precio_silver != null) parts.push(`Silver: ${Number(a.precio_silver).toFixed(2)}`);
-                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${Number(a.precio_odontologico).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_gold != null) parts.push(`Gold: ${formatNumber(a.precio_gold)}`);
+                                                        if (a.precio_silver != null) parts.push(`Silver: ${formatNumber(a.precio_silver)}`);
+                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${formatNumber(a.precio_odontologico)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     }
                                                     optionText = parts.length > 0 ? `${a.detalle} - ${parts.join(' | ')} ${itemMoneda}` : `${a.detalle} - Sin precios`;
                                                 } else {
-                                                    const precioNor = Number(a.precio).toFixed(2);
-                                                    const precioSS = a.precio_sin_seguro != null ? Number(a.precio_sin_seguro).toFixed(2) : null;
+                                                    const precioNor = formatNumber(a.precio);
+                                                    const precioSS = a.precio_sin_seguro != null ? formatNumber(a.precio_sin_seguro) : null;
                                                     optionText = precioSS ? `${a.detalle} - ${precioNor} | S/S: ${precioSS} ${itemMoneda}` : `${a.detalle} - ${precioNor} ${itemMoneda}`;
                                                 }
                                                 return { id: a.id, label: optionText };
@@ -546,7 +547,7 @@ const PropuestasForm: React.FC = () => {
                                                             <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">{op.label}</span>
                                                         </div>
                                                         <span className="text-purple-600 dark:text-purple-300 font-bold">
-                                                            {Number(op.precio).toFixed(2)} Bs.
+                                                            {formatNumber(op.precio)} Bs.
                                                         </span>
                                                     </div>
                                                 </label>
@@ -567,7 +568,7 @@ const PropuestasForm: React.FC = () => {
                                                     <input type="radio" name="priceType" className="w-4 h-4 text-purple-600 focus:ring-purple-500" checked={tipoPrecio === 'normal'} onChange={() => setTipoPrecio('normal')} />
                                                     <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">Precio Normal</span>
                                                 </div>
-                                                <span className="text-purple-600 dark:text-purple-300 font-bold">{Number(arancel.precio).toFixed(2)} Bs.</span>
+                                                <span className="text-purple-600 dark:text-purple-300 font-bold">{formatNumber(arancel.precio)} Bs.</span>
                                             </div>
                                         </label>
                                         <label className={`flex-1 cursor-pointer border rounded-lg p-3 transition-colors ${tipoPrecio === 'sin_seguro' ? 'bg-purple-50 border-purple-500 dark:bg-purple-900/30 dark:border-purple-400' : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
@@ -576,7 +577,7 @@ const PropuestasForm: React.FC = () => {
                                                     <input type="radio" name="priceType" className="w-4 h-4 text-purple-600 focus:ring-purple-500" checked={tipoPrecio === 'sin_seguro'} onChange={() => setTipoPrecio('sin_seguro')} />
                                                     <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">Sin Seguro</span>
                                                 </div>
-                                                <span className="text-orange-600 dark:text-orange-400 font-bold">{Number(arancel.precio_sin_seguro).toFixed(2)} Bs.</span>
+                                                <span className="text-orange-600 dark:text-orange-400 font-bold">{formatNumber(arancel.precio_sin_seguro)} Bs.</span>
                                             </div>
                                         </label>
                                     </div>
@@ -702,9 +703,9 @@ const PropuestasForm: React.FC = () => {
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">{index + 1}</td>
                                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{item.tratamiento}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">{item.piezas}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right">{item.precioUnitario.toFixed(2)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right">{formatNumber(item.precioUnitario)}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">{item.cantidad}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right font-medium">{item.total.toFixed(2)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right font-medium">{formatNumber(item.total)}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${item.posible ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
                                                 {item.posible ? 'SÍ' : 'NO'}
@@ -766,13 +767,13 @@ const PropuestasForm: React.FC = () => {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center text-sm font-medium text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 pb-2">
                                 <span className="uppercase tracking-wide">SubTotal Propuesta {activeTab}</span>
-                                <span className="text-gray-800 dark:text-white font-semibold text-lg">{calculateTabSubTotal().toFixed(2)} Bs.</span>
+                                <span className="text-gray-800 dark:text-white font-semibold text-lg">{formatNumber(calculateTabSubTotal())} Bs.</span>
                             </div>
 
                             <div className="flex justify-between items-center pt-2">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">TOTAL PROPUESTA {activeTab}</span>
                                 <div className="text-4xl font-bold text-purple-600 dark:text-purple-400">
-                                    {calculateTabTotal().toFixed(2)} <span className="text-xl text-gray-500 dark:text-gray-400">Bs.</span>
+                                    {formatNumber(calculateTabTotal())} <span className="text-xl text-gray-500 dark:text-gray-400">Bs.</span>
                                 </div>
                             </div>
                         </div>

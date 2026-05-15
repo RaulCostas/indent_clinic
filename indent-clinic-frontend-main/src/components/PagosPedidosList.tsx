@@ -11,6 +11,7 @@ import ManualModal, { type ManualSection } from './ManualModal';
 import PagosPedidosPrintModal from './PagosPedidosPrintModal';
 import autoTable from 'jspdf-autotable';
 import PagosPedidosForm from './PagosPedidosForm';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Download, Printer, CreditCard } from 'lucide-react';
 
@@ -126,7 +127,7 @@ const PagosPedidosList: React.FC = () => {
             Fecha: p.fecha,
             Pedido: p.pedido?.id || p.idPedido,
             Proveedor: p.pedido?.proveedor?.proveedor || '',
-            Monto: p.monto,
+            Monto: formatNumber(p.monto),
             Factura: p.factura,
             Recibo: p.recibo,
             FormaPago: p.forma_pago
@@ -217,7 +218,7 @@ const PagosPedidosList: React.FC = () => {
             const tableData = exportPagos.map(p => [
                 formatDate(p.fecha),
                 p.pedido?.proveedor?.proveedor || '',
-                p.monto,
+                formatNumber(p.monto),
                 p.factura || '',
                 p.recibo || '',
                 p.forma_pago || ''
@@ -299,7 +300,7 @@ const PagosPedidosList: React.FC = () => {
                 doc.text('Monto:', 20, contentStartY + lineHeight * 2);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(14);
-                doc.text(`${pago.monto} BS`, 70, contentStartY + lineHeight * 2); // Assuming BS as default currency if not present
+                doc.text(`${formatNumber(pago.monto)} BS`, 70, contentStartY + lineHeight * 2); // Assuming BS as default currency if not present
                 doc.setFontSize(12);
 
                 doc.setFont('helvetica', 'bold');
@@ -514,7 +515,7 @@ const PagosPedidosList: React.FC = () => {
                             <tr>
                                 <td>${formatDate(p.fecha)}</td>
                                 <td>${p.pedido?.proveedor?.proveedor || ''}</td>
-                                <td>${p.monto}</td>
+                                <td>${formatNumber(p.monto)}</td>
                                 <td>${p.factura || '-'}</td>
                                 <td>${p.recibo || '-'}</td>
                                 <td>${p.forma_pago}</td>
@@ -677,7 +678,7 @@ const PagosPedidosList: React.FC = () => {
                                     <td className="p-3 text-gray-800 dark:text-gray-300">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                                     <td className="p-3 text-gray-800 dark:text-gray-300">{formatDate(pago.fecha)}</td>
                                     <td className="p-3 text-gray-800 dark:text-gray-300">{pago.pedido?.proveedor?.proveedor}</td>
-                                    <td className="p-3 font-semibold text-gray-800 dark:text-gray-300">{pago.monto}</td>
+                                    <td className="p-3 font-semibold text-gray-800 dark:text-gray-300">{formatMoney(pago.monto, 'Bs')}</td>
                                     <td className="p-3 text-gray-800 dark:text-gray-300">{pago.factura || '-'}</td>
                                     <td className="p-3 text-gray-800 dark:text-gray-300">{pago.recibo || '-'}</td>
                                     <td className="p-3">

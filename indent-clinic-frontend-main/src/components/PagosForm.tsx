@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import Swal from 'sweetalert2';
 import type { Paciente, Proforma, Pago, ComisionTarjeta } from '../types';
 import ManualModal, { type ManualSection } from './ManualModal';
@@ -164,7 +165,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                 setFormData(prev => ({ ...prev, proformaId: Number(proformaIdProp) }));
             }
             if (montoProp) {
-                setFormData(prev => ({ ...prev, monto: String(Number(montoProp).toFixed(2)) }));
+                setFormData(prev => ({ ...prev, monto: String(formatNumber(Number(montoProp))) }));
             }
         }
     }, [id, clinicaSeleccionada, isModal, pagoIdProp, proformaIdProp, montoProp, tratamientoIdProp]);
@@ -341,7 +342,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
     };
     useEffect(() => {
         if (montoProp !== undefined && montoProp !== null) {
-            setFormData(prev => ({ ...prev, monto: String(Number(montoProp).toFixed(2)) }));
+            setFormData(prev => ({ ...prev, monto: String(formatNumber(Number(montoProp))) }));
         }
         if (tratamientoIdProp) {
             const tId = Number(tratamientoIdProp);
@@ -769,8 +770,8 @@ const PagosForm: React.FC<PagosFormProps> = ({
                         ${existingPagos.map(pago => {
             const isDollar = pago.moneda === 'Dólares';
             const displayMonto = isDollar
-                ? `${Number(pago.monto).toFixed(2)} (TC: ${Number(pago.tc).toFixed(2)})`
-                : Number(pago.monto).toFixed(2);
+                ? `${formatNumber(Number(pago.monto))} (TC: ${formatNumber(Number(pago.tc))})`
+                : formatNumber(Number(pago.monto));
             const displayMoneda = pago.moneda || 'Bolivianos';
 
             return `
@@ -791,19 +792,19 @@ const PagosForm: React.FC<PagosFormProps> = ({
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #3498db;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Total Plan de Tratamiento:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #2c3e50;">Bs. ${totalPresupuesto.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #2c3e50;">Bs. ${formatNumber(totalPresupuesto)}</div>
                         </div>
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #27ae60;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Pagado por Paciente:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #27ae60;">Bs. ${totalPagado.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #27ae60;">Bs. ${formatNumber(totalPagado)}</div>
                         </div>
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #3498db;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Saldo a Favor:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #3498db;">Bs. ${saldoFavor.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #3498db;">Bs. ${formatNumber(saldoFavor)}</div>
                         </div>
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #e74c3c;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Saldo en Contra:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #e74c3c;">Bs. ${saldoContra.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #e74c3c;">Bs. ${formatNumber(saldoContra)}</div>
                         </div>
                     </div>
                 </div>
@@ -859,7 +860,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
             if (name === 'descuento' && montoProp && !isEditing) {
                 const disc = Number(value) || 0;
                 const initial = Number(montoProp) || 0;
-                newData.monto = String(Math.max(0, initial - disc).toFixed(2));
+                newData.monto = String(formatNumber(Math.max(0, initial - disc)));
             }
             
             return newData;
@@ -1226,7 +1227,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-0.5">Precio Original</p>
                                     <p className="font-bold text-sm text-gray-700 dark:text-gray-300">
-                                        Bs. {Number(balancedTreatments.find(t => t.id === Number(tratamientoIdProp))?.precio || 0).toFixed(2)}
+                                        {formatMoney(balancedTreatments.find(t => t.id === Number(tratamientoIdProp))?.precio || 0, 'Bs')}
                                     </p>
                                 </div>
                             </div>
@@ -1605,8 +1606,8 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                                                     <p className="font-bold text-gray-900 dark:text-white">{trat.tratamiento}</p>
                                                                     <p className="text-[10px] text-gray-500">{trat.pieza ? `Pz. ${trat.pieza}` : ''}</p>
                                                                 </td>
-                                                                <td className="px-4 py-2 text-xs text-right text-gray-600 dark:text-gray-400">Bs. {trat.netPrice.toFixed(2)}</td>
-                                                                <td className="px-4 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">Bs. {trat.balancedSaldo.toFixed(2)}</td>
+                                                                <td className="px-4 py-2 text-xs text-right text-gray-600 dark:text-gray-400">{formatMoney(trat.netPrice, 'Bs')}</td>
+                                                                <td className="px-4 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">{formatMoney(trat.balancedSaldo, 'Bs')}</td>
                                                                 <td className="px-4 py-2 text-right bg-green-50/30 dark:bg-green-900/5">
                                                                     <input 
                                                                         type="number"
@@ -1683,7 +1684,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-600 pb-3">
                                     <div className="text-gray-600 dark:text-gray-300 text-sm italic">Total Plan de Tratamiento:</div>
                                     <div className="font-bold text-lg text-gray-500 dark:text-gray-400">
-                                        Bs. {totalPresupuesto.toFixed(2)}
+                                        {formatMoney(totalPresupuesto, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1691,7 +1692,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-600 pb-3">
                                     <div className="text-red-700 dark:text-red-400 text-sm font-black uppercase">Deuda Real (Terminado):</div>
                                     <div className="font-black text-xl text-red-600 dark:text-red-500 animate-pulse-slow">
-                                        Bs. {deudaReal.toFixed(2)}
+                                        {formatMoney(deudaReal, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1699,7 +1700,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-600 pb-3">
                                     <div className="text-gray-600 dark:text-gray-300 text-sm">Total Pagado:</div>
                                     <div className="font-bold text-lg text-green-600 dark:text-green-400">
-                                        Bs. {totalPagado.toFixed(2)}
+                                        {formatMoney(totalPagado, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1707,7 +1708,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                                     <div className="text-blue-800 dark:text-blue-300 text-sm font-bold uppercase">Anticipo / Saldo a Favor:</div>
                                     <div className="font-black text-xl text-blue-600 dark:text-blue-400">
-                                        Bs. {anticipoDisponible.toFixed(2)}
+                                        {formatMoney(anticipoDisponible, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1740,7 +1741,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-not-allowed"
                                     />
                                     <p className="mt-1 text-sm font-bold text-green-600 dark:text-green-400">
-                                        Saldo Disponible: Bs. {saldoFavor.toFixed(2)}
+                                        Saldo Disponible: {formatMoney(saldoFavor, 'Bs')}
                                     </p>
                                 </div>
 

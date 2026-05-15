@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import type { Paciente, Propuesta } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatDateSpanish, numberToWords } from '../utils/formatters';
+import { formatDateSpanish, numberToWords, formatNumber } from '../utils/formatters';
 import { formatDate } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { Printer, ArrowRightCircle, MessageCircle } from 'lucide-react';
@@ -269,14 +269,14 @@ const PropuestasList: React.FC = () => {
                 item.piezas,
                 item.arancel?.detalle || '',
                 item.cantidad,
-                Number(item.precioUnitario).toFixed(2),
-                Number(item.total).toFixed(2)
+                formatNumber(item.precioUnitario),
+                formatNumber(item.total)
             ];
 
             if (hasDiscount) {
                 row.push(
                     item.descuento ?? '-',
-                    Number(item.total).toFixed(2)
+                    formatNumber(item.total)
                 );
             }
 
@@ -362,7 +362,7 @@ const PropuestasList: React.FC = () => {
             : Number(propuesta.total);
 
         doc.text('TOTAL Bs.', labelX + labelWidth - 2, finalY + 5, { align: 'right' });
-        doc.text(totalAmount.toFixed(2), lastColX + lastColWidth - 2, finalY + 5, { align: 'right' });
+        doc.text(formatNumber(totalAmount), lastColX + lastColWidth - 2, finalY + 5, { align: 'right' });
 
         finalY += 15;
 
@@ -546,7 +546,7 @@ const PropuestasList: React.FC = () => {
                                             <td key={letra} className="px-5 py-4 whitespace-nowrap text-sm text-center">
                                                 {total > 0 ? (
                                                     <div className="flex flex-col items-center gap-2">
-                                                        <span className="font-bold text-gray-800 dark:text-gray-200">{total.toFixed(2)}</span>
+                                                        <span className="font-bold text-gray-800 dark:text-gray-200">{formatNumber(total)}</span>
                                                         <div className="flex gap-2">
                                                             <button
                                                                 onClick={() => generatePDF(propuesta, 'print', letra)}

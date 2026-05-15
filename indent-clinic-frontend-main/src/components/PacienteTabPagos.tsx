@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente, Pago, Proforma, HistoriaClinica } from '../types';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import { FileText, Plus, Printer, AlertCircle, DollarSign, Lock, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
@@ -355,7 +356,7 @@ const PacienteTabPagos: React.FC = () => {
         row('Nº Recibo:', pago.recibo || String(pago.id));
         row('Fecha:', formatDate(pago.fecha));
         row('Recibí de:', paciente ? `${paciente.paterno} ${paciente.materno} ${paciente.nombre}`.toUpperCase() : 'N/A');
-        row('La suma de:', pago.moneda === 'Dólares' ? `USD ${Number(pago.monto).toFixed(2)}` : `Bs ${Number(pago.monto).toFixed(2)}`);
+        row('La suma de:', pago.moneda === 'Dólares' ? `USD ${formatNumber(Number(pago.monto))}` : `Bs ${formatNumber(Number(pago.monto))}`);
         row('Por concepto de:', pago.proforma ? `Plan de Tratamiento #${pago.proforma.numero}` : 'Tratamiento Odontológico');
         row('Forma de Pago:', pago.formaPagoRel ? pago.formaPagoRel.forma_pago : pago.formaPago);
         if (pago.observaciones) row('Observaciones:', pago.observaciones);
@@ -546,7 +547,7 @@ const PacienteTabPagos: React.FC = () => {
                         <div class="treatment-section">
                             <div class="treatment-header">
                                 <h3>TRATAMIENTO: ${group.nombre.toUpperCase()}</h3>
-                                <span class="cost">Costo: Bs. ${Number(group.costo).toFixed(2)}</span>
+                                <span class="cost">Costo: Bs. ${formatNumber(Number(group.costo))}</span>
                             </div>
                             <table>
                                 <thead>
@@ -563,7 +564,7 @@ const PacienteTabPagos: React.FC = () => {
                                             <td>${formatDate(p.fecha)}</td>
                                             <td>${p.formaPagoRel ? p.formaPagoRel.forma_pago : p.formaPago || '-'}</td>
                                             <td>${p.factura ? `F:${p.factura}` : (p.recibo ? `R:${p.recibo}` : '-')}</td>
-                                            <td class="text-right font-bold">Bs. ${Number(p.pagoMonto).toFixed(2)}</td>
+                                            <td class="text-right font-bold">Bs. ${formatNumber(Number(p.pagoMonto))}</td>
                                         </tr>
                                     `).join('') : `
                                         <tr>
@@ -596,7 +597,7 @@ const PacienteTabPagos: React.FC = () => {
                                             <td>${formatDate(p.fecha)}</td>
                                             <td>${p.tratamientoNombre}</td>
                                             <td>${p.factura ? `F:${p.factura}` : (p.recibo ? `R:${p.recibo}` : '-')}</td>
-                                            <td class="text-right font-bold">Bs. ${Number(p.pagoMonto).toFixed(2)}</td>
+                                            <td class="text-right font-bold">Bs. ${formatNumber(Number(p.pagoMonto))}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -607,15 +608,15 @@ const PacienteTabPagos: React.FC = () => {
                     <div class="totals-section">
                         <div class="total-row">
                             <span>Total Abonado:</span>
-                            <strong>Bs. ${(totalPagadoGlobal || 0).toFixed(2)}</strong>
+                            <strong>Bs. ${formatNumber(totalPagadoGlobal || 0)}</strong>
                         </div>
                         <div class="total-row">
                             <span>Total Tratamientos:</span>
-                            <strong>Bs. ${(costoTotalTodos || 0).toFixed(2)}</strong>
+                            <strong>Bs. ${formatNumber(costoTotalTodos || 0)}</strong>
                         </div>
                         <div class="total-row total-final">
                             <span>SALDO PENDIENTE:</span>
-                            <span>Bs. ${(totalDebt || 0).toFixed(2)}</span>
+                            <span>Bs. ${formatNumber(totalDebt || 0)}</span>
                         </div>
                     </div>
 
@@ -710,7 +711,7 @@ const PacienteTabPagos: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
                         <div className="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400 mb-1">Total Pagado</div>
-                        <div className="text-xl font-black text-emerald-700 dark:text-emerald-300">Bs. {totalPagado.toFixed(2)}</div>
+                        <div className="text-xl font-black text-emerald-700 dark:text-emerald-300">Bs. {formatNumber(totalPagado)}</div>
                     </div>
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                         <div className="text-xs font-bold uppercase text-blue-600 dark:text-blue-400 mb-1">Nº de Pagos</div>
@@ -718,13 +719,13 @@ const PacienteTabPagos: React.FC = () => {
                     </div>
                     <div className={`rounded-xl p-4 border ${totalDebt > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'}`}>
                         <div className="text-xs font-bold uppercase text-red-600 dark:text-red-400 mb-1">Saldo Total Deuda Pendiente</div>
-                        <div className="text-xl font-black text-red-700 dark:text-red-300">Bs. {totalDebt.toFixed(2)}</div>
+                        <div className="text-xl font-black text-red-700 dark:text-red-300">Bs. {formatNumber(totalDebt)}</div>
                     </div>
                     {anticipoDisponible > 0.01 && (
                         <div className="bg-blue-600 dark:bg-blue-900 rounded-xl p-4 border border-blue-500 shadow-lg shadow-blue-500/20 flex justify-between items-center group overflow-hidden relative">
                             <div className="relative z-10">
                                 <div className="text-xs font-bold uppercase text-blue-100 mb-1">Anticipo / Saldo a Favor</div>
-                                <div className="text-2xl font-black text-white">Bs. {anticipoDisponible.toFixed(2)}</div>
+                                <div className="text-2xl font-black text-white">Bs. {formatNumber(anticipoDisponible)}</div>
                             </div>
                             <button
                                 onClick={() => {
@@ -778,9 +779,9 @@ const PacienteTabPagos: React.FC = () => {
                                             )}
                                             <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {deuda.paid.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm font-black text-right text-orange-600 dark:text-orange-400">Bs. {deuda.saldo.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {formatNumber(deuda.netPrice)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {formatNumber(deuda.paid)}</td>
+                                        <td className="px-4 py-2 text-sm font-black text-right text-orange-600 dark:text-orange-400">Bs. {formatNumber(deuda.saldo)}</td>
                                         <td className="px-4 py-2 text-center">
                                             <button 
                                                 onClick={() => {
@@ -841,9 +842,9 @@ const PacienteTabPagos: React.FC = () => {
                                             )}
                                             <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {deuda.paid.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm font-black text-right text-sky-600 dark:text-sky-400">Bs. {deuda.saldo.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {formatNumber(deuda.netPrice)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {formatNumber(deuda.paid)}</td>
+                                        <td className="px-4 py-2 text-sm font-black text-right text-sky-600 dark:text-sky-400">Bs. {formatNumber(deuda.saldo)}</td>
                                         <td className="px-4 py-2 text-center">
                                             <button 
                                                 onClick={() => {
@@ -901,12 +902,12 @@ const PacienteTabPagos: React.FC = () => {
                                         {row.tratamientoNombre}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                                        {row.tratamientoPrecio && row.tratamientoPrecio !== '-' ? `Bs. ${Number(row.tratamientoPrecio).toFixed(2)}` : '-'}
+                                        {row.tratamientoPrecio && row.tratamientoPrecio !== '-' ? `Bs. ${formatNumber(Number(row.tratamientoPrecio))}` : '-'}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                                        {Number(row.tratamientoDescuento) > 0 ? `Bs. ${Number(row.tratamientoDescuento).toFixed(2)}` : '-'}
+                                        {Number(row.tratamientoDescuento) > 0 ? `Bs. ${formatNumber(Number(row.tratamientoDescuento))}` : '-'}
                                     </td>
-                                    <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">Bs. {Number(row.pagoMonto).toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">Bs. {formatNumber(Number(row.pagoMonto))}</td>
                                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                                         {row.formaPagoRel ? row.formaPagoRel.forma_pago : row.formaPago}
                                     </td>
@@ -1109,10 +1110,10 @@ const PacienteTabPagos: React.FC = () => {
                                                         {item.cantidadPendiente}
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
-                                                        Bs. {Number(item.precioUnitario).toFixed(2)}
+                                                        Bs. {formatNumber(Number(item.precioUnitario))}
                                                     </td>
                                                     <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
-                                                        Bs. {(Number(item.precioUnitario) * item.cantidadPendiente).toFixed(2)}
+                                                        Bs. {formatNumber(Number(item.precioUnitario) * item.cantidadPendiente)}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -1121,7 +1122,7 @@ const PacienteTabPagos: React.FC = () => {
                                             <tr>
                                                 <td colSpan={5} className="px-4 py-4 text-right uppercase text-xs tracking-wider text-gray-500">Total Oportunidad de Venta:</td>
                                                 <td className="px-4 py-4 text-right text-lg text-indigo-600 dark:text-indigo-400 font-black">
-                                                    Bs. {plannedTreatments.reduce((sum, item) => sum + (Number(item.precioUnitario) * item.cantidadPendiente), 0).toFixed(2)}
+                                                    Bs. {formatNumber(plannedTreatments.reduce((sum, item) => sum + (Number(item.precioUnitario) * item.cantidadPendiente), 0))}
                                                 </td>
                                             </tr>
                                         </tfoot>

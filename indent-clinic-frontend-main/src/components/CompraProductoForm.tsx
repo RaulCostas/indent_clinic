@@ -6,6 +6,7 @@ import SearchableSelect from './SearchableSelect';
 import { useClinica } from '../context/ClinicaContext';
 import { ShoppingCart, Truck, Package, Trash2, Plus, Minus, Save, X, Info, Calendar, DollarSign } from 'lucide-react';
 import { getLocalDateString } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import ManualModal, { type ManualSection } from './ManualModal';
 
 interface CartItem {
@@ -41,7 +42,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
             .map(p => ({
                 id: p.id,
                 label: p.nombre,
-                subLabel: `Stock Actual: ${p.stock_actual} | Último Costo: ${Number(p.costo).toFixed(2)}`
+                subLabel: `Stock Actual: ${p.stock_actual} | Último Costo: ${formatNumber(Number(p.costo))}`
             })), [productos]);
 
     useEffect(() => {
@@ -142,7 +143,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
 
         const result = await Swal.fire({
             title: '¿Registrar Compra?',
-            text: `Se incrementará el stock de los productos. Total: ${total.toFixed(2)} Bs.`,
+            text: `Se incrementará el stock de los productos. Total: ${formatNumber(total)} Bs.`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Sí, registrar'
@@ -382,7 +383,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
                                                     </div>
                                                 </div>
                                                 <div className="text-right font-black text-sm text-blue-600">
-                                                    Bs. {(item.cantidad * item.costo_unitario).toFixed(2)}
+                                                    Bs. {formatNumber(item.cantidad * item.costo_unitario)}
                                                 </div>
                                             </div>
                                         ))
@@ -392,7 +393,7 @@ const CompraProductoForm: React.FC<{ isOpen: boolean; onClose: () => void; onSuc
                                 <div className="pt-6 border-t dark:border-gray-700 space-y-4">
                                     <div className="flex justify-between items-end">
                                         <span className="text-gray-500 dark:text-gray-400 font-bold text-xs uppercase tracking-widest">Monto Total</span>
-                                        <span className="text-3xl font-black text-gray-900 dark:text-white">Bs. <span className="text-blue-600">{total.toFixed(2)}</span></span>
+                                        <span className="text-3xl font-black text-gray-900 dark:text-white">Bs. <span className="text-blue-600">{formatNumber(total)}</span></span>
                                     </div>
                                     
                                     <div className="flex justify-start gap-3 pt-4 border-t dark:border-gray-700">

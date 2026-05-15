@@ -12,6 +12,7 @@ import PagosGastosFijosForm from './PagosGastosFijosForm';
 import Pagination from './Pagination';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { FileText, Download, Printer, CreditCard } from 'lucide-react';
+import { formatNumber } from '../utils/formatters';
 
 
 
@@ -51,9 +52,7 @@ const GastosFijosList: React.FC = () => {
     const [userPermisos, setUserPermisos] = useState<string[]>([]);
     const canEditPayments = !userPermisos.includes('editar-pagos');
 
-    const formatNumber = (num: number | string) => {
-        return Number(num).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
+
 
     useEffect(() => {
         fetchGastos();

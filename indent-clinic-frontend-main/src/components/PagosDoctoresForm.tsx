@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '../services/api';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { useClinica } from '../context/ClinicaContext';
 import FormaPagoForm from './FormaPagoForm';
@@ -517,14 +518,14 @@ const PagosDoctoresForm = () => {
                                                 <td className="p-3 text-gray-700 dark:text-gray-300">{p.tratamiento}</td>
                                                 <td className="p-3 text-gray-500 dark:text-gray-400">{p.pieza || '-'}</td>
                                                 <td className="p-3 text-center text-gray-500 dark:text-gray-400">{p.cantidad}</td>
-                                                <td className="p-3 text-right font-bold text-gray-800 dark:text-white">Bs. {Number(p.precio).toFixed(2)}</td>
+                                                <td className="p-3 text-right font-bold text-gray-800 dark:text-white">{formatMoney(p.precio, 'Bs')}</td>
                                                 
                                                 <td className="p-3 text-right text-red-600 dark:text-red-400 font-medium">
-                                                    {isSelected && details.descuento > 0 ? `- Bs. ${Number(details.descuento).toFixed(2)}` : '-'}
+                                                    {isSelected && details.descuento > 0 ? `- ${formatMoney(details.descuento, 'Bs')}` : '-'}
                                                 </td>
 
                                                 <td className="p-3 text-right font-medium text-gray-700 dark:text-gray-300">
-                                                    {isSelected ? Number(details.costoLaboratorio).toFixed(2) : '-'}
+                                                    {isSelected ? formatNumber(details.costoLaboratorio) : '-'}
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     {isSelected && p.ultimoPagoPaciente?.factura ? (
@@ -542,13 +543,13 @@ const PagosDoctoresForm = () => {
                                                             const base = Number(p.precio) || 0;
                                                             const discountAmount = Number(details.descuento) || 0;
                                                             const taxableBase = base - discountAmount;
-                                                            return `- Bs. ${(taxableBase * 0.16).toFixed(2)}`;
+                                                            return `- ${formatMoney(taxableBase * 0.16, 'Bs')}`;
                                                         })()
-                                                    ) : isSelected ? '0.00' : '-'}
+                                                    ) : isSelected ? formatNumber(0) : '-'}
                                                 </td>
 
                                                 <td className="p-3 text-right font-bold text-blue-600 dark:text-blue-400">
-                                                    {isSelected ? `Bs. ${calculateRowNeto(p).toFixed(2)}` : '-'}
+                                                    {isSelected ? formatMoney(calculateRowNeto(p), 'Bs') : '-'}
                                                 </td>
 
                                                 <td className="p-2">
@@ -569,7 +570,7 @@ const PagosDoctoresForm = () => {
                                                 </td>
 
                                                 <td className="p-3 text-right font-bold text-green-700 dark:text-green-400">
-                                                    {isSelected ? rowTotal.toFixed(2) : '-'}
+                                                    {isSelected ? formatNumber(rowTotal) : '-'}
                                                 </td>
                                             </tr>
                                         );
@@ -656,7 +657,7 @@ const PagosDoctoresForm = () => {
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border-2 border-green-500/20 dark:border-green-400/20 text-center min-w-[200px] shadow-sm">
                             <span className="block text-gray-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">Total a Pagar</span>
                             <span className="block text-3xl font-black text-green-600 dark:text-green-400 tracking-tighter">
-                                {totalToPay.toFixed(2)} <span className="text-sm font-normal ml-1">{moneda === 'Dólares' ? '$us' : 'Bs'}</span>
+                                {formatNumber(totalToPay)} <span className="text-sm font-normal ml-1">{moneda === 'Dólares' ? '$us' : 'Bs'}</span>
                             </span>
                         </div>
                     </div>

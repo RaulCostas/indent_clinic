@@ -10,6 +10,7 @@ import ManualModal, { type ManualSection } from './ManualModal';
 
 import { useClinica } from '../context/ClinicaContext';
 import { DollarSign, Printer } from 'lucide-react';
+import { formatNumber } from '../utils/formatters';
 
 
 const PagosList: React.FC = () => {
@@ -177,8 +178,8 @@ const PagosList: React.FC = () => {
         doc.text('La suma de:', xLabel, y);
         doc.setFont('helvetica', 'normal');
         const montoStr = pago.moneda === 'Dólares'
-            ? `USD ${Number(pago.monto).toFixed(2)}`
-            : `Bs ${Number(pago.monto).toFixed(2)}`;
+            ? `USD ${formatNumber(Number(pago.monto))}`
+            : `Bs ${formatNumber(Number(pago.monto))}`;
         doc.text(montoStr, xValue, y);
         y += 12;
 
@@ -335,8 +336,8 @@ const PagosList: React.FC = () => {
                         {currentItems.map((pago) => {
                             const isDollar = pago.moneda === 'Dólares';
                             const displayMonto = isDollar
-                                ? `USD ${Number(pago.monto).toFixed(2)} (TC. ${Number(pago.tc).toFixed(2)})`
-                                : `Bs ${Number(pago.monto).toFixed(2)}`;
+                                ? `USD ${formatNumber(Number(pago.monto))} (TC. ${formatNumber(Number(pago.tc))})`
+                                : `Bs ${formatNumber(Number(pago.monto))}`;
 
                             const isLocked = userPermisos.includes('cerrar-caja') && clinicaActual?.fecha_cierre_caja && pago.fecha.split('T')[0] <= clinicaActual.fecha_cierre_caja.split('T')[0];
 

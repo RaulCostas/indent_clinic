@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useParams } from 'react-router-dom';
 import api from '../services/api';
 import type { Pedidos } from '../types';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { getLocalDateString } from '../utils/dateUtils';
 import { useClinica } from '../context/ClinicaContext';
+import { formatNumber } from '../utils/formatters';
 import FormaPagoForm from './FormaPagoForm';
 
 
@@ -21,8 +23,15 @@ interface PagosPedidosFormProps {
     onSaveSuccess?: () => void;
 }
 
-const PagosPedidosForm: React.FC<PagosPedidosFormProps> = ({ isOpen, onClose, id, preSelectedPedidoId, onSaveSuccess }) => {
+const PagosPedidosForm: React.FC<PagosPedidosFormProps> = ({ isOpen, onClose, id: propId, preSelectedPedidoId, onSaveSuccess }) => {
     const { clinicaSeleccionada } = useClinica();
+    const { id: urlId } = useParams();
+    const id = propId || urlId;
+
+    const [searchParams] = useSearchParams();
+    const queryPedidoId = searchParams.get('pedidoId');
+    const effectivePedidoId = preSelectedPedidoId || queryPedidoId;
+
     const isEditMode = !!id;
 
     const [pedidos, setPedidos] = useState<Pedidos[]>([]);
@@ -30,7 +39,7 @@ const PagosPedidosForm: React.FC<PagosPedidosFormProps> = ({ isOpen, onClose, id
     const [loading, setLoading] = useState(true);
 
     // Form State
-    const [idPedido, setIdPedido] = useState(preSelectedPedidoId || '');
+    const [idPedido, setIdPedido] = useState(effectivePedidoId || '');
     const [fecha, setFecha] = useState(getLocalDateString());
     const [monto, setMonto] = useState('');
     const [factura, setFactura] = useState('');
@@ -108,9 +117,9 @@ const PagosPedidosForm: React.FC<PagosPedidosFormProps> = ({ isOpen, onClose, id
                     // Actually if we are paying it, it shouldn't be paid yet.
                     setPedidos(allPedidos.filter(p => !p.Pagado));
 
-                    // If pre-selected, auto-fill amount
-                    if (preSelectedPedidoId) {
-                        const selected = allPedidos.find(p => p.id === Number(preSelectedPedidoId));
+                    if (effectivePedidoId) {
+                        setIdPedido(effectivePedidoId);
+                        const selected = allPedidos.find(p => p.id === Number(effectivePedidoId));
                         if (selected) {
                             setMonto(selected.Total.toString());
                         }
@@ -124,7 +133,7 @@ const PagosPedidosForm: React.FC<PagosPedidosFormProps> = ({ isOpen, onClose, id
             }
         };
         fetchData();
-    }, [id, isOpen, isEditMode, preSelectedPedidoId, clinicaSeleccionada]);
+    }, [id, isOpen, isEditMode, effectivePedidoId, clinicaSeleccionada]);
 
 
 
@@ -233,7 +242,7 @@ const PagosPedidosForm: React.FC<PagosPedidosFormProps> = ({ isOpen, onClose, id
                                         <option value="">-- Seleccione un Pedido --</option>
                                         {pedidos.map(p => (
                                             <option key={p.id} value={p.id}>
-                                                #{p.id} - {p.proveedor?.proveedor} - Total: {p.Total} {p.Pagado ? '(Pagado)' : ''}
+                                                #{p.id} - {p.proveedor?.proveedor} - Total: {formatNumber(p.Total)} {p.Pagado ? '(Pagado)' : ''}
                                             </option>
                                         ))}
                                     </select>

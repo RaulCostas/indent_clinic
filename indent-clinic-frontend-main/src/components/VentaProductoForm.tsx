@@ -6,6 +6,7 @@ import SearchableSelect from './SearchableSelect';
 import { useClinica } from '../context/ClinicaContext';
 import { ShoppingCart, User, Package, Trash2, Plus, Minus, CreditCard, Save, X, Info, Calendar, ArrowLeft } from 'lucide-react';
 import { getLocalDateString } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import ManualModal, { type ManualSection } from './ManualModal';
 
 interface CartItem {
@@ -62,7 +63,7 @@ const VentaProductoForm: React.FC<VentaProductoFormProps> = ({ id, onSuccess, on
             .map(p => ({
                 id: p.id,
                 label: p.nombre,
-                subLabel: `Stock: ${p.stock_actual} | Precio: ${Number(p.precio_venta).toFixed(2)}`
+                subLabel: `Stock: ${p.stock_actual} | Precio: ${formatNumber(Number(p.precio_venta))}`
             })), [productos]);
 
     useEffect(() => {
@@ -245,7 +246,7 @@ const VentaProductoForm: React.FC<VentaProductoFormProps> = ({ id, onSuccess, on
 
         const result = await Swal.fire({
             title: id ? '¿Guardar Cambios?' : '¿Confirmar Venta?',
-            text: `Total: ${total.toFixed(2)} Bs.`,
+            text: `Total: ${formatNumber(total)} Bs.`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: id ? 'Sí, guardar' : 'Sí, registrar venta'
@@ -498,8 +499,8 @@ const VentaProductoForm: React.FC<VentaProductoFormProps> = ({ id, onSuccess, on
                                                     </button>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="text-xs text-gray-400">{item.cantidad} x {item.precio_unitario.toFixed(2)}</div>
-                                                    <div className="font-bold text-emerald-600">Bs. {(item.cantidad * item.precio_unitario).toFixed(2)}</div>
+                                                    <div className="text-xs text-gray-400">{item.cantidad} x {formatNumber(item.precio_unitario)}</div>
+                                                    <div className="font-bold text-emerald-600">Bs. {formatNumber(item.cantidad * item.precio_unitario)}</div>
                                                 </div>
                                             </div>
 
@@ -530,11 +531,11 @@ const VentaProductoForm: React.FC<VentaProductoFormProps> = ({ id, onSuccess, on
                             <div className="space-y-4 border-t dark:border-gray-700 pt-6">
                                 <div className="flex justify-between items-center text-gray-600 dark:text-gray-400 font-medium">
                                     <span>Subtotal</span>
-                                    <span>Bs. {total.toFixed(2)}</span>
+                                    <span>Bs. {formatNumber(total)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xl font-extrabold text-gray-900 dark:text-white">
                                     <span>Total a Pagar</span>
-                                    <span className="text-2xl text-emerald-600">Bs. {total.toFixed(2)}</span>
+                                    <span className="text-2xl text-emerald-600">Bs. {formatNumber(total)}</span>
                                 </div>
 
                                 <button

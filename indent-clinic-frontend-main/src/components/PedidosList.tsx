@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import type { Pedidos } from '../types';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -212,9 +213,9 @@ const PedidosList: React.FC = () => {
             const tableRows = exportPedidos.map((p, index) => [
                 index + 1,
                 formatDate(p.fecha),
-                `Bs ${Number(p.Sub_Total).toFixed(2)}`,
-                `Bs ${Number(p.Descuento).toFixed(2)}`,
-                `Bs ${Number(p.Total).toFixed(2)}`,
+                `Bs ${formatNumber(p.Sub_Total)}`,
+                `Bs ${formatNumber(p.Descuento)}`,
+                `Bs ${formatNumber(p.Total)}`,
                 p.Pagado ? 'SI' : 'NO'
             ]);
 
@@ -420,9 +421,9 @@ const PedidosList: React.FC = () => {
                             <tr>
                                 <td>${index + 1}</td>
                                 <td>${formatDate(p.fecha)}</td>
-                                <td>${Number(p.Sub_Total).toFixed(2)}</td>
-                                <td>${Number(p.Descuento).toFixed(2)}</td>
-                                <td>${Number(p.Total).toFixed(2)}</td>
+                                <td>${formatNumber(p.Sub_Total)}</td>
+                                <td>${formatNumber(p.Descuento)}</td>
+                                <td>${formatNumber(p.Total)}</td>
                                 <td>${p.Pagado ? 'SI' : 'NO'}</td>
                             </tr>
                         `).join('')}
@@ -623,9 +624,9 @@ const PedidosList: React.FC = () => {
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{index + 1}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{formatDate(pedido.fecha)}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{pedido.proveedor?.proveedor}</td>
-                                <td className="p-3 text-gray-800 dark:text-gray-300">{Number(pedido.Sub_Total).toFixed(2)}</td>
-                                <td className="p-3 text-gray-800 dark:text-gray-300">{Number(pedido.Descuento).toFixed(2)}</td>
-                                <td className="p-3 text-gray-800 dark:text-gray-300">{Number(pedido.Total).toFixed(2)}</td>
+                                <td className="p-3 text-gray-800 dark:text-gray-300">{formatNumber(pedido.Sub_Total)}</td>
+                                <td className="p-3 text-gray-800 dark:text-gray-300">{formatNumber(pedido.Descuento)}</td>
+                                <td className="p-3 text-gray-800 dark:text-gray-300">{formatNumber(pedido.Total)}</td>
                                 <td className="p-3">
                                     <span className={`px-2 py-1 rounded text-sm ${pedido.Pagado ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'}`}>
                                         {pedido.Pagado ? 'SI' : 'NO'}

@@ -9,6 +9,7 @@ import Pagination from './Pagination';
 import { useClinica } from '../context/ClinicaContext';
 import { Printer, FileText, Lock, Tablet } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { formatNumber, formatMoney } from '../utils/formatters';
 
 
 // Interfaces
@@ -578,10 +579,10 @@ const HojaDiaria: React.FC = () => {
                                 ${data.detalles.map((d: any) => `
                                     <tr style="${!d.cuadra ? 'background: #fff1f2;' : ''}">
                                         <td style="padding: 8px; border: 1px solid #e2e8f0;">${d.forma_pago}</td>
-                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${Number(d.recepcion).toFixed(2)}</td>
-                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${Number(d.tablet).toFixed(2)}</td>
+                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatNumber(Number(d.recepcion))}</td>
+                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatNumber(Number(d.tablet))}</td>
                                         <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: ${d.diferencia > 0 ? '#d33' : (d.diferencia < 0 ? '#e67e22' : '#059669')};">
-                                            ${Number(d.diferencia).toFixed(2)}
+                                            ${formatNumber(Number(d.diferencia))}
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -603,7 +604,7 @@ const HojaDiaria: React.FC = () => {
                                         <tr style="border-bottom: 1px solid #f1f5f9; hover: background: #fdfdfd;">
                                             <td style="padding: 8px;">${pt.paciente}</td>
                                             <td style="padding: 8px; text-align: center;"><span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">${pt.forma_pago}</span></td>
-                                            <td style="padding: 8px; text-align: right; font-weight: 700; color: #334155;">${Number(pt.monto).toFixed(2)} Bs.</td>
+                                            <td style="padding: 8px; text-align: right; font-weight: 700; color: #334155;">${formatNumber(Number(pt.monto))} Bs.</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -655,15 +656,15 @@ const HojaDiaria: React.FC = () => {
                     <div style="background-color: white; padding: 10px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #e0e0e0;">
                         <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${method}</div>
                         <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                            <span>Bs: <strong style="color: #2563eb;">${totals.Bs.toFixed(2)}</strong></span>
-                            <span>$us: <strong style="color: #16a34a;">${totals.Sus.toFixed(2)}</strong></span>
+                            <span>Bs: <strong style="color: #2563eb;">${formatNumber(totals.Bs)}</strong></span>
+                            <span>$us: <strong style="color: #16a34a;">${formatNumber(totals.Sus)}</strong></span>
                         </div>
                     </div>
                 `).join('')}
                 <div style="margin-top: 12px; padding-top: 12px; border-top: 2px solid #333; font-weight: bold;">
                     <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>Total Bs: ${totalBs.toFixed(2)}</span>
-                        <span>Total $us: ${totalSus.toFixed(2)}</span>
+                        <span>Total Bs: ${formatNumber(totalBs)}</span>
+                        <span>Total $us: ${formatNumber(totalSus)}</span>
                     </div>
                 </div>
             </div>
@@ -787,7 +788,7 @@ const HojaDiaria: React.FC = () => {
                                          : '-')}
                                 </td>
                                 <td style="text-align: right; color: #dc2626; font-weight: 600;">${Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}</td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}${r.moneda === 'Dólares' && r.tc ? ` (TC ${Number(r.tc).toFixed(2)})` : ''}</td>
+                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}${r.moneda === 'Dólares' && r.tc ? ` (TC ${formatNumber(r.tc)})` : ''}</td>
                                 <td>${r.formaPagoRel?.forma_pago || 'N/A'}${r.formaPagoRel?.forma_pago?.toLowerCase() === 'tarjeta' && r.comisionTarjeta?.redBanco ? ` (${r.comisionTarjeta.redBanco})` : ''}</td>
                                 <td style="font-size: 10px;">${r.observaciones || '-'}</td>
                             </tr>
@@ -1506,15 +1507,15 @@ const HojaDiaria: React.FC = () => {
             const { ingresos, egresos, utilidad } = currentTotals;
             const formatVal = (v: any) => `
                 <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
-                    <span style="font-weight: bold; color: #1e293b;">${v.bs.toFixed(2)} Bs</span>
-                    <span style="color: #64748b;">${v.sus.toFixed(2)} $us</span>
+                    <span style="font-weight: bold; color: #1e293b;">${formatNumber(v.bs)} Bs</span>
+                    <span style="color: #64748b;">${formatNumber(v.sus)} $us</span>
                 </div>
             `;
             
             const renderBreakdown = (breakdown: any) => Object.entries(breakdown || {}).map(([m, v]: any) => `
                 <div style="display: flex; justify-content: space-between; font-size: 10px; color: #475569; padding-left: 10px;">
                     <span>• ${m}</span>
-                    <span>${v.bs.toFixed(2)} Bs / ${v.sus.toFixed(2)} $us</span>
+                    <span>${formatNumber(v.bs)} Bs / ${formatNumber(v.sus)} $us</span>
                 </div>
             `).join('');
 
@@ -1542,7 +1543,7 @@ const HojaDiaria: React.FC = () => {
                     <div style="margin-top: 25px; padding-top: 15px; border-top: 3px double #3b82f6;">
                         <h3 style="font-size: 16px; color: #1e3a8a; margin-bottom: 10px; display: flex; justify-content: space-between;">
                             <span>Utilidad Neta:</span>
-                            <span style="color: ${utilidad.bs >= 0 ? '#2563eb' : '#dc2626'};">${utilidad.bs.toFixed(2)} Bs / ${utilidad.sus.toFixed(2)} $us</span>
+                            <span style="color: ${utilidad.bs >= 0 ? '#2563eb' : '#dc2626'};">${formatNumber(utilidad.bs)} Bs / ${formatNumber(utilidad.sus)} $us</span>
                         </h3>
                         ${renderBreakdown(utilidad.breakdown)}
                     </div>
@@ -1814,12 +1815,8 @@ const HojaDiaria: React.FC = () => {
         }
     };
 
-    const formatMoney = (amount: number, currency: string = 'Bolivianos') => {
-        return amount.toLocaleString('es-BO', {
-            style: 'currency',
-            currency: currency === 'Bolivianos' ? 'BOB' : 'USD'
-        });
-    };
+
+
 
     // Summary Engine
     type Summary = Record<string, { Bs: number; Sus: number }>;
@@ -1901,16 +1898,16 @@ const HojaDiaria: React.FC = () => {
                         <li key={idx} className="flex flex-col bg-white dark:bg-gray-700 p-3 rounded border border-gray-100 dark:border-gray-600 shadow-sm">
                             <span className="font-semibold text-gray-800 dark:text-gray-200 mb-1">{method}</span>
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 dark:text-gray-300">Bs: <span className="font-bold text-blue-600 dark:text-blue-400">{totals.Bs.toFixed(2)}</span></span>
-                                <span className="text-gray-600 dark:text-gray-300">Sus: <span className="font-bold text-green-600 dark:text-green-400">{totals.Sus.toFixed(2)}</span></span>
+                                <span className="text-gray-600 dark:text-gray-300">Bs: <span className="font-bold text-blue-600 dark:text-blue-400">{formatNumber(totals.Bs)}</span></span>
+                                <span className="text-gray-600 dark:text-gray-300">Sus: <span className="font-bold text-green-600 dark:text-green-400">{formatNumber(totals.Sus)}</span></span>
                             </div>
                         </li>
                     ))}
                     <li className="pt-2 mt-2 border-t dark:border-gray-600 flex flex-col">
                         <span className="font-bold text-gray-900 dark:text-white">Total General</span>
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-800 dark:text-gray-300">Bs: {Object.values(summary).reduce((acc, v) => acc + v.Bs, 0).toFixed(2)}</span>
-                            <span className="text-gray-800 dark:text-gray-300">Sus: {Object.values(summary).reduce((acc, v) => acc + v.Sus, 0).toFixed(2)}</span>
+                            <span className="text-gray-800 dark:text-gray-300">Bs: {formatNumber(Object.values(summary).reduce((acc, v) => acc + v.Bs, 0))}</span>
+                            <span className="text-gray-800 dark:text-gray-300">Sus: {formatNumber(Object.values(summary).reduce((acc, v) => acc + v.Sus, 0))}</span>
                         </div>
                     </li>
                 </ul>
@@ -2085,7 +2082,7 @@ const HojaDiaria: React.FC = () => {
                             return (
                                 <span className="font-bold text-green-600 dark:text-green-400">
                                     {formatMoney(Number(r.monto), r.moneda)}
-                                    {isDollar && r.tc && ` (TC. ${Number(r.tc).toFixed(2)})`}
+                                    {isDollar && r.tc && ` (TC. ${formatNumber(Number(r.tc))})`}
                                 </span>
                             );
                         }
@@ -2351,8 +2348,8 @@ const HojaDiaria: React.FC = () => {
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Ingresos:</span>
                                 <div className="flex flex-col text-right">
-                                    <span className="font-bold text-green-600 dark:text-green-400">{currentTotals.ingresos.bs.toFixed(2)} Bs</span>
-                                    <span className="text-xs text-green-500">{currentTotals.ingresos.sus.toFixed(2)} $us</span>
+                                    <span className="font-bold text-green-600 dark:text-green-400">{formatNumber(currentTotals.ingresos.bs)} Bs</span>
+                                    <span className="text-xs text-green-500">{formatNumber(currentTotals.ingresos.sus)} $us</span>
                                 </div>
                             </div>
                             <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1 space-y-1">
@@ -2360,9 +2357,9 @@ const HojaDiaria: React.FC = () => {
                                     <div key={method} className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
                                         <span>• {method}</span>
                                         <span>
-                                            {val.bs > 0 && `${val.bs.toFixed(2)} Bs`}
+                                            {val.bs > 0 && `${formatNumber(val.bs)} Bs`}
                                             {val.bs > 0 && val.sus > 0 && ' / '}
-                                            {val.sus > 0 && `${val.sus.toFixed(2)} $us`}
+                                            {val.sus > 0 && `${formatNumber(val.sus)} $us`}
                                         </span>
                                     </div>
                                 ))}
@@ -2372,8 +2369,8 @@ const HojaDiaria: React.FC = () => {
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Egresos:</span>
                                 <div className="flex flex-col text-right">
-                                    <span className="font-bold text-red-600 dark:text-red-400">{currentTotals.egresos.bs.toFixed(2)} Bs</span>
-                                    <span className="text-xs text-red-500">{currentTotals.egresos.sus.toFixed(2)} $us</span>
+                                    <span className="font-bold text-red-600 dark:text-red-400">{formatNumber(currentTotals.egresos.bs)} Bs</span>
+                                    <span className="text-xs text-red-500">{formatNumber(currentTotals.egresos.sus)} $us</span>
                                 </div>
                             </div>
                             <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1 space-y-1">
@@ -2381,9 +2378,9 @@ const HojaDiaria: React.FC = () => {
                                     <div key={method} className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
                                         <span>• {method}</span>
                                         <span>
-                                            {val.bs > 0 && `${val.bs.toFixed(2)} Bs`}
+                                            {val.bs > 0 && `${formatNumber(val.bs)} Bs`}
                                             {val.bs > 0 && val.sus > 0 && ' / '}
-                                            {val.sus > 0 && `${val.sus.toFixed(2)} $us`}
+                                            {val.sus > 0 && `${formatNumber(val.sus)} $us`}
                                         </span>
                                     </div>
                                 ))}
@@ -2393,8 +2390,8 @@ const HojaDiaria: React.FC = () => {
                             <div className="flex justify-between items-center font-bold">
                                 <span className="text-sm text-gray-800 dark:text-gray-200">Utilidad Neta:</span>
                                 <div className="flex flex-col text-right">
-                                    <span className={currentTotals.utilidad.bs >= 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}>{currentTotals.utilidad.bs.toFixed(2)} Bs</span>
-                                    <span className={`text-xs ${currentTotals.utilidad.sus >= 0 ? "text-blue-500" : "text-red-400"}`}>{currentTotals.utilidad.sus.toFixed(2)} $us</span>
+                                    <span className={currentTotals.utilidad.bs >= 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}>{formatNumber(currentTotals.utilidad.bs)} Bs</span>
+                                    <span className={`text-xs ${currentTotals.utilidad.sus >= 0 ? "text-blue-500" : "text-red-400"}`}>{formatNumber(currentTotals.utilidad.sus)} $us</span>
                                 </div>
                             </div>
                             <div className="mt-1 space-y-1">
@@ -2402,10 +2399,10 @@ const HojaDiaria: React.FC = () => {
                                     <div key={method} className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
                                         <span>• {method}</span>
                                         <span className={val.bs >= 0 ? "text-blue-500" : "text-red-400"}>
-                                            {val.bs !== 0 && `${val.bs.toFixed(2)} Bs`}
+                                            {val.bs !== 0 && `${formatNumber(val.bs)} Bs`}
                                             {val.bs !== 0 && val.sus !== 0 && ' / '}
-                                            {val.sus !== 0 && `${val.sus.toFixed(2)} $us`}
-                                            {val.bs === 0 && val.sus === 0 && '0.00 Bs'}
+                                            {val.sus !== 0 && `${formatNumber(val.sus)} $us`}
+                                            {val.bs === 0 && val.sus === 0 && '0,00 Bs'}
                                         </span>
                                     </div>
                                 ))}
@@ -2424,7 +2421,7 @@ const HojaDiaria: React.FC = () => {
                                         <XAxis dataKey="name" fontSize={10} tick={{ fill: '#888' }} />
                                         <Tooltip 
                                             contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 4, padding: 4, fontSize: 10 }}
-                                            formatter={(value: any) => [`${Number(value).toFixed(2)} Bs`, 'Utilidad']}
+                                            formatter={(value: any) => [`${formatNumber(Number(value))} Bs`, 'Utilidad']}
                                         />
                                         <Bar dataKey="Utilidad" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                                             {

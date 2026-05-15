@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import { FileText, Calendar, User, Hash, DollarSign, ArrowRightCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -241,14 +242,14 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
                                                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{detalle.arancel?.detalle || '—'}</td>
                                                         <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">{detalle.piezas || '—'}</td>
                                                         <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300">{detalle.cantidad}</td>
-                                                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{Number(detalle.precioUnitario).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{formatNumber(detalle.precioUnitario)}</td>
                                                         {detallesFiltrados.some((d: any) => d.descuento > 0) && (
                                                             <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300">
                                                                 {detalle.descuento > 0 ? `${detalle.descuento}%` : '—'}
                                                             </td>
                                                         )}
                                                         <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
-                                                            {Number(detalle.total).toFixed(2)}
+                                                            {formatNumber(detalle.total)}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -259,7 +260,7 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
                                     <div className="flex justify-end mt-4">
                                         <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl px-6 py-3">
                                             <span className="text-sm font-bold text-purple-700 dark:text-purple-300">
-                                                Total Opción {activeLetra}: {totalLetraActiva.toFixed(2)} Bs.
+                                                Total Opción {activeLetra}: {formatNumber(totalLetraActiva)} Bs.
                                             </span>
                                         </div>
                                     </div>
@@ -292,7 +293,7 @@ const PropuestaViewModal: React.FC<PropuestaViewModalProps> = ({
                                                 >
                                                     <div className="text-xs font-bold">Opción {letra}</div>
                                                     <div className={`text-sm font-bold mt-1 ${activeLetra === letra ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-                                                        {total.toFixed(2)}
+                                                        {formatNumber(total)}
                                                     </div>
                                                 </button>
                                             );

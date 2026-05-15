@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import { FileText, Calendar, User, Hash, DollarSign, Check, Award } from 'lucide-react';
 
 interface PresupuestoViewModalProps {
@@ -225,7 +226,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                         <DollarSign size={12} /> Total
                                     </span>
                                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {Number(proforma.total).toFixed(2)} Bs.
+                                        {formatNumber(Number(proforma.total))} Bs.
                                     </span>
                                 </div>
                             </div>
@@ -285,11 +286,11 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                             {detalle.piezas || '—'}
                                                         </td>
                                                         <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300">{detalle.cantidad}</td>
-                                                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{Number(detalle.precioUnitario).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{formatNumber(Number(detalle.precioUnitario))}</td>
                                                         <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
                                                             {detalle.posible
                                                                 ? <span className="text-yellow-600 dark:text-yellow-400 text-xs font-normal">—</span>
-                                                                : Number(detalle.total).toFixed(2)
+                                                                : formatNumber(Number(detalle.total))
                                                             }
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
@@ -320,7 +321,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                 <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 min-w-[220px] space-y-2 shadow-sm">
                                     <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                                         <span>TOTAL:</span>
-                                        <span>{Number(proforma.total).toFixed(2)} Bs.</span>
+                                        <span>{formatNumber(Number(proforma.total))} Bs.</span>
                                     </div>
                                 </div>
                             </div>

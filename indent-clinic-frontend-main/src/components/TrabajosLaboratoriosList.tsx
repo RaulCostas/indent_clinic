@@ -9,6 +9,7 @@ import TrabajoLaboratorioViewModal from './TrabajoLaboratorioViewModal';
 import TrabajosNoTerminadosModal from './TrabajosNoTerminadosModal';
 import UbicacionCubetasModal from './UbicacionCubetasModal';
 import { useClinica } from '../context/ClinicaContext';
+import { formatNumber } from '../utils/formatters';
 import { FileText, ClipboardList } from 'lucide-react';
 
 
@@ -134,8 +135,8 @@ const TrabajosLaboratoriosList: React.FC = () => {
             Cita: t.cita || '-',
             Observacion: t.observacion || '-',
             Pagado: t.pagado,
-            'Precio Unitario': t.precio_unitario,
-            Total: t.total,
+            'Precio Unitario': formatNumber(t.precio_unitario),
+            Total: formatNumber(t.total),
             Resaltar: t.resaltar === 'si' ? 'Sí' : 'No',
             Dr: (t as any).doctor ? `Dr. ${(t as any).doctor.nombre}` : '-',
             Cost: (t as any).costo || 0
@@ -279,7 +280,7 @@ const TrabajosLaboratoriosList: React.FC = () => {
                                 </td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">{trabajo.pieza}</td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">{trabajo.cantidad}</td>
-                                <td className="p-3 font-bold text-gray-800 dark:text-gray-200">{Number(trabajo.total).toFixed(2)}</td>
+                                <td className="p-3 font-bold text-gray-800 dark:text-gray-200">{formatNumber(trabajo.total)}</td>
                                 <td className="p-3">
                                     <span className={`px-2 py-1 rounded text-white text-xs ${trabajo.estado === 'terminado' ? 'bg-green-500' : 'bg-yellow-500'}`}>
                                         {trabajo.estado}

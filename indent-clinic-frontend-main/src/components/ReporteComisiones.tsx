@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Search, User, Calendar, DollarSign, Download, Printer, PieChart, Eye, X } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import type { Personal } from '../types';
 import ManualModal, { type ManualSection } from './ManualModal';
 import * as XLSX from 'xlsx';
@@ -113,7 +114,7 @@ const ReporteComisiones: React.FC = () => {
                     <div style="text-align: left; padding: 10px;">
                         <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: ${boxBg}; border: 1px solid ${boxBorder}; border-radius: 0.5rem;">
                             <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Personal:</strong> <span style="color: ${valueColor}; font-weight: 600;">${item.nombre} ${item.paterno} ${item.materno || ''}</span></p>
-                            <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Monto a Pagar:</strong> <span style="color: ${isDark ? '#60a5fa' : '#2563eb'}; font-weight: bold; font-size: 1.125rem;">${Number(item.total_comision).toLocaleString()} Bs.</span></p>
+                            <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Monto a Pagar:</strong> <span style="color: ${isDark ? '#60a5fa' : '#2563eb'}; font-weight: bold; font-size: 1.125rem;">${formatNumber(Number(item.total_comision))} Bs.</span></p>
                         </div>
 
                         <div style="margin-bottom: 1rem;">
@@ -224,8 +225,8 @@ const ReporteComisiones: React.FC = () => {
                 <td>${new Date(v.fecha).toLocaleDateString()}</td>
                 <td>${v.paciente}</td>
                 <td>${v.productos}</td>
-                <td style="text-align: right;">${Number(v.total).toFixed(2)}</td>
-                <td style="text-align: right;">${Number(v.comision).toFixed(2)}</td>
+                <td style="text-align: right;">${formatNumber(Number(v.total))}</td>
+                <td style="text-align: right;">${formatNumber(Number(v.comision))}</td>
             </tr>
         `).join('') || '<tr><td colspan="5">No hay detalles disponibles</td></tr>';
 
@@ -261,7 +262,7 @@ const ReporteComisiones: React.FC = () => {
                         
                         <div class="summary">
                             <div><strong>Personal:</strong> ${nombreCompleto}</div>
-                            <div><strong>Total Comisión a Liquidar (40% de Utilidad):</strong> <span style="color: #2563eb; font-weight: bold;">${Number(row.total_comision).toFixed(2)} Bs.</span></div>
+                            <div><strong>Total Comisión a Liquidar (40% de Utilidad):</strong> <span style="color: #2563eb; font-weight: bold;">${formatNumber(Number(row.total_comision))} Bs.</span></div>
                         </div>
 
                         <h3 style="font-size: 14px; border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 10px;">Desglose de Ventas</h3>
@@ -281,8 +282,8 @@ const ReporteComisiones: React.FC = () => {
                             <tfoot>
                                 <tr class="total-row">
                                     <td colspan="3" style="text-align: right;">TOTALES:</td>
-                                    <td style="text-align: right;">${Number(row.total_ventas).toFixed(2)}</td>
-                                    <td style="text-align: right;">${Number(row.total_comision).toFixed(2)}</td>
+                                    <td style="text-align: right;">${formatNumber(Number(row.total_ventas))}</td>
+                                    <td style="text-align: right;">${formatNumber(Number(row.total_comision))}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -321,8 +322,8 @@ const ReporteComisiones: React.FC = () => {
             head: [['Concepto', 'Total']],
             body: [
                 ['Cantidad de Ventas', (row.cantidad_ventas || 0).toString()],
-                ['Monto Total Ventas', `${Number(row.total_ventas || 0).toFixed(2)} Bs.`],
-                ['Total Comisión (40% de Utilidad)', `${Number(row.total_comision || 0).toFixed(2)} Bs.`]
+                ['Monto Total Ventas', `${formatNumber(Number(row.total_ventas || 0))} Bs.`],
+                ['Total Comisión (40% de Utilidad)', `${formatNumber(Number(row.total_comision || 0))} Bs.`]
             ],
             theme: 'grid',
             headStyles: { fillColor: [30, 64, 175] }
@@ -339,8 +340,8 @@ const ReporteComisiones: React.FC = () => {
             v.fecha ? new Date(v.fecha).toLocaleDateString() : 'N/A',
             v.paciente || 'N/A',
             v.productos || 'Sin productos',
-            Number(v.total || 0).toFixed(2),
-            Number(v.comision || 0).toFixed(2)
+            formatNumber(Number(v.total || 0)),
+            formatNumber(Number(v.comision || 0))
         ]);
 
         if (tableBody.length === 0) {
@@ -397,7 +398,7 @@ const ReporteComisiones: React.FC = () => {
         doc.text(`Reporte de Comisiones - ${month}/${year}`, 14, 15);
         autoTable(doc, {
             head: [['Personal', 'Cant. Ventas', 'Total Ventas', 'Comisión 40%']],
-            body: report.map(r => [`${r.nombre} ${r.paterno} ${r.materno || ''}`.trim(), r.cantidad_ventas, Number(r.total_ventas).toFixed(2), Number(r.total_comision).toFixed(2)]),
+            body: report.map(r => [`${r.nombre} ${r.paterno} ${r.materno || ''}`.trim(), r.cantidad_ventas, formatNumber(Number(r.total_ventas)), formatNumber(Number(r.total_comision))]),
             startY: 20
         });
         doc.save(`comisiones_${month}_${year}.pdf`);
@@ -500,7 +501,7 @@ const ReporteComisiones: React.FC = () => {
                                             {row.nombre} {row.paterno} {row.materno || ''}
                                         </td>
                                         <td className="px-6 py-4 text-center text-sm font-bold text-gray-700 dark:text-gray-300">{row.cantidad_ventas}</td>
-                                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-900 dark:text-white">{Number(row.total_ventas || 0).toFixed(2)}</td>
+                                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-900 dark:text-white">{formatNumber(Number(row.total_ventas || 0))}</td>
                                         <td className="px-6 py-4 text-right">
                                             {(() => {
                                                 const comisionTotal = Number(row.total_comision || 0);
@@ -510,7 +511,7 @@ const ReporteComisiones: React.FC = () => {
                                                 return (
                                                     <div className="flex flex-col items-end">
                                                         <span className={`font-extrabold ${pendiente > 0.01 ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                            {comisionTotal.toFixed(2)}
+                                                            {formatNumber(comisionTotal)}
                                                         </span>
                                                         {pendiente <= 0.01 && comisionTotal > 0 ? (
                                                             <span className="text-[10px] font-bold text-emerald-500 uppercase flex items-center gap-1">
@@ -519,7 +520,7 @@ const ReporteComisiones: React.FC = () => {
                                                         ) : pendiente > 0.01 ? (
                                                             pagado > 0 ? (
                                                                 <span className="text-[10px] font-bold text-amber-500 uppercase flex items-center gap-1">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Saldo: {pendiente.toFixed(2)}
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Saldo: {formatNumber(pendiente)}
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-[10px] font-bold text-blue-400 uppercase">Pendiente</span>
@@ -583,9 +584,9 @@ const ReporteComisiones: React.FC = () => {
                                 <tr className="bg-blue-50/30 dark:bg-blue-900/10 font-black">
                                     <td className="px-6 py-4 text-gray-900 dark:text-white uppercase tracking-widest text-xs font-bold">TOTAL GENERAL</td>
                                     <td className="px-6 py-4 text-center text-gray-900 dark:text-white text-sm font-bold">{report.reduce((acc, row) => acc + row.cantidad_ventas, 0)}</td>
-                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white text-sm font-bold">{report.reduce((acc, row) => acc + Number(row.total_ventas), 0).toFixed(2)}</td>
+                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white text-sm font-bold">{formatNumber(report.reduce((acc, row) => acc + Number(row.total_ventas), 0))}</td>
                                     <td className="px-6 py-4 text-right text-blue-700 dark:text-blue-300 text-sm font-bold">
-                                        {report.reduce((acc, row) => acc + Number(row.total_comision), 0).toFixed(2)}
+                                        {formatNumber(report.reduce((acc, row) => acc + Number(row.total_comision), 0))}
                                     </td>
                                     <td className="px-6 py-4"></td>
                                 </tr>
@@ -623,11 +624,11 @@ const ReporteComisiones: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
                                         <p className="text-xs font-bold text-blue-600/70 dark:text-blue-400/70 uppercase mb-1">Total Ventas</p>
-                                        <p className="text-2xl font-black text-blue-700 dark:text-blue-300">{Number(viewItem.total_ventas).toFixed(2)} <span className="text-xs">Bs.</span></p>
+                                        <p className="text-2xl font-black text-blue-700 dark:text-blue-300">{formatNumber(Number(viewItem.total_ventas))} <span className="text-xs">Bs.</span></p>
                                     </div>
                                     <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800">
                                         <p className="text-xs font-bold text-emerald-600/70 dark:text-emerald-400/70 uppercase mb-1">Comisión Generada</p>
-                                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{Number(viewItem.total_comision).toFixed(2)} <span className="text-xs">Bs.</span></p>
+                                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatNumber(Number(viewItem.total_comision))} <span className="text-xs">Bs.</span></p>
                                     </div>
                                     <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-800">
                                         <p className="text-xs font-bold text-amber-600/70 dark:text-amber-400/70 uppercase mb-1">Ventas Realizadas</p>
@@ -659,8 +660,8 @@ const ReporteComisiones: React.FC = () => {
                                                                 {venta.productos}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-xs text-right font-medium text-gray-700 dark:text-gray-300">{Number(venta.total).toFixed(2)}</td>
-                                                        <td className="px-4 py-3 text-xs text-right font-black text-emerald-600 dark:text-emerald-400">{Number(venta.comision).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-xs text-right font-medium text-gray-700 dark:text-gray-300">{formatNumber(Number(venta.total))}</td>
+                                                        <td className="px-4 py-3 text-xs text-right font-black text-emerald-600 dark:text-emerald-400">{formatNumber(Number(venta.comision))}</td>
                                                     </tr>
                                                 ))
                                             ) : (

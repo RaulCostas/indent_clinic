@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import type { Pedidos } from '../types';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import { Printer, X } from 'lucide-react';
 import { useClinica } from '../context/ClinicaContext';
 
@@ -230,15 +231,15 @@ const PedidoViewModal: React.FC<Props> = ({ isOpen, onClose, pedidoId }) => {
                             <tr>
                                 <td>${d.inventario?.descripcion}</td>
                                 <td class="text-center">${d.cantidad}</td>
-                                <td class="text-right">${Number(d.precio_unitario).toFixed(2)}</td>
-                                <td class="text-right">${Number(d.cantidad * d.precio_unitario).toFixed(2)}</td>
+                                <td class="text-right">${formatNumber(d.precio_unitario)}</td>
+                                <td class="text-right">${formatNumber(d.cantidad * d.precio_unitario)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
 
                 <div class="total-section">
-                    Total: ${Number(pedido.Total).toFixed(2)}
+                    Total: ${formatNumber(pedido.Total)}
                 </div>
 
                 ${pedido.Observaciones ? `
@@ -325,7 +326,7 @@ const PedidoViewModal: React.FC<Props> = ({ isOpen, onClose, pedidoId }) => {
                                                 </div>
                                                 <div>
                                                     <span className="font-bold block text-xs uppercase text-blue-400 dark:text-gray-400">Total</span>
-                                                    <span className="font-semibold">{Number(pedido.Total).toFixed(2)}</span>
+                                                    <span className="font-semibold">{formatNumber(pedido.Total)}</span>
                                                 </div>
                                                 <div>
                                                     <span className="font-bold block text-xs uppercase text-blue-400 dark:text-gray-400">Pagado</span>
@@ -354,8 +355,8 @@ const PedidoViewModal: React.FC<Props> = ({ isOpen, onClose, pedidoId }) => {
                                                                     <tr key={index}>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{detalle.inventario?.descripcion}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{detalle.cantidad}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{Number(detalle.precio_unitario).toFixed(2)}</td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{Number(detalle.cantidad * detalle.precio_unitario).toFixed(2)}</td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{formatNumber(detalle.precio_unitario)}</td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{formatNumber(detalle.cantidad * detalle.precio_unitario)}</td>
                                                                     </tr>
                                                                 ))}
                                                             </tbody>

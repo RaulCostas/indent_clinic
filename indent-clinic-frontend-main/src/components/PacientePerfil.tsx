@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation, Outlet, Link } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente, Pago, Proforma, Agenda } from '../types';
+import { formatNumber } from '../utils/formatters';
 import {
     User, Calendar, FileText, CreditCard, Image as ImageIcon, ClipboardList,
     ArrowLeft, Edit, Activity, Heart, CheckCircle
@@ -215,7 +216,7 @@ const PacientePerfil: React.FC = () => {
                         { label: 'Citas', value: stats.citas, Icon: Calendar },
                         { label: 'Planes', value: stats.planes, Icon: CreditCard },
                         { label: 'Pagos', value: stats.pagos, Icon: FileText },
-                        { label: 'Total Pagado', value: `Bs. ${stats.totalPagado.toFixed(0)}`, Icon: CheckCircle },
+                        { label: 'Total Pagado', value: `Bs. ${formatNumber(stats.totalPagado)}`, Icon: CheckCircle },
                     ].map(({ label, value, Icon }) => (
                         <div key={label} className="bg-white/10 rounded-xl p-2 text-center hover:bg-white/20 transition-colors">
                             <Icon size={14} className="mx-auto mb-0.5 text-blue-200" />

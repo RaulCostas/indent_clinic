@@ -540,9 +540,9 @@ const AgendaView: React.FC = () => {
     // ... logic up to return
 
     return (
-        <div className="flex flex-col h-[85vh] p-2 md:p-5">
+        <div className="flex flex-col h-[85vh] p-2 xl:p-5">
             {/* Main View Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-2 md:mb-6 no-print gap-2 md:gap-4">
+            <div className="flex flex-col xl:flex-row justify-between items-center mb-2 xl:mb-6 no-print gap-2 xl:gap-4">
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col">
                         <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2 sm:gap-3">
@@ -553,7 +553,7 @@ const AgendaView: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex gap-2 flex-wrap justify-center md:justify-end items-center flex-1 max-w-[550px]">
+                <div className="flex gap-2 flex-wrap justify-center xl:justify-end items-center flex-1 max-w-[550px]">
                     <button
                         onClick={() => setShowManual(true)}
                         className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center mr-2 flex-shrink-0"
@@ -606,7 +606,7 @@ const AgendaView: React.FC = () => {
                     </div>
 
                     {/* Global Doctor Filter in Header */}
-                    <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 flex-1 min-w-[200px] xl:min-w-[250px]">
                         <div className="relative w-full">
                             <SearchableSelect
                                 options={doctors.map(d => ({
@@ -634,10 +634,10 @@ const AgendaView: React.FC = () => {
             </div>
         </div>
 
-        <div className="flex flex-col md:flex-row-reverse gap-5 flex-1 overflow-hidden">
+        <div className="flex flex-col xl:flex-row-reverse gap-5 flex-1 overflow-hidden">
 
-                {/* Sidebar Calendar - Hidden on mobile */}
-                <div className="hidden md:flex w-[300px] flex-shrink-0 flex-col gap-5">
+                {/* Sidebar Calendar - Hidden on mobile and tablets (including iPad Pro) */}
+                <div className="hidden xl:flex w-[300px] flex-shrink-0 flex-col gap-5">
 
                     {/* Availability Widget */}
                     {/* Management Actions Sidebar */}
@@ -735,7 +735,7 @@ const AgendaView: React.FC = () => {
                             </button>
                             <button
                                 onClick={() => setShowMobileCalendar(true)}
-                                className="md:hidden px-2 py-1.5 bg-blue-600 text-white rounded font-bold transition-all shadow-md flex items-center justify-center translate-y-[2px]"
+                                className="xl:hidden px-2 py-1.5 bg-blue-600 text-white rounded font-bold transition-all shadow-md flex items-center justify-center translate-y-[2px]"
                                 title="Abrir Calendario"
                             >
                                 <CalendarIcon size={16} />
@@ -769,7 +769,7 @@ const AgendaView: React.FC = () => {
                         <table className="min-w-[500px] md:min-w-[800px] w-full border-collapse table-fixed">
                             <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700 z-10 shadow-sm">
                                 <tr>
-                                    <th className="sticky left-0 bg-gray-100 dark:bg-gray-700 z-[25] border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 md:w-32 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">HORA</th>
+                                    <th className="sticky left-0 bg-gray-100 dark:bg-gray-700 z-[25] border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 xl:w-32 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">HORA</th>
                                     {visibleClinics.map(clinica => (
                                         <th key={clinica.id} className="border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 uppercase">{clinica.nombre}</th>
                                     ))}

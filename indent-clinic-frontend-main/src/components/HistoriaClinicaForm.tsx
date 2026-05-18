@@ -376,6 +376,16 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
             return;
         }
 
+        if (!formData.tratamiento || formData.tratamiento.trim() === '') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campo Obligatorio',
+                text: 'Debe seleccionar el Tratamiento.',
+                confirmButtonColor: '#3085d6',
+            });
+            return;
+        }
+
         if (!formData.diagnostico || formData.diagnostico.trim() === '') {
             Swal.fire({
                 icon: 'warning',
@@ -513,7 +523,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
 
                     {/* Tratamiento */}
                     <div className="md:col-span-2">
-                        <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Tratamiento</label>
+                        <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Tratamiento <span className="text-red-500">*</span></label>
                         <div className="relative">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
                                 <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
@@ -524,6 +534,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                                 onChange={handleChange}
                                 className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
                                 value={formData.proformaDetalleId || ""}
+                                required
                             >
                                 <option value="" hidden>-- Seleccione Tratamiento --</option>
                                 {formData.proformaId ? (

@@ -607,8 +607,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             // Detectar despedidas para ignorar el mensaje sin re-enviar el menú (Silencio solicitado por el usuario)
             const esDespedida = /^(gracias|chau|adios|adiós|bye|hasta luego|nos vemos|ok gracias|muchas gracias|de nada|perfecto|listo)$/i.test(normalizedText.trim());
             if (esDespedida) {
-                console.log(`[Chatbot] [Clinic ${clinicId}] Farewell detected from ${remoteJid}. Sending final message.`);
-                await this.sendMessage(remoteJid, '¡Hasta luego! 😊 Que tenga un excelente día. Si necesita algo más, escríbanos.', clinicId, instance);
+                console.log(`[Chatbot] [Clinic ${clinicId}] Farewell detected from ${remoteJid}. Ignoring message.`);
                 return;
             }
 

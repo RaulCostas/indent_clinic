@@ -137,7 +137,7 @@ const PacienteTabPagos: React.FC = () => {
                 // Para el precio en grupos consolidados (mismas piezas), usamos el máximo
                 // para no duplicar deuda si el doctor guardó el precio completo en cada sesión.
                 master.precio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
-                master.descuento = Math.max(Number(master.descuento) || 0, Number(h.descuento) || 0);
+                master.descuento = (Number(master.descuento) || 0) + (Number(h.descuento) || 0);
                 master.precioConDescuento = Math.max(0, Number(master.precio) - Number(master.descuento));
                 master.cancelado = master.cancelado || h.cancelado;
             }
@@ -212,11 +212,13 @@ const PacienteTabPagos: React.FC = () => {
         // 1. Organizar Pagos
         const pagosPorHC = new Map<number, number>();
         const pagosGeneralesProforma = new Map<number, number>();
+        const descuentosPorHC = new Map<number, number>();
 
         pagos.forEach(p => {
             const hId = (p as any).historiaClinicaId;
             if (hId) {
                 pagosPorHC.set(Number(hId), (pagosPorHC.get(Number(hId)) || 0) + Number(p.monto));
+                descuentosPorHC.set(Number(hId), (descuentosPorHC.get(Number(hId)) || 0) + Number(p.descuento || 0));
             } else {
                 const pfId = p.proformaId || (p.proforma as any)?.id;
                 if (pfId) {
@@ -249,9 +251,12 @@ const PacienteTabPagos: React.FC = () => {
                 }
             }
 
-            const price = Math.max(0, basePrice - discount);
-
             const allHCIds: number[] = (t.allIds || [t.id]).map((id: any) => Number(id));
+            
+            // CALCULO DE DESCUENTO: Usamos el sumado de historias, pero respaldamos con los pagos reales
+            const discountFromPagos = allHCIds.reduce((acc, hcId) => acc + (descuentosPorHC.get(hcId) || 0), 0);
+            const price = Math.max(0, basePrice - Math.max(discount, discountFromPagos));
+
             // CALCULO REAL: Solo confiar en el array de pagos del paciente, NO en las columnas montoPagado/saldo del backend
             const paidDirecto = allHCIds.reduce((acc, hcId) => acc + (pagosPorHC.get(hcId) || 0), 0);
             

@@ -37,6 +37,7 @@ import Configuration from './components/Configuration';
 import ChatbotConfig from './components/ChatbotConfig';
 import FormaPagoList from './components/FormaPagoList';
 import GrupoInventarioList from './components/GrupoInventarioList';
+import UnidadMedidaList from './components/UnidadMedidaList';
 import InventarioList from './components/InventarioList';
 import VacacionesList from './components/VacacionesList';
 import CalificacionList from './components/CalificacionList';
@@ -263,6 +264,7 @@ function App() {
                                 {/* Inventario */}
                                 <Route element={<ProtectedRoute moduleId="inventario" />}>
                                     <Route path="/grupo-inventario" element={<GrupoInventarioList />} />
+                                    <Route path="/unidad-medida" element={<UnidadMedidaList />} />
                                     <Route path="/inventario" element={<InventarioList />} />
                                     <Route path="/pedidos" element={<PedidosList />} />
                                     <Route path="/pedidos/deudas" element={<DeudasPedidos />} />

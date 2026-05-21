@@ -58,6 +58,8 @@ import { FormaPagoModule } from './forma_pago/forma_pago.module';
 import { FormaPago } from './forma_pago/entities/forma_pago.entity';
 import { GrupoInventarioModule } from './grupo_inventario/grupo_inventario.module';
 import { GrupoInventario } from './grupo_inventario/entities/grupo_inventario.entity';
+import { UnidadMedidaModule } from './unidad_medida/unidad_medida.module';
+import { UnidadMedida } from './unidad_medida/entities/unidad_medida.entity';
 import { InventarioModule } from './inventario/inventario.module';
 import { Inventario } from './inventario/entities/inventario.entity';
 import { EgresoInventarioModule } from './egreso_inventario/egreso_inventario.module';
@@ -171,6 +173,7 @@ import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-prod
         Correo,
         FormaPago,
         GrupoInventario,
+        UnidadMedida,
         Inventario,
         EgresoInventario,
         Pedidos,
@@ -237,6 +240,7 @@ import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-prod
     CorreosModule,
     FormaPagoModule,
     GrupoInventarioModule,
+    UnidadMedidaModule,
     InventarioModule,
     EgresoInventarioModule,
     PedidosModule,

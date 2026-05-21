@@ -511,6 +511,7 @@ const InventarioList: React.FC = () => {
                                 <th>Mínimo</th>
                                 <th>Especialidad</th>
                                 <th>Grupo</th>
+                                <th>U. Medida</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
@@ -523,6 +524,7 @@ const InventarioList: React.FC = () => {
                                     <td>${item.stock_minimo}</td>
                                     <td>${item.especialidad?.especialidad || 'N/A'}</td>
                                     <td>${item.grupoInventario?.grupo || 'N/A'}</td>
+                                    <td>${item.unidadMedida?.nombre || 'N/A'}</td>
                                     <td class="${item.estado?.toLowerCase() === 'activo' ? 'status-active' : 'status-inactive'}">
                                         ${item.estado?.toLowerCase()}
                                     </td>
@@ -691,13 +693,14 @@ const InventarioList: React.FC = () => {
             doc.setTextColor(0, 0, 0);
 
             // Table data
-            const tableColumn = ["Descripción", "Cant.", "Min.", "Especialidad", "Grupo", "Estado"];
+            const tableColumn = ["Descripción", "Cant.", "Min.", "Especialidad", "Grupo", "U. Medida", "Estado"];
             const tableRows = allItems.map((i: Inventario) => [
                 i.descripcion,
                 i.cantidad_existente.toString(),
                 i.stock_minimo.toString(),
                 i.especialidad?.especialidad || 'N/A',
                 i.grupoInventario?.grupo || 'N/A',
+                i.unidadMedida?.nombre || 'N/A',
                 i.estado?.toLowerCase()
             ]);
 
@@ -726,15 +729,16 @@ const InventarioList: React.FC = () => {
                 },
                 columnStyles: {
                     0: { cellWidth: 'auto' },
-                    1: { cellWidth: 20, halign: 'center' },
-                    2: { cellWidth: 20, halign: 'center' },
-                    3: { cellWidth: 35 },
-                    4: { cellWidth: 35 },
-                    5: { cellWidth: 25, halign: 'center' }
+                    1: { cellWidth: 15, halign: 'center' },
+                    2: { cellWidth: 15, halign: 'center' },
+                    3: { cellWidth: 30 },
+                    4: { cellWidth: 30 },
+                    5: { cellWidth: 25 },
+                    6: { cellWidth: 20, halign: 'center' }
                 },
                 didParseCell: function (data) {
                     // Style estado column
-                    if (data.column.index === 5 && data.section === 'body') {
+                    if (data.column.index === 6 && data.section === 'body') {
                         const estado = data.cell.raw as string;
                         if (estado && estado.toLowerCase().includes('activo')) {
                             data.cell.styles.textColor = [39, 174, 96]; // green
@@ -795,6 +799,7 @@ const InventarioList: React.FC = () => {
                 'Stock Mínimo': i.stock_minimo,
                 'Especialidad': i.especialidad?.especialidad || 'N/A',
                 'Grupo': i.grupoInventario?.grupo || 'N/A',
+                'U. Medida': i.unidadMedida?.nombre || 'N/A',
                 'Estado': i.estado
             }));
 
@@ -987,6 +992,7 @@ const InventarioList: React.FC = () => {
                         <th className="p-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Stock Min.</th>
                         <th className="p-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Especialidad</th>
                         <th className="p-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Grupo</th>
+                        <th className="p-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">U. Medida</th>
                         <th className="p-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Estado</th>
                         <th className="p-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                     </tr>
@@ -1000,6 +1006,7 @@ const InventarioList: React.FC = () => {
                             <td className="p-3 text-gray-800 dark:text-gray-300">{item.stock_minimo}</td>
                             <td className="p-3 text-gray-800 dark:text-gray-300">{item.especialidad?.especialidad}</td>
                             <td className="p-3 text-gray-800 dark:text-gray-300">{item.grupoInventario?.grupo}</td>
+                            <td className="p-3 text-gray-800 dark:text-gray-300">{item.unidadMedida?.nombre || '-'}</td>
                             <td className="p-3">
                                 <span className={`px-2 py-1 rounded text-sm ${item.estado?.toLowerCase() === 'activo' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>
                                     {item.estado?.toLowerCase()}

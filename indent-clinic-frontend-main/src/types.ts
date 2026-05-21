@@ -36,6 +36,12 @@ export interface GrupoInventario {
     estado: string;
 }
 
+export interface UnidadMedida {
+    id: number;
+    nombre: string;
+    estado: string;
+}
+
 export interface RecordatorioTratamiento {
     id: number;
     historiaClinicaId: number;
@@ -87,8 +93,10 @@ export interface Inventario {
     estado: string; // 'Activo' | 'Inactivo'
     idespecialidad: number;
     idgrupo_inventario: number;
+    idunidad_medida?: number;
     especialidad?: Especialidad;
     grupoInventario?: GrupoInventario;
+    unidadMedida?: UnidadMedida;
     egresosInventario?: EgresoInventario[];
     clinicaId?: number;
     clinica?: Clinica;

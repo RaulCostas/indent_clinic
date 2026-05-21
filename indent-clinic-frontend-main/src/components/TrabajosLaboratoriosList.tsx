@@ -58,8 +58,9 @@ const TrabajosLaboratoriosList: React.FC = () => {
             content: 'Puede editar (icono ámbar) o eliminar (icono rojo) un trabajo siempre y cuando NO haya sido pagado. Una vez pagado, estas acciones se bloquean por seguridad. Al editar un trabajo puede cambiar la cubeta asignada, lo cual actualizará automáticamente el estado de disponibilidad de las cubetas.'
         }];
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterPagado, setFilterPagado] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5;
+    const itemsPerPage = 10;
 
     useEffect(() => {
         fetchTrabajos();
@@ -98,7 +99,17 @@ const TrabajosLaboratoriosList: React.FC = () => {
         const term = searchTerm.toLowerCase();
         const pacienteName = trabajo.paciente ? `${trabajo.paciente.nombre} ${trabajo.paciente.paterno}`.toLowerCase() : '';
         const labName = trabajo.laboratorio?.laboratorio.toLowerCase() || '';
-        return pacienteName.includes(term) || labName.includes(term);
+        
+        const matchesSearch = pacienteName.includes(term) || labName.includes(term);
+        
+        let matchesPagado = true;
+        if (filterPagado === 'si') {
+            matchesPagado = trabajo.pagado === 'si';
+        } else if (filterPagado === 'no') {
+            matchesPagado = trabajo.pagado !== 'si';
+        }
+
+        return matchesSearch && matchesPagado;
     });
 
     // Reset page on search
@@ -241,9 +252,23 @@ const TrabajosLaboratoriosList: React.FC = () => {
                 </div>
             </div>
 
-            {/* Record Count Indicator */}
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-4 font-medium">
-                Mostrando {filteredTrabajos.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTrabajos.length)} de {filteredTrabajos.length} registros
+            {/* Record Count Indicator and Filters */}
+            <div className="flex justify-between items-center mb-4">
+                <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                    Mostrando {filteredTrabajos.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTrabajos.length)} de {filteredTrabajos.length} registros
+                </div>
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider ml-1">PAGADO:</span>
+                    <select
+                        value={filterPagado}
+                        onChange={(e) => setFilterPagado(e.target.value)}
+                        className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-200 cursor-pointer transition-all min-w-[140px]"
+                    >
+                        <option value="all">Todos</option>
+                        <option value="si">Pagados</option>
+                        <option value="no">No Pagados</option>
+                    </select>
+                </div>
             </div>
 
             {/* Table */}

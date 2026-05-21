@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike, Not } from 'typeorm';
 import { UnidadMedida } from './entities/unidad_medida.entity';
 import { CreateUnidadMedidaDto, UpdateUnidadMedidaDto } from './dto/create-unidad_medida.dto';
 
@@ -12,6 +12,13 @@ export class UnidadMedidaService {
     ) { }
 
     async create(createUnidadMedidaDto: CreateUnidadMedidaDto): Promise<UnidadMedida> {
+        const existing = await this.unidadMedidaRepository.findOne({
+            where: { nombre: ILike(createUnidadMedidaDto.nombre) }
+        });
+        if (existing) {
+            throw new ConflictException(`La unidad de medida '${createUnidadMedidaDto.nombre}' ya existe.`);
+        }
+        
         const newUnidadMedida = this.unidadMedidaRepository.create(createUnidadMedidaDto);
         return await this.unidadMedidaRepository.save(newUnidadMedida);
     }
@@ -38,6 +45,19 @@ export class UnidadMedidaService {
 
     async update(id: number, updateUnidadMedidaDto: UpdateUnidadMedidaDto): Promise<UnidadMedida> {
         const unidadMedida = await this.findOne(id);
+        
+        if (updateUnidadMedidaDto.nombre) {
+            const existing = await this.unidadMedidaRepository.findOne({
+                where: { 
+                    nombre: ILike(updateUnidadMedidaDto.nombre),
+                    id: Not(id) 
+                }
+            });
+            if (existing) {
+                throw new ConflictException(`La unidad de medida '${updateUnidadMedidaDto.nombre}' ya existe.`);
+            }
+        }
+        
         Object.assign(unidadMedida, updateUnidadMedidaDto);
         return await this.unidadMedidaRepository.save(unidadMedida);
     }

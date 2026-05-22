@@ -59,8 +59,11 @@ const TrabajosLaboratoriosList: React.FC = () => {
         }];
     const [searchTerm, setSearchTerm] = useState('');
     const [filterPagado, setFilterPagado] = useState<string>('all');
+    const [filterLaboratorio, setFilterLaboratorio] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+
+    const uniqueLaboratorios = Array.from(new Set(trabajos.map(t => t.laboratorio?.laboratorio).filter(Boolean)));
 
     useEffect(() => {
         fetchTrabajos();
@@ -109,13 +112,18 @@ const TrabajosLaboratoriosList: React.FC = () => {
             matchesPagado = trabajo.pagado !== 'si';
         }
 
-        return matchesSearch && matchesPagado;
+        let matchesLaboratorio = true;
+        if (filterLaboratorio !== 'all') {
+            matchesLaboratorio = trabajo.laboratorio?.laboratorio === filterLaboratorio;
+        }
+
+        return matchesSearch && matchesPagado && matchesLaboratorio;
     });
 
-    // Reset page on search
+    // Reset page on search or filter change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm]);
+    }, [searchTerm, filterPagado, filterLaboratorio]);
 
     // Pagination Logic
     const indexOfLastItem = currentPage * itemsPerPage;
@@ -257,17 +265,32 @@ const TrabajosLaboratoriosList: React.FC = () => {
                 <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
                     Mostrando {filteredTrabajos.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTrabajos.length)} de {filteredTrabajos.length} registros
                 </div>
-                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider ml-1">PAGADO:</span>
-                    <select
-                        value={filterPagado}
-                        onChange={(e) => setFilterPagado(e.target.value)}
-                        className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-200 cursor-pointer transition-all min-w-[140px]"
-                    >
-                        <option value="all">Todos</option>
-                        <option value="si">Pagados</option>
-                        <option value="no">No Pagados</option>
-                    </select>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider ml-1">LABORATORIO:</span>
+                        <select
+                            value={filterLaboratorio}
+                            onChange={(e) => setFilterLaboratorio(e.target.value)}
+                            className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-200 cursor-pointer transition-all min-w-[140px]"
+                        >
+                            <option value="all">Todos</option>
+                            {uniqueLaboratorios.map(lab => (
+                                <option key={lab as string} value={lab as string}>{lab as string}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider ml-1">PAGADO:</span>
+                        <select
+                            value={filterPagado}
+                            onChange={(e) => setFilterPagado(e.target.value)}
+                            className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-200 cursor-pointer transition-all min-w-[140px]"
+                        >
+                            <option value="all">Todos</option>
+                            <option value="si">Pagados</option>
+                            <option value="no">No Pagados</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -278,8 +301,8 @@ const TrabajosLaboratoriosList: React.FC = () => {
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Paciente</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Laboratorio</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Paciente</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trabajo</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Piezas</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
@@ -295,10 +318,10 @@ const TrabajosLaboratoriosList: React.FC = () => {
                                 <td className="p-3 text-gray-700 dark:text-gray-300">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">{formatDate(trabajo.fecha)}</td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">
-                                    {trabajo.paciente ? `${trabajo.paciente.nombre} ${trabajo.paciente.paterno}` : '-'}
+                                    {trabajo.laboratorio ? trabajo.laboratorio.laboratorio : '-'}
                                 </td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">
-                                    {trabajo.laboratorio ? trabajo.laboratorio.laboratorio : '-'}
+                                    {trabajo.paciente ? `${trabajo.paciente.nombre} ${trabajo.paciente.paterno}` : '-'}
                                 </td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">
                                     {trabajo.precioLaboratorio ? trabajo.precioLaboratorio.detalle : '-'}

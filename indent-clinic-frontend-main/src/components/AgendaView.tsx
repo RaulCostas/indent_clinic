@@ -67,13 +67,24 @@ const AgendaView: React.FC = () => {
     const [isRestricted, setIsRestricted] = useState(false);
 
 
-    const isTomorrow = (() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const y = tomorrow.getFullYear();
-        const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const d = String(tomorrow.getDate()).padStart(2, '0');
-        return currentDate === `${y}-${m}-${d}`;
+    const isEligibleForReminder = (() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const currentParts = currentDate.split('-');
+        if (currentParts.length !== 3) return false;
+        
+        const current = new Date(Number(currentParts[0]), Number(currentParts[1]) - 1, Number(currentParts[2]));
+        current.setHours(0, 0, 0, 0);
+
+        const diffTime = current.getTime() - today.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) return true; // Mañana
+        if (today.getDay() === 6 && diffDays === 2) return true; // Sábado -> Lunes
+        if (today.getDay() === 5 && diffDays === 3) return true; // Viernes -> Lunes
+
+        return false;
     })();
 
     useEffect(() => {
@@ -903,7 +914,7 @@ const AgendaView: React.FC = () => {
                                                                                             Dr. {`${appointment.doctorDeriva.nombre} ${appointment.doctorDeriva.paterno} ${appointment.doctorDeriva.materno || ''}`.trim()}
                                                                                         </div>
                                                                                     )}
-                                                                                    {isTomorrow && appointment.paciente && appointment.paciente.celular && (
+                                                                                    {isEligibleForReminder && appointment.paciente && appointment.paciente.celular && (
                                                                                         <button
                                                                                             onClick={(e) => { e.stopPropagation(); handleEnviarRecordatorioIndividual(appointment); }}
                                                                                             disabled={appointment.recordatorioEnviado}

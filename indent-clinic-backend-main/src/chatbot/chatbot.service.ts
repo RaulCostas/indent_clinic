@@ -23,6 +23,7 @@ import { ChatbotIntento } from './entities/chatbot-intento.entity';
 import { WhatsappSession } from './entities/whatsapp-session.entity';
 import { ChatbotPdfService } from './chatbot-pdf.service';
 import { InventarioService } from '../inventario/inventario.service';
+import { getBoliviaFullDate } from '../common/utils/date.utils';
 import pino from 'pino';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -1047,7 +1048,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
     async checkAppointments(paciente: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const appointments = await this.agendaService.findAllByPaciente(paciente.id);
-        const today = new Date();
+        const today = getBoliviaFullDate();
         today.setHours(0, 0, 0, 0);
 
         const futureAppointments = appointments.filter(a => {
@@ -1081,7 +1082,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     async checkDoctorAppointments(doctor: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const appointments = await this.agendaService.findAllByDoctor(doctor.id);
 
-        const today = new Date();
+        const today = getBoliviaFullDate();
         today.setHours(0, 0, 0, 0);
 
         const nextWeek = new Date(today);
@@ -1113,7 +1114,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     async checkDoctorAppointmentsToday(doctor: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const appointments = await this.agendaService.findAllByDoctor(doctor.id);
 
-        const today = new Date();
+        const today = getBoliviaFullDate();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');

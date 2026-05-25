@@ -8,6 +8,7 @@ import { CreateAgendaDto } from './dto/create-agenda.dto';
 import { UpdateAgendaDto } from './dto/update-agenda.dto';
 import { ChatbotService } from '../chatbot/chatbot.service';
 import { PersonalService } from '../personal/personal.service';
+import { getBoliviaFullDate } from '../common/utils/date.utils';
 
 @Injectable()
 export class AgendaService {
@@ -21,7 +22,7 @@ export class AgendaService {
 
     async enviarRecordatoriosManana(clinicaId?: number, instance?: number): Promise<{ success: boolean; message: string; programados: number }> {
         // Calculate tomorrow's date string (YYYY-MM-DD)
-        const manana = new Date();
+        const manana = getBoliviaFullDate();
         manana.setDate(manana.getDate() + 1);
         const year = manana.getFullYear();
         const month = String(manana.getMonth() + 1).padStart(2, '0');
@@ -163,14 +164,14 @@ export class AgendaService {
         console.log(`[AgendaService] Proceso de recordatorios completado. Enviados: ${enviados}, Fallidos: ${fallidos}`);
     }
 
-    private _today() { return new Date().toISOString(); }
+    private _today() { return getBoliviaFullDate().toISOString(); }
 
     private getRecordatorioStatusFilePath() {
         return path.join(process.cwd(), 'last_reminder_date.json');
     }
 
     async estadoRecordatoriosManana(clinicaId?: number): Promise<{ enviadoHoy: boolean }> {
-        const todayD = new Date();
+        const todayD = getBoliviaFullDate();
         const today = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}-${String(todayD.getDate()).padStart(2, '0')}`;
         const filePath = this.getRecordatorioStatusFilePath();
         try {
@@ -188,7 +189,7 @@ export class AgendaService {
     }
 
     private markRecordatoriosEnviadosHoy(clinicaId?: number) {
-        const todayD = new Date();
+        const todayD = getBoliviaFullDate();
         const today = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}-${String(todayD.getDate()).padStart(2, '0')}`;
         const filePath = this.getRecordatorioStatusFilePath();
         let data: any = {};

@@ -664,7 +664,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     return;
                 } else if (esReprogramar) {
                     try {
-                        await this.agendaService.update(freshSession.citaId, { estado: 'cancelado', observacion: 'Paciente pidió reprogramar su cita' } as any);
+                        await this.agendaService.update(freshSession.citaId, { estado: 'cancelado', motivoCancelacion: 'Paciente pidió reprogramar su cita' } as any);
                     } catch (err) {
                         console.error('[Chatbot] Error updating cita to cancelado for reprogramar:', err);
                     }

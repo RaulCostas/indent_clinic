@@ -28,7 +28,7 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
     const [currentPage, setCurrentPage] = useState(1);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [selectedSignature, setSelectedSignature] = useState('');
-    const itemsPerPage = 5;
+    const itemsPerPage = 10;
 
     const manualSections: ManualSection[] = [
         {

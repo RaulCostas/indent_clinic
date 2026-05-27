@@ -382,6 +382,15 @@ export class AgendaService {
             await this.validarCruceDoctor(newDoctorId, newFecha, newHora, newDuracion, id);
         }
 
+        // Si se cambia la fecha o la hora de la cita, permitimos enviar el recordatorio de nuevo
+        if (
+            (updateDto.fecha !== undefined && updateDto.fecha !== cita.fecha) ||
+            (updateDto.hora !== undefined && updateDto.hora !== cita.hora)
+        ) {
+            console.log(`[AgendaService] Cita #${id} reprogramada. Reiniciando recordatorioEnviado a false.`);
+            cita.recordatorioEnviado = false;
+        }
+
         // If relation IDs are being updated, we must clear the eager relationship object
         // to prevent TypeORM from ignoring the ID change in favor of the existing object.
         if (updateDto.clinicaId !== undefined && updateDto.clinicaId !== cita.clinicaId) {

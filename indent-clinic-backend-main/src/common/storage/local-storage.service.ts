@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import sharp = require('sharp');
 
 @Injectable()
 export class LocalStorageService {
@@ -31,7 +32,22 @@ export class LocalStorageService {
   }
 
   async uploadFile(bucket: string, fullPath: string, fileBuffer: Buffer): Promise<string> {
-    const cleanPath = this.sanitizePath(fullPath);
+    let cleanPath = this.sanitizePath(fullPath);
+    let targetBuffer = fileBuffer;
+
+    // Compress image to webp
+    if (/\\.(png|jpe?g|webp)$/i.test(cleanPath)) {
+      try {
+        targetBuffer = await sharp(fileBuffer)
+          .webp({ quality: 80 })
+          .toBuffer();
+        
+        cleanPath = cleanPath.replace(/\\.(png|jpe?g)$/i, '.webp');
+      } catch (error) {
+        this.logger.error(`Error compressing image: ${error.message}`);
+      }
+    }
+
     const targetPath = path.join(this.uploadDir, bucket, cleanPath);
     const targetDir = path.dirname(targetPath);
 
@@ -39,7 +55,7 @@ export class LocalStorageService {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    fs.writeFileSync(targetPath, fileBuffer);
+    fs.writeFileSync(targetPath, targetBuffer);
 
     // Return the relative URL to be served by the backend
     const port = process.env.PORT || 3000;

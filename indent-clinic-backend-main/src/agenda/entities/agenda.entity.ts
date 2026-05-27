@@ -81,9 +81,6 @@ export class Agenda {
     @Column({ type: 'boolean', default: false })
     recordatorioEnviado: boolean;
 
-    @Column({ default: false })
-    notificado: boolean;
-
     @Column({ nullable: true })
     clinicaId: number;
 

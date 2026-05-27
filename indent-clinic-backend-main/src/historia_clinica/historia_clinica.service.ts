@@ -183,13 +183,16 @@ export class HistoriaClinicaService {
             const pId = hc.pacienteId;
 
             let idsParaPagos = [hc.id];
+            let totalDescuentoTratamiento = Number(hc.descuento || 0);
+
             if (detId) {
                 const siblings = await this.dataSource.query(
-                    `SELECT id FROM historia_clinica 
+                    `SELECT id, descuento FROM historia_clinica 
                      WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
                     [pId, detId, pieza]
                 );
                 idsParaPagos = siblings.map(s => s.id);
+                totalDescuentoTratamiento = siblings.reduce((sum, s) => sum + Number(s.descuento || 0), 0);
             }
 
             pagosPaciente = await this.pagoRepository.find({
@@ -211,6 +214,7 @@ export class HistoriaClinicaService {
             return {
                 ...hc,
                 precio: Number(hc.precio || 0), // El precio ya contempla cantidad en el seguimiento
+                descuento: totalDescuentoTratamiento,
                 ultimoPagoPaciente: latestPayment ? {
                     fecha: latestPayment.fecha,
                     forma_pago: (latestPayment as any).formaPagoRel?.forma_pago || '',

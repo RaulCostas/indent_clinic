@@ -67,7 +67,8 @@ export class VentasProductosService {
                 detalle.productoId = item.productoId;
                 detalle.cantidad = item.cantidad;
                 detalle.precio_unitario = item.precio_unitario;
-                detalle.subtotal = Number((item.cantidad * item.precio_unitario).toFixed(2));
+                detalle.descuento = item.descuento || 0;
+                detalle.subtotal = Number(((item.cantidad * item.precio_unitario) - detalle.descuento).toFixed(2));
                 const savedDetalle = await queryRunner.manager.save(detalle);
 
                 // Lógica de Consumo de Lotes
@@ -247,6 +248,7 @@ export class VentasProductosService {
                 prod.nombre as "productoNombre",
                 prod.costo as "productoCosto",
                 vd.precio_unitario as "precioUnitario",
+                vd.descuento,
                 COALESCE(
                     (SELECT string_agg('Lote: ' || l.numero_lote || ' (' || vdl_sub.cantidad || ' und)', ', ')
                      FROM venta_producto_detalle_lote vdl_sub
@@ -324,7 +326,8 @@ export class VentasProductosService {
 
             if (r.productoNombre) {
                 const labelBatch = r.lotes_detalle && r.lotes_detalle !== 'Global' ? ` [${r.lotes_detalle}]` : '';
-                pData.ventas_map[vId].productos_array.push(`${r.cantidad}x ${r.productoNombre}${labelBatch}`);
+                const descStr = r.descuento && Number(r.descuento) > 0 ? ` (-Bs ${r.descuento})` : '';
+                pData.ventas_map[vId].productos_array.push(`${r.cantidad}x ${r.productoNombre}${labelBatch}${descStr}`);
             }
         }
 
@@ -545,7 +548,7 @@ export class VentasProductosService {
                 if (!prod || Number(prod.stock_actual) < d.cantidad) {
                     throw new BadRequestException(`Stock insuficiente para el producto: ${prod?.nombre || 'Desconocido'}`);
                 }
-                total += Number(d.precio_unitario) * d.cantidad;
+                total += (Number(d.precio_unitario) * d.cantidad) - (d.descuento || 0);
             }
 
             // 3. Actualizar Venta
@@ -557,6 +560,9 @@ export class VentasProductosService {
             oldVenta.total = total;
             oldVenta.comision_monto = total * (Number(oldVenta.comision_porcentaje) / 100); 
             
+            // Vaciar el array en memoria para evitar que el cascade de TypeORM re-inserte los detalles viejos
+            oldVenta.detalles = [];
+
             const savedVenta = await queryRunner.manager.save(oldVenta);
 
             // 4. Crear nuevos detalles y consumir stock
@@ -566,7 +572,8 @@ export class VentasProductosService {
                     productoId: d.productoId,
                     cantidad: d.cantidad,
                     precio_unitario: d.precio_unitario,
-                    subtotal: Number(d.precio_unitario) * d.cantidad
+                    descuento: d.descuento || 0,
+                    subtotal: (Number(d.precio_unitario) * d.cantidad) - (d.descuento || 0)
                 });
                 const savedDetalle = await queryRunner.manager.save(detalle);
 

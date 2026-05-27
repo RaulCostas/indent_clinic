@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import sharp = require('sharp');
 
 @Injectable()
 export class SupabaseStorageService {
@@ -31,7 +32,24 @@ export class SupabaseStorageService {
   }
 
   async uploadFile(bucket: string, fullPath: string, fileBuffer: Buffer, contentType: string): Promise<string> {
-    const cleanPath = this.sanitizePath(fullPath);
+    let cleanPath = this.sanitizePath(fullPath);
+    let targetBuffer = fileBuffer;
+    let targetContentType = contentType;
+
+    // Compress image to webp
+    if (/^image\/(png|jpeg|jpg|webp)$/i.test(contentType) || /\.(png|jpe?g|webp)$/i.test(cleanPath)) {
+      try {
+        targetBuffer = await sharp(fileBuffer)
+          .webp({ quality: 80 })
+          .toBuffer();
+        
+        cleanPath = cleanPath.replace(/\.(png|jpe?g)$/i, '.webp');
+        targetContentType = 'image/webp';
+      } catch (error) {
+        this.logger.error(`Error compressing image: ${error.message}`);
+      }
+    }
+
     const keyType = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON/OTHER';
     this.logger.log(`[SupabaseStorageService] Uploading to ${bucket}/${cleanPath} (Key Type: ${keyType})...`);
     
@@ -42,7 +60,7 @@ export class SupabaseStorageService {
 
     const { data, error } = await this.supabase.storage
       .from(bucket)
-      .upload(cleanPath, fileBuffer, { contentType, upsert: true });
+      .upload(cleanPath, targetBuffer, { contentType: targetContentType, upsert: true });
 
     if (error) {
       this.logger.error(`Error uploading to Supabase (${bucket}/${cleanPath}): ${error.message}`);

@@ -28,5 +28,8 @@ export class VentaProductoDetalle {
     precio_unitario: number;
     
     @Column({ type: 'decimal', precision: 12, scale: 2 })
-    subtotal: number; // cantidad * precio_unitario
+    subtotal: number; // (cantidad * precio_unitario) - descuento
+
+    @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+    descuento: number;
 }

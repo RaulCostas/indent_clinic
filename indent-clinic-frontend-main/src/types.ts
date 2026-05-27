@@ -710,6 +710,7 @@ export interface VentaProductoDetalle {
     producto?: ProductoComercial;
     cantidad: number;
     precio_unitario: number;
+    descuento?: number;
     subtotal: number;
 }
 

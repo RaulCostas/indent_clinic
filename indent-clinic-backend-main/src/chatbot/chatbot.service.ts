@@ -34,6 +34,17 @@ import { decryptPollVote } from '@whiskeysockets/baileys/lib/Utils/process-messa
 import { getKeyAuthor } from '@whiskeysockets/baileys/lib/Utils/generics.js';
 import { jidNormalizedUser } from '@whiskeysockets/baileys';
 
+class BoundedMap<K, V> extends Map<K, V> {
+    constructor(private maxSize: number) { super(); }
+    set(key: K, value: V) {
+        if (this.size >= this.maxSize && !this.has(key)) {
+            const firstKey = this.keys().next().value;
+            if (firstKey !== undefined) this.delete(firstKey);
+        }
+        return super.set(key, value);
+    }
+}
+
 interface SessionState {
     sock: any;
     qrCode: string | null;
@@ -87,8 +98,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 intentionalDisconnect: false,
                 initializationStartTime: null,
                 initializationTimeout: null,
-                userSessions: new Map(),
-                pollStore: new Map(),
+                userSessions: new BoundedMap(1000),
+                pollStore: new BoundedMap(500),
                 processedMsgIds: new Set(),
             });
         }
@@ -119,6 +130,23 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     delayMs += 10000; // 10 segundos de espera entre la inicialización de cada instancia
                 }
             }
+
+            // Monitoreo de Memoria Periódico para asegurar estabilidad
+            setInterval(() => {
+                const memory = process.memoryUsage();
+                const heapMb = Math.round(memory.heapUsed / 1024 / 1024);
+                const totalMb = Math.round(memory.heapTotal / 1024 / 1024);
+                const rssMb = Math.round(memory.rss / 1024 / 1024);
+                
+                let totalPolls = 0;
+                let totalSessions = 0;
+                for (const session of this.sessions.values()) {
+                    totalPolls += session.pollStore.size;
+                    totalSessions += session.userSessions.size;
+                }
+                console.log(`[Chatbot Memory Status] RSS: ${rssMb}MB | Heap: ${heapMb}MB / ${totalMb}MB | Total Polls: ${totalPolls} | Total Sessions: ${totalSessions}`);
+            }, 1000 * 60 * 60); // Log cada 1 hora
+
         } catch (error) {
             console.error('[Chatbot] Failed to retrieve clinics for background initialization', error);
         }

@@ -461,14 +461,13 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         }
 
         const saveCreds = async () => {
-            const existing = await this.whatsappSessionRepository.findOne({
-                where: { clinicId, instanceNumber: instance, type: 'creds' }
-            });
             const serializedCreds = JSON.parse(JSON.stringify(creds, BufferJSON.replacer));
-            if (existing) {
-                existing.data = serializedCreds;
-                await this.whatsappSessionRepository.save(existing);
-            } else {
+            const updateResult = await this.whatsappSessionRepository.update(
+                { clinicId, instanceNumber: instance, type: 'creds' },
+                { data: serializedCreds }
+            );
+            
+            if (updateResult.affected === 0) {
                 const newSession = this.whatsappSessionRepository.create({
                     clinicId,
                     instanceNumber: instance,

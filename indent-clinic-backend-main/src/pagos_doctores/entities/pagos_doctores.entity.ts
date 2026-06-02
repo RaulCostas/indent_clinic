@@ -19,9 +19,6 @@ export class PagosDoctores {
     @Column({ type: 'date' })
     fecha: Date;
 
-    @Column({ type: 'decimal', precision: 5, scale: 2 })
-    comision: number;
-
     @Column({ type: 'decimal', precision: 12, scale: 2 })
     total: number;
 

@@ -37,7 +37,8 @@ export class PagosDoctoresService {
                         const detalle = manager.create(PagosDetalleDoctores, {
                             ...d,
                             pago: savedPago,
-                            comision: d.comision || 0 // Explicitly setting comision
+                            comision: d.comision || 0, // Explicitly setting comision
+                            tipo_comision: d.tipo_comision || '%'
                         });
                         await manager.save(detalle);
 
@@ -70,11 +71,10 @@ export class PagosDoctoresService {
             .leftJoinAndSelect('detalles.historiaClinica', 'historiaClinica')
             .leftJoinAndSelect('historiaClinica.paciente', 'paciente');
 
-        if (startDate && endDate) {
-            queryBuilder.orderBy('pago.fecha', 'ASC');
-        }
-        
-        queryBuilder.addOrderBy('doctor.nombre', 'ASC')
+        // Default ordering
+        queryBuilder.orderBy('pago.fecha', 'DESC')
+            .addOrderBy('pago.id', 'DESC')
+            .addOrderBy('doctor.nombre', 'ASC')
             .addOrderBy('doctor.paterno', 'ASC')
             .addOrderBy('doctor.materno', 'ASC');
 
@@ -180,7 +180,8 @@ export class PagosDoctoresService {
                     const detalle = manager.create(PagosDetalleDoctores, {
                         ...d,
                         pago: savedPago,
-                        comision: d.comision || 0
+                        comision: d.comision || 0,
+                        tipo_comision: d.tipo_comision || '%'
                     });
                     await manager.save(detalle);
 

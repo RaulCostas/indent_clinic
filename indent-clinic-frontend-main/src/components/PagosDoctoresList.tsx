@@ -304,7 +304,7 @@ const PagosDoctoresList = () => {
                         <td style="font-size: 9px; text-align: center;">${factura ? 'SI' : 'NO'}</td>
                         <td style="font-size: 9px; text-align: right; color: #e74c3c;">${factura ? formatNumber(taxableBase * 0.16) : '-'}</td>
                         <td style="font-size: 9px; text-align: right; color: #2980b9;">${formatNumber(neto)}</td>
-                        <td style="font-size: 9px; text-align: right;">${com > 0 ? com + '%' : '-'}</td>
+                        <td style="font-size: 9px; text-align: right;">${com > 0 ? (d.tipo_comision === '-' ? 'Resta ' + formatNumber(com) : com + '%') : '-'}</td>
                         <td style="font-size: 9px; text-align: right; font-weight: bold; color: #27ae60;">${formatNumber(d.total)}</td>
                     </tr>
                 `;
@@ -509,7 +509,7 @@ const PagosDoctoresList = () => {
                                 <th style="text-align: center;">Fact.</th>
                                 <th style="text-align: right;">Imp. 16%</th>
                                 <th style="text-align: right;">Neto</th>
-                                <th style="text-align: right;">Com%</th>
+                                <th style="text-align: right;">Comisión</th>
                                 <th style="text-align: right;">Pago Doc.</th>
                             </tr>
                         </thead>
@@ -523,12 +523,6 @@ const PagosDoctoresList = () => {
                             <span class="total-label">Subtotal:</span>
                             <span class="total-value">${formatNumber(pago.total)} ${currencySymbol}</span>
                         </div>
-                        ${pago.comision > 0 ? `
-                        <div class="total-row">
-                            <span class="total-label">Comisión (${pago.comision}%):</span>
-                            <span class="total-value" style="color: #e74c3c;">-${formatNumber((pago.total * pago.comision) / 100)}</span>
-                        </div>
-                        ` : ''}
                         <div class="total-row" style="font-size: 14px; margin-top: 5px;">
                             <span class="total-label">Total Pagado:</span>
                             <span class="total-value" style="font-weight: bold;">${formatNumber(pago.total)} ${currencySymbol}</span>
@@ -678,7 +672,7 @@ const PagosDoctoresList = () => {
                         <tr>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Doctor</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha Pago</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Forma de Pago</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>

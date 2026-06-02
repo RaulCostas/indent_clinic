@@ -55,7 +55,8 @@ interface HistoriaClinica {
 interface RowDetail {
     costoLaboratorio: string | number;
     descuento: number; // Percentage
-    comision: string | number; // Percentage
+    comision: string | number; // Amount or Percentage
+    tipo_comision: string; // '%' or '-'
 }
 
 const PagosDoctoresForm = () => {
@@ -183,14 +184,16 @@ const PagosDoctoresForm = () => {
                 detailsMap[d.historiaClinica.id] = {
                     costoLaboratorio: Number(d.costo_laboratorio),
                     descuento: Number(d.descuento),
-                    comision: Number(d.comision)
+                    comision: Number(d.comision),
+                    tipo_comision: d.tipo_comision || '%'
                 };
             });
             pendingItems.forEach(p => {
                 detailsMap[p.id] = {
                     costoLaboratorio: p.costoLaboratorioAuto || 0,
                     descuento: p.descuento || p.proformaDetalle?.descuento || 0,
-                    comision: p.comisionDefault || 0
+                    comision: p.comisionDefault || 0,
+                    tipo_comision: '%'
                 };
             });
             setRowDetails(detailsMap);
@@ -262,10 +265,15 @@ const PagosDoctoresForm = () => {
 
     const calculateRowTotal = (item: HistoriaClinica) => {
         const afterLab = calculateRowNeto(item);
-        const details = rowDetails[item.id] || { costoLaboratorio: 0, descuento: 0, comision: 0 };
+        const details = rowDetails[item.id] || { costoLaboratorio: 0, descuento: 0, comision: 0, tipo_comision: '%' };
 
         // 4. Apply Physician Commission
-        const comisionAmount = (afterLab * (Number(details.comision) || 0)) / 100;
+        let comisionAmount = 0;
+        if (details.tipo_comision === '%') {
+            comisionAmount = (afterLab * (Number(details.comision) || 0)) / 100;
+        } else {
+            comisionAmount = Math.max(0, afterLab - (Number(details.comision) || 0));
+        }
 
         return comisionAmount;
     };
@@ -302,7 +310,8 @@ const PagosDoctoresForm = () => {
                         [id]: {
                             costoLaboratorio: item?.costoLaboratorioAuto || 0,
                             descuento: defaultDiscount,
-                            comision: item?.comisionDefault || 0
+                            comision: item?.comisionDefault || 0,
+                            tipo_comision: '%'
                         }
                     }));
                 }
@@ -326,7 +335,7 @@ const PagosDoctoresForm = () => {
                 if (!newDetails[p.id]) {
                     const defaultDiscount = p.descuento || p.proformaDetalle?.descuento || 0;
                     const defaultComision = p.comisionDefault || 0;
-                    newDetails[p.id] = { costoLaboratorio: 0, descuento: defaultDiscount, comision: defaultComision };
+                    newDetails[p.id] = { costoLaboratorio: 0, descuento: defaultDiscount, comision: defaultComision, tipo_comision: '%' };
                 }
             });
             setRowDetails(newDetails);
@@ -367,14 +376,14 @@ const PagosDoctoresForm = () => {
                     forma_pago_paciente: p.ultimoPagoPaciente?.forma_pago || null,
                     factura: p.ultimoPagoPaciente?.factura || null,
                     descuento: Number(rd.descuento) || 0,
-                    comision: Number(rd.comision) || 0
+                    comision: Number(rd.comision) || 0,
+                    tipo_comision: rd.tipo_comision || '%'
                 };
             });
 
         const payload = {
             idDoctor: Number(idDoctor),
             fecha,
-            comision: 0, // No longer using global commission
             total: totalToPay,
             moneda,
             tc: moneda === 'Dólares' ? tc : 0,
@@ -485,7 +494,7 @@ const PagosDoctoresForm = () => {
                                     <th className="p-3 bg-gray-50/50 dark:bg-gray-800/50 text-center">Fact.</th>
                                     <th className="p-3 w-24 bg-blue-50/50 dark:bg-blue-900/20 text-right">Imp. (16%)</th>
                                     <th className="p-3 text-right bg-blue-50/50 dark:bg-blue-900/20 font-bold">Neto Doc.</th>
-                                    <th className="p-3 w-20 bg-blue-50/50 dark:bg-blue-900/20">Com%</th>
+                                    <th className="p-3 w-28 bg-blue-50/50 dark:bg-blue-900/20">Comisión</th>
                                     <th className="p-3 bg-green-50/50 dark:bg-green-900/20 text-right font-bold text-green-700 dark:text-green-400">Pago Doct.</th>
                                 </tr>
                             </thead>
@@ -499,7 +508,7 @@ const PagosDoctoresForm = () => {
                                 ) : (
                                     filteredPendientes.map(p => {
                                         const isSelected = selectedIds.includes(p.id);
-                                        const details = rowDetails[p.id] || { costoLaboratorio: 0, descuento: 0 };
+                                        const details = rowDetails[p.id] || { costoLaboratorio: 0, descuento: 0, comision: 0, tipo_comision: '%' };
                                         const rowTotal = calculateRowTotal(p);
 
                                         return (
@@ -554,18 +563,37 @@ const PagosDoctoresForm = () => {
 
                                                 <td className="p-2">
                                                     {isSelected && (
-                                                        <input
-                                                            type="text"
-                                                            value={details.comision}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value.replace(',', '.');
-                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                    handleDetailChange(p.id, 'comision', val);
-                                                                }
-                                                            }}
-                                                            className="w-full p-1 border border-blue-300 dark:border-blue-600 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                            placeholder="0%"
-                                                        />
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex text-xs bg-gray-100 dark:bg-gray-800 rounded p-0.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); handleDetailChange(p.id, 'tipo_comision', '%'); }}
+                                                                    className={`flex-1 text-center py-0.5 rounded transition-colors ${details.tipo_comision === '%' ? 'bg-blue-500 text-white shadow-sm font-bold' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                                                >
+                                                                    %
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); handleDetailChange(p.id, 'tipo_comision', '-'); }}
+                                                                    className={`flex-1 text-center py-0.5 rounded transition-colors ${details.tipo_comision === '-' ? 'bg-blue-500 text-white shadow-sm font-bold' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                                                    title="Resta / Descuento Fijo"
+                                                                >
+                                                                    Resta
+                                                                </button>
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                value={details.comision}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        handleDetailChange(p.id, 'comision', val);
+                                                                    }
+                                                                }}
+                                                                className="w-full p-1 border border-blue-300 dark:border-blue-600 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                placeholder={details.tipo_comision === '%' ? "0%" : "Monto Resta"}
+                                                            />
+                                                        </div>
                                                     )}
                                                 </td>
 

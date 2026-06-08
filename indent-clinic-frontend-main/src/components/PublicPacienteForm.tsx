@@ -559,18 +559,20 @@ const PublicPacienteForm: React.FC = () => {
                                 </select>
                             </div>
                         </div>
-                        <div>
-                            <label className="block mb-1 font-medium text-gray-700">Código Seguro:{[1, 3].includes(Number(resolvedClinicaId)) && <span className="text-red-500"> *</span>}</label>
-                            <div className="relative">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                </svg>
-                                <input type="text" name="seguro_codigo" value={formData.seguro_codigo} onChange={handleChange} placeholder="Ej: 123456" required={[1, 3].includes(Number(resolvedClinicaId))}
-                                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block"
-                                />
+                        {Number(resolvedClinicaId) !== 2 && (
+                            <div>
+                                <label className="block mb-1 font-medium text-gray-700">Código Seguro:{[1, 3].includes(Number(resolvedClinicaId)) && <span className="text-red-500"> *</span>}</label>
+                                <div className="relative">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                    </svg>
+                                    <input type="text" name="seguro_codigo" value={formData.seguro_codigo} onChange={handleChange} placeholder="Ej: 123456" required={[1, 3].includes(Number(resolvedClinicaId))}
+                                        className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block"
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
                         <div>
                             <label className="block mb-1 font-medium text-gray-700">Vencimiento Seguro:</label>
                             <div className="relative">

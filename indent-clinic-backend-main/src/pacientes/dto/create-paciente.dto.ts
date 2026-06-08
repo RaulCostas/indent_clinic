@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsDateString, ValidateNested, IsNumber, ValidateIf, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateFichaMedicaDto } from '../../ficha_medica/dto/create-ficha_medica.dto';
 
@@ -34,8 +34,11 @@ export class CreatePacienteDto {
     @IsString()
     celular: string;
 
+    @ValidateIf(o => [1, 3].includes(o.clinicaId))
+    @IsNotEmpty({ message: 'El email es obligatorio para esta clínica' })
+    @IsOptional()
     @IsString()
-    email: string;
+    email?: string;
 
 
     @IsString()
@@ -54,6 +57,12 @@ export class CreatePacienteDto {
 
     @IsString()
     seguro_medico: string;
+
+    @ValidateIf(o => [1, 3].includes(o.clinicaId))
+    @IsNotEmpty({ message: 'El código de seguro es obligatorio para esta clínica' })
+    @IsOptional()
+    @IsString()
+    seguro_codigo?: string;
 
 
     @IsDateString()

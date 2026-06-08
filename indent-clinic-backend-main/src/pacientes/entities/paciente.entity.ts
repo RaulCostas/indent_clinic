@@ -62,6 +62,9 @@ export class Paciente {
     @Column()
     seguro_medico: string;
 
+    @Column({ nullable: true })
+    seguro_codigo: string;
+
     @Column({ type: 'date', nullable: true })
     fecha_vencimiento: string;
 

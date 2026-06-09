@@ -730,7 +730,7 @@ const ArancelList: React.FC = () => {
                                     {a.detalle}
                                 </td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{a.especialidad?.especialidad}</td>
-                                <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{formatNumber(a.precio)} Bs.</td>
+                                {!isClinica2 && <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{formatNumber(a.precio)} Bs.</td>}
                                 {isClinica2 && (
                                     <>
                                         <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_gold ? `${formatNumber(a.precio_gold)} Bs.` : '-'}</td>

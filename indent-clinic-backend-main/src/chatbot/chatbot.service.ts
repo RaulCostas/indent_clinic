@@ -225,13 +225,15 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                         creds: state.creds,
                         keys: state.keys,
                     },
-                    generateHighQualityLinkPreview: true,
+                    generateHighQualityLinkPreview: false,
                     browser: [`Clinica ${clinicId} Chatbot ${instance}`, 'Chrome', '1.0.0'],
                     connectTimeoutMs: 60000,
                     defaultQueryTimeoutMs: 60000,
                     keepAliveIntervalMs: 10000,
                     emitOwnEvents: true,
                     retryRequestDelayMs: 250,
+                    markOnlineOnConnect: false,
+                    syncFullHistory: false,
                     getMessage: async (key) => {
                         if (key.id && session.pollStore.has(key.id)) {
                             return session.pollStore.get(key.id)!.message;

@@ -580,9 +580,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                                 )}
                             </select>
                         </div>
-                        {historiaToEdit && formData.tratamiento && (
-                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 pl-1">Actual: {formData.tratamiento}</div>
-                        )}
+
                     </div>
 
                     {/* Pieza */}
@@ -625,6 +623,25 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                         </div>
                     </div>
 
+                    {/* Precio Total */}
+                    <div>
+                        <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Precio Total (Bs.)</label>
+                        <div className="relative">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                            <input
+                                type="number"
+                                name="precio"
+                                value={formData.precio}
+                                onChange={handleChange}
+                                step="0.01"
+                                min="0"
+                                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
+                            />
+                        </div>
+                    </div>
 
                     {/* Doctor */}
                     <div>

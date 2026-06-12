@@ -338,6 +338,15 @@ export class HistoriaClinicaService {
         this.historiaClinicaRepository.merge(historia, updateDto);
         const saved = await this.historiaClinicaRepository.save(historia);
 
+        if (updateDto.precio !== undefined && saved.proformaDetalleId) {
+            await this.dataSource.query(
+                `UPDATE historia_clinica 
+                 SET precio = $1
+                 WHERE "pacienteId" = $2 AND "proformaDetalleId" = $3 AND COALESCE(pieza, '') = COALESCE($4, '')`,
+                [updateDto.precio, saved.pacienteId, saved.proformaDetalleId, saved.pieza]
+            );
+        }
+
         // Si se cambió el estado del presupuesto, sincronizar a TODA la proforma
         if (updateDto.estadoPresupuesto && saved.proformaId) {
             await this.historiaClinicaRepository.update(

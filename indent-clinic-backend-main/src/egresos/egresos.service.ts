@@ -30,9 +30,13 @@ export class EgresosService {
         const skip = (page - 1) * limit;
 
         const queryBuilder = this.egresosRepository.createQueryBuilder('egreso')
-            .leftJoinAndSelect('egreso.formaPago', 'formaPago')
-            .orderBy('egreso.fecha', 'DESC')
-            .addOrderBy('egreso.detalle', 'ASC');
+            .leftJoinAndSelect('egreso.formaPago', 'formaPago');
+
+        if (startDate && endDate) {
+            queryBuilder.orderBy('egreso.fecha', 'ASC');
+        }
+        
+        queryBuilder.addOrderBy('egreso.detalle', 'ASC');
 
         // Apply filters
         if (clinicaId !== undefined && clinicaId !== null) {

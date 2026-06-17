@@ -19,14 +19,14 @@ export class MailService {
 
     async sendPasswordRecovery(email: string, tempPassword: string): Promise<boolean> {
         const mailOptions = {
-            from: process.env.MAIL_FROM || '"CLINICAS LENS" <noreply@clinicaslens.com>',
+            from: process.env.MAIL_FROM || '"INDENT CLINIC" <noreply@indent-clinic.com>',
             to: email,
-            subject: 'Recuperación de Contraseña - CLINICAS LENS',
-            text: `CLINICAS LENS\n\nHola,\n\nHas solicitado restablecer tu contraseña. Tu contraseña temporal es: ${tempPassword}\n\nSe recomienda cambiar esta contraseña una vez hayas ingresado al sistema.`,
+            subject: 'Recuperación de Contraseña - INDENT CLINIC',
+            text: `INDENT CLINIC\n\nHola,\n\nHas solicitado restablecer tu contraseña. Tu contraseña temporal es: ${tempPassword}\n\nSe recomienda cambiar esta contraseña una vez hayas ingresado al sistema.`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e4e8; border-radius: 12px; background-color: #ffffff;">
                     <div style="text-align: center; margin-bottom: 20px;">
-                        <h1 style="color: #1e3a8a; font-size: 28px; font-weight: 800; margin: 0;">CLINICAS LENS</h1>
+                        <h1 style="color: #1e3a8a; font-size: 28px; font-weight: 800; margin: 0;">INDENT CLINIC</h1>
                         <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Gestión Odontológica Inteligente</p>
                     </div>
                     <div style="border-top: 4px solid #3b82f6; padding-top: 20px;">
@@ -43,7 +43,7 @@ export class MailService {
                     </div>
                     
                     <div style="border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 30px; text-align: center;">
-                        <p style="color: #94a3b8; font-size: 12px; margin: 0;">Este es un mensaje automático generado por el sistema CLINICAS LENS.</p>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 0;">Este es un mensaje automático generado por el sistema INDENT CLINIC.</p>
                         <p style="color: #94a3b8; font-size: 11px; margin-top: 4px;">Por favor, no respondas a este correo.</p>
                     </div>
                 </div>

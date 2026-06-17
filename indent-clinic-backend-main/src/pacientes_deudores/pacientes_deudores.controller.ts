@@ -14,4 +14,10 @@ export class PacientesDeudoresController {
     getActivos(@Query('clinicaId') clinicaId?: string) {
         return this.pacientesDeudoresService.findAll('no terminado', clinicaId ? +clinicaId : undefined);
     }
+
+    @Get('saldo-planificado')
+    findPlanificados(@Query('clinicaId') clinicaId?: string) {
+        console.log('--- API: Accediendo a saldo-planificado ---', { clinicaId });
+        return this.pacientesDeudoresService.findPlanned(clinicaId ? +clinicaId : undefined);
+    }
 }

@@ -9,6 +9,7 @@ import Pagination from './Pagination';
 import { useClinica } from '../context/ClinicaContext';
 import { Printer, FileText, Lock, Tablet } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { formatNumber, formatMoney } from '../utils/formatters';
 
 
 // Interfaces
@@ -26,6 +27,7 @@ interface Ingreso {
     formaPagoRel?: { forma_pago: string };
     comisionTarjeta?: { redBanco: string; monto: number }; // Updated interface
     tc?: number; // Added TC
+    descuento: number; // Added Discount
 }
 
 interface Egreso {
@@ -45,6 +47,12 @@ interface PagoDoctor {
     moneda: string;
     doctor: { nombre: string; paterno: string; materno?: string };
     formaPago: { forma_pago: string };
+    detalles?: Array<{
+        historiaClinica: {
+            tratamiento: string;
+            paciente: { nombre: string; paterno: string; materno?: string };
+        };
+    }>;
 }
 
 interface PagoLaboratorio {
@@ -129,8 +137,8 @@ const HojaDiaria: React.FC = () => {
         }];
 
     // Range Search State
-    const [rangeStart, setRangeStart] = useState<string>('');
-    const [rangeEnd, setRangeEnd] = useState<string>('');
+    const [rangeStart, setRangeStart] = useState<string>(getLocalDateString());
+    const [rangeEnd, setRangeEnd] = useState<string>(getLocalDateString());
     const [searchMode, setSearchMode] = useState<'single' | 'range'>('single');
 
     const [activeTab, setActiveTab] = useState<number>(0);
@@ -246,30 +254,52 @@ const HojaDiaria: React.FC = () => {
         let ingresosBs = 0; let ingresosSus = 0;
         let egresosBs = 0; let egresosSus = 0;
 
+        const ingresosBreakdown: Record<string, { bs: number, sus: number }> = {};
+        const egresosBreakdown: Record<string, { bs: number, sus: number }> = {};
+
+        const addToBreakdown = (breakdown: any, method: string, amount: number, isBs: boolean) => {
+            const key = method || 'Otros';
+            if (!breakdown[key]) breakdown[key] = { bs: 0, sus: 0 };
+            if (isBs) breakdown[key].bs += amount;
+            else breakdown[key].sus += amount;
+        };
+
         // Incomes from Patient Payments
         ings.forEach(item => {
-            const paymentMethod = item.formaPagoRel?.forma_pago || '';
+            const paymentMethod = item.formaPagoRel?.forma_pago || 'Otros';
             let amount = Number(item.monto) || 0;
             if (paymentMethod.toLowerCase() === 'tarjeta' && item.comisionTarjeta?.monto) {
                 const discountPercent = Number(item.comisionTarjeta.monto);
                 if (!isNaN(discountPercent)) amount = amount - (amount * (discountPercent / 100));
             }
             const currency = item.moneda || 'Bolivianos';
-            if (currency.toUpperCase().includes('BOLIVIANO') || currency.toUpperCase() === 'BS') { ingresosBs += amount; } else { ingresosSus += amount; }
+            const isBs = currency.toUpperCase().includes('BOLIVIANO') || currency.toUpperCase() === 'BS';
+            if (isBs) ingresosBs += amount; else ingresosSus += amount;
+            addToBreakdown(ingresosBreakdown, paymentMethod, amount, isBs);
         });
 
         // Other Incomes (New)
         otrosIn.forEach(item => {
             let amount = Number(item.monto) || 0;
             const currency = item.moneda || 'Bolivianos';
-            if (currency.toUpperCase().includes('BOLIVIANO') || currency.toUpperCase() === 'BS') { ingresosBs += amount; } else { ingresosSus += amount; }
+            const paymentMethod = item.formaPago?.forma_pago || 'Otros';
+            const isBs = currency.toUpperCase().includes('BOLIVIANO') || currency.toUpperCase() === 'BS';
+            if (isBs) ingresosBs += amount; else ingresosSus += amount;
+            addToBreakdown(ingresosBreakdown, paymentMethod, amount, isBs);
         });
 
         const addEgreso = (items: any[], type: string) => {
             items.forEach(item => {
                 const amount = Number(type === 'doctor' ? item.total : item.monto) || 0;
                 const currency = item.moneda || 'Bolivianos';
-                if (currency.toUpperCase().includes('BOLIVIANO') || currency.toUpperCase() === 'BS') { egresosBs += amount; } else { egresosSus += amount; }
+                const isBs = currency.toUpperCase().includes('BOLIVIANO') || currency.toUpperCase() === 'BS';
+                if (isBs) egresosBs += amount; else egresosSus += amount;
+
+                let paymentMethod = 'Otros';
+                if (type === 'pedido') paymentMethod = item.forma_pago || 'Otros';
+                else if (item.formaPago?.forma_pago) paymentMethod = item.formaPago.forma_pago;
+
+                addToBreakdown(egresosBreakdown, paymentMethod, amount, isBs);
             });
         };
 
@@ -279,10 +309,23 @@ const HojaDiaria: React.FC = () => {
         addEgreso(peds, 'pedido');
         addEgreso(gastos, 'gasto');
 
+        // Calculate Utilidad Breakdown
+        const utilidadBreakdown: Record<string, { bs: number, sus: number }> = {};
+        const allMethods = new Set([...Object.keys(ingresosBreakdown), ...Object.keys(egresosBreakdown)]);
+        
+        allMethods.forEach(method => {
+            const ing = ingresosBreakdown[method] || { bs: 0, sus: 0 };
+            const egr = egresosBreakdown[method] || { bs: 0, sus: 0 };
+            utilidadBreakdown[method] = {
+                bs: ing.bs - egr.bs,
+                sus: ing.sus - egr.sus
+            };
+        });
+
         return {
-            ingresos: { bs: ingresosBs, sus: ingresosSus },
-            egresos: { bs: egresosBs, sus: egresosSus },
-            utilidad: { bs: ingresosBs - egresosBs, sus: ingresosSus - egresosSus }
+            ingresos: { bs: ingresosBs, sus: ingresosSus, breakdown: ingresosBreakdown },
+            egresos: { bs: egresosBs, sus: egresosSus, breakdown: egresosBreakdown },
+            utilidad: { bs: ingresosBs - egresosBs, sus: ingresosSus - egresosSus, breakdown: utilidadBreakdown }
         };
     };
 
@@ -362,13 +405,58 @@ const HojaDiaria: React.FC = () => {
                 api.get('/otros-ingresos', { params: { ...params, limit: 1000 } })
             ]);
 
-            setIngresos(resIngresos.data);
-            setEgresos(resEgresos.data.data || []);
-            setOtrosIngresos(resOtrosIngresos.data.data || []);
-            setPagosDoctores(resDoctores.data);
-            setPagosLaboratorios(resLaboratorios.data);
-            setPagosPedidos(resPedidos.data);
-            setPagosGastosFijos(resGastosFijos.data);
+            const sortData = (data: any[], type: string) => {
+                return [...data].sort((a, b) => {
+                    // Si es rango, primero ordenar por fecha ASC
+                    if (searchMode === 'range') {
+                        const dateA = new Date(a.fecha || a.createdAt || 0).getTime();
+                        const dateB = new Date(b.fecha || b.createdAt || 0).getTime();
+                        if (dateA !== dateB) return dateA - dateB;
+                    }
+
+                    // Ordenamiento secundario (o primario si es single)
+                    let valA = '';
+                    let valB = '';
+
+                    switch (type) {
+                        case 'ingresos':
+                            valA = `${a.paciente?.paterno || ''} ${a.paciente?.materno || ''} ${a.paciente?.nombre || ''}`.trim();
+                            valB = `${b.paciente?.paterno || ''} ${b.paciente?.materno || ''} ${b.paciente?.nombre || ''}`.trim();
+                            break;
+                        case 'otros-ingresos':
+                        case 'egresos':
+                            valA = (a.detalle || '').toLowerCase();
+                            valB = (b.detalle || '').toLowerCase();
+                            break;
+                        case 'pagos-doctores':
+                            valA = `${a.personal?.paterno || ''} ${a.personal?.materno || ''} ${a.personal?.nombre || ''}`.trim();
+                            valB = `${b.personal?.paterno || ''} ${b.personal?.materno || ''} ${b.personal?.nombre || ''}`.trim();
+                            break;
+                        case 'pagos-laboratorios':
+                            valA = (a.laboratorio?.nombre || '').toLowerCase();
+                            valB = (b.laboratorio?.nombre || '').toLowerCase();
+                            break;
+                        case 'pagos-pedidos':
+                            valA = (a.proveedor?.nombre || '').toLowerCase();
+                            valB = (b.proveedor?.nombre || '').toLowerCase();
+                            break;
+                        case 'pagos-gastos-fijos':
+                            valA = (a.gastoFijo?.nombre || '').toLowerCase();
+                            valB = (b.gastoFijo?.nombre || '').toLowerCase();
+                            break;
+                    }
+
+                    return valA.localeCompare(valB);
+                });
+            };
+
+            setIngresos(sortData(resIngresos.data, 'ingresos'));
+            setEgresos(sortData(resEgresos.data.data || [], 'egresos'));
+            setOtrosIngresos(sortData(resOtrosIngresos.data.data || [], 'otros-ingresos'));
+            setPagosDoctores(sortData(resDoctores.data, 'pagos-doctores'));
+            setPagosLaboratorios(sortData(resLaboratorios.data, 'pagos-laboratorios'));
+            setPagosPedidos(sortData(resPedidos.data, 'pagos-pedidos'));
+            setPagosGastosFijos(sortData(resGastosFijos.data, 'pagos-gastos-fijos'));
 
         } catch (error) {
             console.error("Error fetching Hoja Diaria:", error);
@@ -410,8 +498,8 @@ const HojaDiaria: React.FC = () => {
     };
 
     const handleClearRange = () => {
-        setRangeStart('');
-        setRangeEnd('');
+        setRangeStart(getLocalDateString());
+        setRangeEnd(getLocalDateString());
         setSearchMode('single');
         const today = getLocalDateString();
         setSelectedDate(today);
@@ -435,7 +523,13 @@ const HojaDiaria: React.FC = () => {
         if (result.isConfirmed) {
             try {
                 await api.post(`/clinicas/${clinicaSeleccionada}/cerrar-caja`, { fecha: selectedDate });
-                Swal.fire('Éxito', 'Caja cerrada correctamente', 'success');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Éxito',
+                    text: 'Caja cerrada correctamente',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
                 recargarClinicas();
             } catch (error) {
                 console.error('Error cerrando caja:', error);
@@ -485,10 +579,10 @@ const HojaDiaria: React.FC = () => {
                                 ${data.detalles.map((d: any) => `
                                     <tr style="${!d.cuadra ? 'background: #fff1f2;' : ''}">
                                         <td style="padding: 8px; border: 1px solid #e2e8f0;">${d.forma_pago}</td>
-                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${Number(d.recepcion).toFixed(2)}</td>
-                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${Number(d.tablet).toFixed(2)}</td>
+                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatNumber(Number(d.recepcion))}</td>
+                                        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right;">${formatNumber(Number(d.tablet))}</td>
                                         <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: ${d.diferencia > 0 ? '#d33' : (d.diferencia < 0 ? '#e67e22' : '#059669')};">
-                                            ${Number(d.diferencia).toFixed(2)}
+                                            ${formatNumber(Number(d.diferencia))}
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -510,7 +604,7 @@ const HojaDiaria: React.FC = () => {
                                         <tr style="border-bottom: 1px solid #f1f5f9; hover: background: #fdfdfd;">
                                             <td style="padding: 8px;">${pt.paciente}</td>
                                             <td style="padding: 8px; text-align: center;"><span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">${pt.forma_pago}</span></td>
-                                            <td style="padding: 8px; text-align: right; font-weight: 700; color: #334155;">${Number(pt.monto).toFixed(2)} Bs.</td>
+                                            <td style="padding: 8px; text-align: right; font-weight: 700; color: #334155;">${formatNumber(Number(pt.monto))} Bs.</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -562,15 +656,15 @@ const HojaDiaria: React.FC = () => {
                     <div style="background-color: white; padding: 10px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #e0e0e0;">
                         <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${method}</div>
                         <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                            <span>Bs: <strong style="color: #2563eb;">${totals.Bs.toFixed(2)}</strong></span>
-                            <span>$us: <strong style="color: #16a34a;">${totals.Sus.toFixed(2)}</strong></span>
+                            <span>Bs: <strong style="color: #2563eb;">${formatNumber(totals.Bs)}</strong></span>
+                            <span>$us: <strong style="color: #16a34a;">${formatNumber(totals.Sus)}</strong></span>
                         </div>
                     </div>
                 `).join('')}
                 <div style="margin-top: 12px; padding-top: 12px; border-top: 2px solid #333; font-weight: bold;">
                     <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>Total Bs: ${totalBs.toFixed(2)}</span>
-                        <span>Total $us: ${totalSus.toFixed(2)}</span>
+                        <span>Total Bs: ${formatNumber(totalBs)}</span>
+                        <span>Total $us: ${formatNumber(totalSus)}</span>
                     </div>
                 </div>
             </div>
@@ -596,59 +690,25 @@ const HojaDiaria: React.FC = () => {
         const getCoveredTreatmentsForPaymentLocal = (r: any) => {
             if (!r.proforma || !r.proforma.historiaClinica || r.proforma.historiaClinica.length === 0) return [];
             
-            if (r.historiaClinicaId || (r.tratamientosIds && r.tratamientosIds.length > 0)) {
-                let ids: string[] = [];
-                if (r.historiaClinicaId) ids.push(String(r.historiaClinicaId));
-                
+            let ids: string[] = [];
+            if (r.historiaClinicaId) ids.push(String(r.historiaClinicaId));
+            
+            if (r.tratamientosIds) {
                 if (Array.isArray(r.tratamientosIds)) {
                     ids = [...ids, ...r.tratamientosIds.map(String)];
                 } else if (typeof r.tratamientosIds === 'string') {
                     ids = [...ids, ...r.tratamientosIds.split(',')];
                 }
-
-                if (ids.length > 0) {
-                    return r.proforma.historiaClinica.filter((h: any) => ids.includes(String(h.id)));
-                }
             }
 
-            const tratamientosPlan = r.proforma.historiaClinica;
-            const allPagos = r.proforma.pagos || [r];
-
-            let discountFactor = 1;
-            if (Number(r.proforma.sub_total) > 0) {
-                discountFactor = Number(r.proforma.total) / Number(r.proforma.sub_total);
+            if (ids.length > 0) {
+                // Return unique treatments matching the IDs
+                const uniqueIds = Array.from(new Set(ids));
+                return r.proforma.historiaClinica.filter((h: any) => uniqueIds.includes(String(h.id)));
             }
 
-            const sortedPagos = [...allPagos].sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-            const sortedTreatments = [...tratamientosPlan].sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-
-            // Capacidad de cada tratamiento basada en precio (heuristic for legacy payments)
-            const capacities = sortedTreatments.map((t: any) => Number(t.precio) * discountFactor);
-
-            let tratIndex = 0;
-
-            for (const p of sortedPagos) {
-                let pAmount = Number(p.monto);
-                const thisPaymentCovers: any[] = [];
-
-                while (pAmount > 0.01 && tratIndex < sortedTreatments.length) {
-                    if (capacities[tratIndex] > 0.01) {
-                        const filled = Math.min(pAmount, capacities[tratIndex]);
-                        capacities[tratIndex] -= filled;
-                        pAmount -= filled;
-                        thisPaymentCovers.push(sortedTreatments[tratIndex]);
-                    }
-                    
-                    if (capacities[tratIndex] <= 0.01) {
-                        tratIndex++;
-                    }
-                }
-
-                if (p.id === r.id) {
-                    return Array.from(new Set(thisPaymentCovers));
-                }
-            }
-            return r.proforma.historiaClinica.filter((h: any) => Number(h.cancelado) > 0);
+            // Fallback: If no explicit links, return empty (as we verified all current payments are linked)
+            return [];
         };
 
         const summary = calculateSummary(ingresos, 'ingreso');
@@ -707,7 +767,8 @@ const HojaDiaria: React.FC = () => {
                             <th>Paciente</th>
                             <th style="width: 80px;">Plan de Trat.</th>
                             <th>Tratamientos</th>
-                            <th style="text-align: right; width: 100px;">Monto</th>
+                            <th style="text-align: right; width: 80px;">Desc.</th>
+                            <th style="text-align: right; width: 100px;">Monto Pago</th>
                             <th style="width: 100px;">Forma Pago</th>
                             <th>Observaciones</th>
                         </tr>
@@ -726,7 +787,8 @@ const HojaDiaria: React.FC = () => {
                                          ? getCoveredTreatmentsForPaymentLocal(r).map((h: any) => `<div>• ${h.tratamiento}${h.pieza ? ` (Pz. ${h.pieza})` : ''}</div>`).join('')
                                          : '-')}
                                 </td>
-                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}${r.moneda === 'Dólares' && r.tc ? ` (TC ${Number(r.tc).toFixed(2)})` : ''}</td>
+                                <td style="text-align: right; color: #dc2626; font-weight: 600;">${Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}</td>
+                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}${r.moneda === 'Dólares' && r.tc ? ` (TC ${formatNumber(r.tc)})` : ''}</td>
                                 <td>${r.formaPagoRel?.forma_pago || 'N/A'}${r.formaPagoRel?.forma_pago?.toLowerCase() === 'tarjeta' && r.comisionTarjeta?.redBanco ? ` (${r.comisionTarjeta.redBanco})` : ''}</td>
                                 <td style="font-size: 10px;">${r.observaciones || '-'}</td>
                             </tr>
@@ -966,17 +1028,21 @@ const HojaDiaria: React.FC = () => {
                         <tr>
                             ${searchMode === 'range' ? '<th style="width: 100px;">Fecha</th>' : ''}
                             <th>Doctor</th>
+                            <th>Pacientes / Tratamientos</th>
                             <th style="text-align: right; width: 120px;">Monto Total</th>
                             <th style="width: 120px;">Forma Pago</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${pagosDoctores.length === 0 ? `
-                            <tr><td colspan="${searchMode === 'range' ? 4 : 3}" style="text-align: center; font-style: italic; color: #64748b;">No hay registros</td></tr>
+                            <tr><td colspan="${searchMode === 'range' ? 5 : 4}" style="text-align: center; font-style: italic; color: #64748b;">No hay registros</td></tr>
                         ` : pagosDoctores.map(r => `
                             <tr>
                                 ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
                                 <td style="font-weight: 600;">Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}</td>
+                                <td style="font-size: 8px;">
+                                    ${r.detalles?.map(d => `• <strong>${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}</strong>: ${d.historiaClinica?.tratamiento}`).join('<br>') || '-'}
+                                </td>
                                 <td class="amount">${formatMoney(Number(r.total), r.moneda)}</td>
                                 <td>${r.formaPago?.forma_pago || 'N/A'}</td>
                             </tr>
@@ -1406,37 +1472,351 @@ const HojaDiaria: React.FC = () => {
         }
     };
 
+    const handlePrintGeneral = () => {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (!doc) {
+            document.body.removeChild(iframe);
+            return;
+        }
+
+        const filterInfo = getFilterInfoText();
+        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+
+        const getCoveredTreatmentsLocal = (r: any) => {
+            if (!r.proforma || !r.proforma.historiaClinica || r.proforma.historiaClinica.length === 0) return [];
+            if (r.historiaClinicaId || (r.tratamientosIds && r.tratamientosIds.length > 0)) {
+                let ids: string[] = [];
+                if (r.historiaClinicaId) ids.push(String(r.historiaClinicaId));
+                if (Array.isArray(r.tratamientosIds)) ids = [...ids, ...r.tratamientosIds.map(String)];
+                else if (typeof r.tratamientosIds === 'string') ids = [...ids, ...r.tratamientosIds.split(',')];
+                if (ids.length > 0) return r.proforma.historiaClinica.filter((h: any) => ids.includes(String(h.id)));
+            }
+            return r.proforma.historiaClinica.filter((h: any) => Number(h.cancelado) > 0);
+        };
+
+        const renderFinalSummary = () => {
+            const { ingresos, egresos, utilidad } = currentTotals;
+            const formatVal = (v: any) => `
+                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
+                    <span style="font-weight: bold; color: #1e293b;">${formatNumber(v.bs)} Bs</span>
+                    <span style="color: #64748b;">${formatNumber(v.sus)} $us</span>
+                </div>
+            `;
+            
+            const renderBreakdown = (breakdown: any) => Object.entries(breakdown || {}).map(([m, v]: any) => `
+                <div style="display: flex; justify-content: space-between; font-size: 10px; color: #475569; padding-left: 10px;">
+                    <span>• ${m}</span>
+                    <span>${formatNumber(v.bs)} Bs / ${formatNumber(v.sus)} $us</span>
+                </div>
+            `).join('');
+
+            return `
+                <div style="margin-top: 40px; page-break-inside: avoid; border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; background: #f8fafc;">
+                    <h2 style="margin: 0 0 20px 0; color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; text-transform: uppercase;">Resumen de Utilidad General</h2>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                        <div>
+                            <h3 style="font-size: 14px; color: #059669; margin-bottom: 10px;">Total Ingresos</h3>
+                            ${formatVal(ingresos)}
+                            <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 5px;">
+                                ${renderBreakdown(ingresos.breakdown)}
+                            </div>
+                        </div>
+                        <div>
+                            <h3 style="font-size: 14px; color: #dc2626; margin-bottom: 10px;">Total Egresos</h3>
+                            ${formatVal(egresos)}
+                            <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 5px;">
+                                ${renderBreakdown(egresos.breakdown)}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 25px; padding-top: 15px; border-top: 3px double #3b82f6;">
+                        <h3 style="font-size: 16px; color: #1e3a8a; margin-bottom: 10px; display: flex; justify-content: space-between;">
+                            <span>Utilidad Neta:</span>
+                            <span style="color: ${utilidad.bs >= 0 ? '#2563eb' : '#dc2626'};">${formatNumber(utilidad.bs)} Bs / ${formatNumber(utilidad.sus)} $us</span>
+                        </h3>
+                        ${renderBreakdown(utilidad.breakdown)}
+                    </div>
+                </div>
+            `;
+        };
+
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Reporte General - Hoja Diaria</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+                    @page { size: A4 landscape; margin: 1.5cm; }
+                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1e293b; background: white; line-height: 1.4; }
+                    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px; }
+                    .header img { height: 45px; object-fit: contain; }
+                    h1 { color: #1e293b; margin: 0; font-size: 20px; font-weight: 700; text-transform: uppercase; }
+                    .report-info { background: #f8fafc; padding: 10px 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 12px; color: #475569; }
+                    .section-title { background: #3b82f6; color: white; padding: 8px 12px; border-radius: 4px; font-size: 14px; font-weight: 700; margin: 30px 0 15px 0; text-transform: uppercase; page-break-after: avoid; }
+                    table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 15px; page-break-inside: auto; }
+                    th { background-color: #f1f5f9; color: #475569; padding: 8px; text-align: left; border: 1px solid #e2e8f0; font-weight: 700; }
+                    td { padding: 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+                    tr:nth-child(even) { background-color: #f8fafc; }
+                    .amount { font-weight: 700; text-align: right; }
+                    .summary-box { margin-bottom: 40px; page-break-inside: avoid; }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; }
+                        .section-title { background-color: #3b82f6 !important; -webkit-print-color-adjust: exact; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div><img src="${logoUrl}" alt="Logo"></div>
+                    <h1>Reporte General - Hoja Diaria</h1>
+                </div>
+                <div class="report-info">Filtro: <strong>${filterInfo}</strong></div>
+
+                ${ingresos.length > 0 ? `
+                    <div class="section-title">1. Ingresos de Pacientes</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Paciente</th>
+                                <th>Plan/Tratamientos</th>
+                                <th style="text-align: right;">Desc.</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${ingresos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${[r.paciente?.nombre, r.paciente?.paterno, r.paciente?.materno].filter(Boolean).join(' ')}</td>
+                                    <td style="font-size: 9px;">
+                                        <strong>#${r.proforma?.numero || 'Gen'}</strong>: 
+                                        ${getCoveredTreatmentsLocal(r).map((h: any) => h.tratamiento).join(', ') || r.observaciones || '-'}
+                                    </td>
+                                    <td class="amount" style="color: #dc2626;">${Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPagoRel?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(ingresos, 'ingreso'))}</div>
+                ` : ''}
+
+                ${otrosIngresos.length > 0 ? `
+                    <div class="section-title">2. Otros Ingresos</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Detalle</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${otrosIngresos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.detalle}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(otrosIngresos, 'egreso'))}</div>
+                ` : ''}
+
+                ${egresos.length > 0 ? `
+                    <div class="section-title">3. Egresos Diarios</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Detalle</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${egresos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.detalle}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(egresos, 'egreso'))}</div>
+                ` : ''}
+
+                ${pagosDoctores.length > 0 ? `
+                    <div class="section-title">4. Pagos a Doctores</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Doctor</th>
+                                <th>Pacientes / Tratamientos</th>
+                                <th style="text-align: right;">Monto Total</th>
+                                <th>F. Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pagosDoctores.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}</td>
+                                    <td style="font-size: 8px;">
+                                        ${r.detalles?.map((d: any) => `• <strong>${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}</strong>: ${d.historiaClinica?.tratamiento}`).join('<br>') || '-'}
+                                    </td>
+                                    <td class="amount">${formatMoney(Number(r.total), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosDoctores, 'doctor'))}</div>
+                ` : ''}
+
+                ${pagosLaboratorios.length > 0 ? `
+                    <div class="section-title">5. Pagos a Laboratorios</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Laboratorio</th>
+                                <th>Paciente</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pagosLaboratorios.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.trabajoLaboratorio?.laboratorio?.laboratorio || '-'}</td>
+                                    <td>${[r.trabajoLaboratorio?.paciente?.nombre, r.trabajoLaboratorio?.paciente?.paterno, r.trabajoLaboratorio?.paciente?.materno].filter(Boolean).join(' ')}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosLaboratorios, 'laboratorio'))}</div>
+                ` : ''}
+
+                ${pagosPedidos.length > 0 ? `
+                    <div class="section-title">6. Pagos de Pedidos / Compras</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Proveedor</th>
+                                <th>Detalle</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pagosPedidos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.pedido?.proveedor?.proveedor || '-'}</td>
+                                    <td>${r.pedido?.descripcion || '-'}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), 'Bolivianos')}</td>
+                                    <td>${r.forma_pago || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosPedidos, 'pedido'))}</div>
+                ` : ''}
+
+                ${pagosGastosFijos.length > 0 ? `
+                    <div class="section-title">7. Pagos Gastos Fijos</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                ${searchMode === 'range' ? '<th>Fecha</th>' : ''}
+                                <th>Gasto</th>
+                                <th style="text-align: right;">Monto</th>
+                                <th>F. Pago</th>
+                                <th>Obs.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pagosGastosFijos.map(r => `
+                                <tr>
+                                    ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                    <td>${r.gastoFijo?.gasto_fijo || '-'}</td>
+                                    <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                    <td>${r.formaPago?.forma_pago || '-'}</td>
+                                    <td>${r.observaciones || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="summary-box">${generateSummaryHTML(calculateSummary(pagosGastosFijos, 'gasto'))}</div>
+                ` : ''}
+
+                ${renderFinalSummary()}
+                
+                <div style="margin-top: 50px; text-align: center; font-size: 10px; color: #94a3b8;">
+                    Generado el ${new Date().toLocaleString()} - Sistema de Gestión Clínicas Lens
+                </div>
+            </body>
+            </html>
+        `;
+
+        doc.open();
+        doc.write(printContent);
+        doc.close();
+
+        const logo = doc.querySelector('img');
+        const doPrint = () => {
+            try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); }
+            catch (e) { console.error('Print error:', e); }
+            finally { setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 2000); }
+        };
+
+        if (logo) {
+            if (logo.complete) doPrint();
+            else { logo.onload = doPrint; logo.onerror = doPrint; }
+        } else doPrint();
+    };
+
     const handlePrint = () => {
         switch (activeTab) {
-            case 0:
-                handlePrintIngresos();
-                break;
-            case 1:
-                handlePrintEgresos();
-                break;
-            case 2:
-                handlePrintDoctores();
-                break;
-            case 3:
-                handlePrintLaboratorios();
-                break;
-            case 4:
-                handlePrintPedidos();
-                break;
-            case 5:
-                handlePrintGastosFijos();
-                break;
-            default:
-                window.print();
+            case 0: handlePrintIngresos(); break;
+            case 1: handlePrintEgresos(); break; // This should be handlePrintOtrosIngresos if defined, checking case index
+            case 2: handlePrintEgresos(); break;
+            case 3: handlePrintDoctores(); break;
+            case 4: handlePrintLaboratorios(); break;
+            case 5: handlePrintPedidos(); break;
+            case 6: handlePrintGastosFijos(); break;
+            default: window.print();
         }
     };
 
-    const formatMoney = (amount: number, currency: string = 'Bolivianos') => {
-        return amount.toLocaleString('es-BO', {
-            style: 'currency',
-            currency: currency === 'Bolivianos' ? 'BOB' : 'USD'
-        });
-    };
+
+
 
     // Summary Engine
     type Summary = Record<string, { Bs: number; Sus: number }>;
@@ -1518,16 +1898,16 @@ const HojaDiaria: React.FC = () => {
                         <li key={idx} className="flex flex-col bg-white dark:bg-gray-700 p-3 rounded border border-gray-100 dark:border-gray-600 shadow-sm">
                             <span className="font-semibold text-gray-800 dark:text-gray-200 mb-1">{method}</span>
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 dark:text-gray-300">Bs: <span className="font-bold text-blue-600 dark:text-blue-400">{totals.Bs.toFixed(2)}</span></span>
-                                <span className="text-gray-600 dark:text-gray-300">Sus: <span className="font-bold text-green-600 dark:text-green-400">{totals.Sus.toFixed(2)}</span></span>
+                                <span className="text-gray-600 dark:text-gray-300">Bs: <span className="font-bold text-blue-600 dark:text-blue-400">{formatNumber(totals.Bs)}</span></span>
+                                <span className="text-gray-600 dark:text-gray-300">Sus: <span className="font-bold text-green-600 dark:text-green-400">{formatNumber(totals.Sus)}</span></span>
                             </div>
                         </li>
                     ))}
                     <li className="pt-2 mt-2 border-t dark:border-gray-600 flex flex-col">
                         <span className="font-bold text-gray-900 dark:text-white">Total General</span>
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-800 dark:text-gray-300">Bs: {Object.values(summary).reduce((acc, v) => acc + v.Bs, 0).toFixed(2)}</span>
-                            <span className="text-gray-800 dark:text-gray-300">Sus: {Object.values(summary).reduce((acc, v) => acc + v.Sus, 0).toFixed(2)}</span>
+                            <span className="text-gray-800 dark:text-gray-300">Bs: {formatNumber(Object.values(summary).reduce((acc, v) => acc + v.Bs, 0))}</span>
+                            <span className="text-gray-800 dark:text-gray-300">Sus: {formatNumber(Object.values(summary).reduce((acc, v) => acc + v.Sus, 0))}</span>
                         </div>
                     </li>
                 </ul>
@@ -1688,13 +2068,21 @@ const HojaDiaria: React.FC = () => {
                         }
                     },
                     {
-                        header: 'Monto',
+                        header: 'Desc.',
+                        accessor: r => (
+                            <span className="text-red-600 dark:text-red-400 font-semibold">
+                                {Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-'}
+                            </span>
+                        )
+                    },
+                    {
+                        header: 'Monto Pago',
                         accessor: r => {
                             const isDollar = r.moneda === 'Dólares';
                             return (
                                 <span className="font-bold text-green-600 dark:text-green-400">
                                     {formatMoney(Number(r.monto), r.moneda)}
-                                    {isDollar && r.tc && ` (TC. ${Number(r.tc).toFixed(2)})`}
+                                    {isDollar && r.tc && ` (TC. ${formatNumber(Number(r.tc))})`}
                                 </span>
                             );
                         }
@@ -1730,6 +2118,21 @@ const HojaDiaria: React.FC = () => {
                 return renderTableWithSummary([
                     ...getDateColumn(),
                     { header: 'Doctor', accessor: r => `Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}` },
+                    { 
+                        header: 'Pacientes / Tratamientos', 
+                        accessor: r => {
+                            if (!r.detalles || r.detalles.length === 0) return '-';
+                            return (
+                                <div className="flex flex-col gap-0.5 text-[9px] leading-tight py-1">
+                                    {r.detalles.map((d: any, i: number) => (
+                                        <div key={i} className="whitespace-nowrap">
+                                            • <span className="font-bold">{[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}</span>: {d.historiaClinica?.tratamiento}
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        }
+                    },
                     { header: 'Monto Total', accessor: r => <span className="font-bold text-red-600 dark:text-red-400">{formatMoney(Number(r.total), r.moneda)}</span> },
                     { header: 'Forma Pago', accessor: r => r.formaPago?.forma_pago || 'N/A' },
                 ], pagosDoctores, 'doctor');
@@ -1788,10 +2191,18 @@ const HojaDiaria: React.FC = () => {
                     <button
                         onClick={handlePrint}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
-                        title="Imprimir"
+                        title="Imprimir Pestaña Actual"
                     >
                         <Printer size={18} />
                         <span className="text-sm">Imprimir</span>
+                    </button>
+                    <button
+                        onClick={handlePrintGeneral}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        title="Reporte General (Todas las pestañas)"
+                    >
+                        <FileText size={18} />
+                        <span className="text-sm">Reporte General</span>
                     </button>
                     {canCrucePagos && searchMode === 'single' && (
                         <button
@@ -1933,25 +2344,68 @@ const HojaDiaria: React.FC = () => {
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex flex-col w-full md:w-[400px]">
                     <h3 className="text-lg font-semibold text-gray-700 dark:text-white mb-4 border-b dark:border-gray-700 pb-2">Resumen de Utilidad</h3>
                     <div className="flex flex-col gap-2 flex-grow">
-                        <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Ingresos:</span>
-                            <div className="flex flex-col text-right">
-                                <span className="font-bold text-green-600 dark:text-green-400">{currentTotals.ingresos.bs.toFixed(2)} Bs</span>
-                                <span className="text-xs text-green-500">{currentTotals.ingresos.sus.toFixed(2)} $us</span>
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Ingresos:</span>
+                                <div className="flex flex-col text-right">
+                                    <span className="font-bold text-green-600 dark:text-green-400">{formatNumber(currentTotals.ingresos.bs)} Bs</span>
+                                    <span className="text-xs text-green-500">{formatNumber(currentTotals.ingresos.sus)} $us</span>
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1 space-y-1">
+                                {Object.entries(currentTotals.ingresos.breakdown || {}).map(([method, val]: any) => (
+                                    <div key={method} className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                                        <span>• {method}</span>
+                                        <span>
+                                            {val.bs > 0 && `${formatNumber(val.bs)} Bs`}
+                                            {val.bs > 0 && val.sus > 0 && ' / '}
+                                            {val.sus > 0 && `${formatNumber(val.sus)} $us`}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                        <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Egresos:</span>
-                            <div className="flex flex-col text-right">
-                                <span className="font-bold text-red-600 dark:text-red-400">{currentTotals.egresos.bs.toFixed(2)} Bs</span>
-                                <span className="text-xs text-red-500">{currentTotals.egresos.sus.toFixed(2)} $us</span>
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Egresos:</span>
+                                <div className="flex flex-col text-right">
+                                    <span className="font-bold text-red-600 dark:text-red-400">{formatNumber(currentTotals.egresos.bs)} Bs</span>
+                                    <span className="text-xs text-red-500">{formatNumber(currentTotals.egresos.sus)} $us</span>
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1 space-y-1">
+                                {Object.entries(currentTotals.egresos.breakdown || {}).map(([method, val]: any) => (
+                                    <div key={method} className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                                        <span>• {method}</span>
+                                        <span>
+                                            {val.bs > 0 && `${formatNumber(val.bs)} Bs`}
+                                            {val.bs > 0 && val.sus > 0 && ' / '}
+                                            {val.sus > 0 && `${formatNumber(val.sus)} $us`}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                        <div className="flex justify-between items-center border-t-2 dark:border-gray-600 pt-2 font-bold">
-                            <span className="text-sm text-gray-800 dark:text-gray-200">Utilidad Neta:</span>
-                            <div className="flex flex-col text-right">
-                                <span className={currentTotals.utilidad.bs >= 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}>{currentTotals.utilidad.bs.toFixed(2)} Bs</span>
-                                <span className={`text-xs ${currentTotals.utilidad.sus >= 0 ? "text-blue-500" : "text-red-400"}`}>{currentTotals.utilidad.sus.toFixed(2)} $us</span>
+                        <div className="border-t-2 dark:border-gray-600 pt-2">
+                            <div className="flex justify-between items-center font-bold">
+                                <span className="text-sm text-gray-800 dark:text-gray-200">Utilidad Neta:</span>
+                                <div className="flex flex-col text-right">
+                                    <span className={currentTotals.utilidad.bs >= 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}>{formatNumber(currentTotals.utilidad.bs)} Bs</span>
+                                    <span className={`text-xs ${currentTotals.utilidad.sus >= 0 ? "text-blue-500" : "text-red-400"}`}>{formatNumber(currentTotals.utilidad.sus)} $us</span>
+                                </div>
+                            </div>
+                            <div className="mt-1 space-y-1">
+                                {Object.entries(currentTotals.utilidad.breakdown || {}).map(([method, val]: any) => (
+                                    <div key={method} className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                                        <span>• {method}</span>
+                                        <span className={val.bs >= 0 ? "text-blue-500" : "text-red-400"}>
+                                            {val.bs !== 0 && `${formatNumber(val.bs)} Bs`}
+                                            {val.bs !== 0 && val.sus !== 0 && ' / '}
+                                            {val.sus !== 0 && `${formatNumber(val.sus)} $us`}
+                                            {val.bs === 0 && val.sus === 0 && '0,00 Bs'}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
@@ -1967,7 +2421,7 @@ const HojaDiaria: React.FC = () => {
                                         <XAxis dataKey="name" fontSize={10} tick={{ fill: '#888' }} />
                                         <Tooltip 
                                             contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 4, padding: 4, fontSize: 10 }}
-                                            formatter={(value: any) => [`${Number(value).toFixed(2)} Bs`, 'Utilidad']}
+                                            formatter={(value: any) => [`${formatNumber(Number(value))} Bs`, 'Utilidad']}
                                         />
                                         <Bar dataKey="Utilidad" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                                             {

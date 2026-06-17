@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getLocalDateString } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 
 interface PaginatedResponse {
     data: ProductoComercial[];
@@ -307,10 +308,10 @@ const ProductosComercialesList: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        {Number(item.costo).toFixed(2)}
+                                        {formatNumber(item.costo)}
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm font-bold text-gray-900 dark:text-white">
-                                        {Number(item.precio_venta).toFixed(2)}
+                                        {formatNumber(item.precio_venta)}
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`px-2 py-1 rounded text-sm ${

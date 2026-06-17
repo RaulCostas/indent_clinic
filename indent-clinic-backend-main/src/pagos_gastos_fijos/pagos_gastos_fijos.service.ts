@@ -42,23 +42,34 @@ export class PagosGastosFijosService {
         }
     }
 
-    findAll(fecha?: string, startDate?: string, endDate?: string, clinicaId?: number) {
-        const options: any = {
-            relations: ['gastoFijo', 'formaPago'],
-            order: { fecha: 'DESC' },
-            where: {}
-        };
+    async findAll(fecha?: string, startDate?: string, endDate?: string, clinicaId?: number) {
+        const queryBuilder = this.pagosRepository.createQueryBuilder('pago')
+            .leftJoinAndSelect('pago.gastoFijo', 'gastoFijo')
+            .leftJoinAndSelect('pago.formaPago', 'formaPago');
+
         if (startDate && endDate) {
-            options.where.fecha = Between(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
-        } else if (fecha) {
-            options.where.fecha = Between(`${fecha} 00:00:00`, `${fecha} 23:59:59`);
+            queryBuilder.orderBy('pago.fecha', 'ASC');
         }
+        
+        queryBuilder.addOrderBy('gastoFijo.gasto_fijo', 'ASC');
 
         if (clinicaId) {
-            options.where.clinicaId = clinicaId;
+            queryBuilder.andWhere('pago.clinicaId = :clinicaId', { clinicaId });
         }
 
-        return this.pagosRepository.find(options);
+        if (startDate && endDate) {
+            queryBuilder.andWhere('pago.fecha BETWEEN :startDate AND :endDate', {
+                startDate: `${startDate} 00:00:00`,
+                endDate: `${endDate} 23:59:59`
+            });
+        } else if (fecha) {
+            queryBuilder.andWhere('pago.fecha BETWEEN :startDate AND :endDate', {
+                startDate: `${fecha} 00:00:00`,
+                endDate: `${fecha} 23:59:59`
+            });
+        }
+
+        return await queryBuilder.getMany();
     }
 
     findOne(id: number) {

@@ -1,11 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { Proforma } from '../../proformas/entities/proforma.entity';
 import { ComisionTarjeta } from '../../comision_tarjeta/entities/comision_tarjeta.entity';
 import { FormaPago } from '../../forma_pago/entities/forma_pago.entity';
 import { Clinica } from '../../clinicas/entities/clinica.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('pagos')
+@Index(['pacienteId'])
+@Index(['proformaId'])
+@Index(['historiaClinicaId'])
+@Index(['clinicaId'])
+@Index(['fecha'])
 export class Pago {
     @PrimaryGeneratedColumn()
     id: number;
@@ -53,10 +59,8 @@ export class Pago {
     @Column({ type: 'text', nullable: true })
     observaciones: string;
 
-
     @Column({ nullable: true })
     historiaClinicaId: number;
-
 
     @Column({
         type: 'enum',
@@ -74,6 +78,13 @@ export class Pago {
     @ManyToOne(() => Clinica)
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ nullable: true })
+    usuarioId: number;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'usuarioId' })
+    usuario: User;
 
     @CreateDateColumn()
     createdAt: Date;

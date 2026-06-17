@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import { FileText, Calendar, User, Hash, DollarSign, Check, Award } from 'lucide-react';
 
 interface PresupuestoViewModalProps {
@@ -20,8 +21,11 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [historiaClinica, setHistoriaClinica] = useState<any[]>([]);
     const [firmas, setFirmas] = useState<any[]>([]);
-    const [historySignature, setHistorySignature] = useState<string | null>(null);
     const [isTerminado, setIsTerminado] = useState(false);
+    const [patientSignature, setPatientSignature] = useState<string | null>(null);
+    const [clinicSignature, setClinicSignature] = useState<string | null>(null);
+    const [clinicName, setClinicName] = useState<string | null>(null);
+    const [clinicRole, setClinicRole] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen && proformaId) {
@@ -30,55 +34,108 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
             setFirmas([]);
             setIsTerminado(false);
 
-            api.get(`/proformas/${proformaId}`)
-                .then(async (res) => {
-                    const data = res.data;
-                    setProforma(data);
+            // Parallel fetch for everything related to this proforma
+            Promise.all([
+                api.get(`/proformas/${proformaId}`),
+                api.get(`/historia-clinica/proforma/${proformaId}`),
+                api.get(`/firmas/documento/presupuesto/${proformaId}`).catch(() => ({ data: [] }))
+            ])
+            .then(([profRes, histRes, firmaRes]) => {
+                const data = profRes.data;
+                setProforma(data);
+                
+                const historia = histRes.data || [];
+                setHistoriaClinica(historia);
+                setFirmas(firmaRes.data || []);
 
-                    // Fetch Historia Clinica for this patient to check completed items
-                    const pacienteId = data.pacienteId;
-                    if (pacienteId) {
-                        try {
-                            const hRes = await api.get(`/historia-clinica/paciente/${pacienteId}`);
-                            const historia: any[] = hRes.data || [];
-                            setHistoriaClinica(historia);
-
-                            // Check if budget is overall terminated
-                            const terminado = historia.some(
-                                (h: any) => h.proformaId === proformaId && h.estadoPresupuesto === 'terminado'
-                            );
-                            setIsTerminado(terminado);
-
-                            // Find patient signature in history if not already found in firmas table
-                            const historiaConFirma = historia.find(
-                                (h: any) => h.proformaId === proformaId && h.firmaPaciente
-                            );
-                            if (historiaConFirma && historiaConFirma.firmaPaciente) {
-                                setHistorySignature(historiaConFirma.firmaPaciente);
-                            }
-                        } catch (e) {
-                            console.error('Error loading historia clinica:', e);
-                        }
-                    }
-
-                    // Fetch signatures
-                    try {
-                        const firmaRes = await api.get(`/firmas/documento/presupuesto/${proformaId}`);
-                        setFirmas(firmaRes.data || []);
-                    } catch (e) {
-                        // No signatures is normal
-                    }
-                })
-                .catch(err => console.error('Error loading proforma:', err))
-                .finally(() => setLoading(false));
+                // Check if budget is overall terminated
+                const terminado = historia.some(
+                    (h: any) => h.proformaId === proformaId && h.estadoPresupuesto === 'terminado'
+                );
+                setIsTerminado(terminado);
+            })
+            .catch(err => console.error('Error loading budget data:', err))
+            .finally(() => setLoading(false));
         } else {
             setProforma(null);
             setHistoriaClinica([]);
             setFirmas([]);
-            setHistorySignature(null);
             setIsTerminado(false);
         }
     }, [isOpen, proformaId]);
+
+    // Signature resolution - Optimized
+    useEffect(() => {
+        const resolveSignatures = async () => {
+            // Find patient and clinic signatures in the firmas array
+            const pSigItem = firmas.find((f: any) => f.rolFirmante === 'paciente');
+            const cSigItem = firmas.find((f: any) =>
+                f.rolFirmante === 'doctor' || f.rolFirmante === 'personal' || f.rolFirmante === 'administrador'
+            );
+
+            const resolveTask = async (item: any, setter: (val: string | null) => void) => {
+                if (!item) {
+                    setter(null);
+                    return;
+                }
+
+                const data = item.firmaData;
+                if (data && data.startsWith('data:image')) {
+                    setter(data);
+                } else if (data && item.id) {
+                    try {
+                        const res = await api.get<{ base64: string }>(`/firmas/${item.id}/base64`);
+                        setter(res.data.base64);
+                    } catch (e) {
+                        console.error('Error resolving signature:', e);
+                        setter(null);
+                    }
+                } else {
+                    setter(null);
+                }
+            };
+
+            // Patient signature might also be in the proforma itself (fallback)
+            const resolvePatientSignature = async () => {
+                if (pSigItem) {
+                    await resolveTask(pSigItem, setPatientSignature);
+                } else if (proformaId) {
+                    // Try to fetch from proforma as fallback if not in firmas table
+                    try {
+                        const res = await api.get<{ base64: string }>(`/proformas/${proformaId}/firma-base64`);
+                        setPatientSignature(res.data.base64);
+                    } catch (e) {
+                        setPatientSignature(null);
+                    }
+                } else {
+                    setPatientSignature(null);
+                }
+            };
+
+            await Promise.all([
+                resolvePatientSignature(),
+                resolveTask(cSigItem, setClinicSignature)
+            ]);
+            
+            if (cSigItem) {
+                const name = `${cSigItem.usuario?.name || cSigItem.usuario?.nombre || ''} ${cSigItem.usuario?.apellido || ''}`.trim();
+                setClinicName(name || 'Personal Autorizado');
+                setClinicRole(cSigItem.rolFirmante);
+            } else {
+                setClinicName(null);
+                setClinicRole(null);
+            }
+        };
+
+        if (isOpen && (firmas.length > 0 || proformaId)) {
+            resolveSignatures();
+        } else {
+            setPatientSignature(null);
+            setClinicSignature(null);
+            setClinicName(null);
+            setClinicRole(null);
+        }
+    }, [isOpen, firmas, proformaId]);
 
     if (!isOpen) return null;
 
@@ -97,13 +154,6 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
         const totalCompleted = matchingHistory.reduce((sum: number, h: any) => sum + (h.cantidad || 0), 0);
         return totalCompleted >= (detalle.cantidad || 1);
     };
-
-    const patientSignature = firmas.find((f: any) => f.rolFirmante === 'paciente')?.firmaData || historySignature;
-    const clinicSignatureData = firmas.find((f: any) =>
-        f.rolFirmante === 'doctor' || f.rolFirmante === 'personal' || f.rolFirmante === 'administrador'
-    );
-    const clinicSignature = clinicSignatureData?.firmaData;
-    const clinicName = clinicSignatureData ? `${clinicSignatureData.usuario?.name || clinicSignatureData.usuario?.nombre || ''} ${clinicSignatureData.usuario?.apellido || ''}`.trim() : null;
 
     return (
         <div
@@ -182,7 +232,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                         <DollarSign size={12} /> Total
                                     </span>
                                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {Number(proforma.total).toFixed(2)} Bs.
+                                        {formatNumber(Number(proforma.total))} Bs.
                                     </span>
                                 </div>
                             </div>
@@ -204,8 +254,9 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                         <thead className="bg-gray-50 dark:bg-gray-700">
                                             <tr>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tratamiento</th>
                                                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pieza(s)</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Descripción</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
                                                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">P.U.</th>
                                                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total</th>
@@ -226,8 +277,8 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                                     : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                                                         }`}
                                                     >
-                                                        <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">
-                                                            {detalle.piezas || '—'}
+                                                        <td className="px-4 py-3 text-sm text-center text-gray-500 dark:text-gray-400 font-medium">
+                                                            {i + 1}
                                                         </td>
                                                         <td className="px-4 py-3 text-sm font-medium">
                                                             <span className={completed ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-900 dark:text-white'}>
@@ -237,12 +288,15 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                                 <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400 italic">(posible)</span>
                                                             )}
                                                         </td>
+                                                        <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 font-mono">
+                                                            {detalle.piezas || '—'}
+                                                        </td>
                                                         <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300">{detalle.cantidad}</td>
-                                                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{Number(detalle.precioUnitario).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">{formatNumber(Number(detalle.precioUnitario))}</td>
                                                         <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
                                                             {detalle.posible
                                                                 ? <span className="text-yellow-600 dark:text-yellow-400 text-xs font-normal">—</span>
-                                                                : Number(detalle.total).toFixed(2)
+                                                                : formatNumber(Number(detalle.total))
                                                             }
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
@@ -273,7 +327,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                 <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 min-w-[220px] space-y-2 shadow-sm">
                                     <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                                         <span>TOTAL:</span>
-                                        <span>{Number(proforma.total).toFixed(2)} Bs.</span>
+                                        <span>{formatNumber(Number(proforma.total))} Bs.</span>
                                     </div>
                                 </div>
                             </div>
@@ -298,7 +352,7 @@ const PresupuestoViewModal: React.FC<PresupuestoViewModalProps> = ({
                                                         {clinicName}
                                                     </p>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">
-                                                        {clinicSignatureData?.rolFirmante === 'doctor' ? 'Odontólogo' : ''}
+                                                        {clinicRole === 'doctor' ? 'Odontólogo' : ''}
                                                     </p>
                                                 </div>
                                             </div>

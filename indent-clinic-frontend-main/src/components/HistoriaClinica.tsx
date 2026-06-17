@@ -240,8 +240,41 @@ const HistoriaClinica: React.FC = () => {
 
         // Table
         if (filteredHistoria.length > 0) {
-            const tableColumn = ["Fecha", "Pieza", "Tratamiento", "Observaciones", "Cant.", "Doctor", "Diagnóstico", "Estado"];
-            const tableRows = filteredHistoria.map(item => [
+            // Pre-process signatures to Base64 (including legacy fallback)
+            const processedHistoria = await Promise.all(filteredHistoria.map(async (item) => {
+                let sign = item.firmaPaciente;
+
+                // 1. If no direct signature, try to find it in legacy table
+                if (!sign) {
+                    try {
+                        const legacyRes = await api.get(`/firmas/documento/historia_clinica/${item.id}`);
+                        const signatures = Array.isArray(legacyRes.data) ? legacyRes.data : [];
+                        const pSig = signatures.find(s => s.rolFirmante === 'paciente');
+                        if (pSig && pSig.firmaData) {
+                            sign = pSig.firmaData;
+                            // If legacy is a URL, use proxy
+                            if (sign && !sign.startsWith('data:image') && pSig.id) {
+                                const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
+                                sign = proxyRes.data.base64;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Could not fetch legacy signature for HC #${item.id}`);
+                    }
+                } else if (sign && !sign.startsWith('data:image')) {
+                    // 2. If it is a direct URL signature, use proxy
+                    try {
+                        const res = await api.get<{ base64: string }>(`/historia-clinica/${item.id}/firma-base64`);
+                        sign = res.data.base64;
+                    } catch (e) {
+                        console.error(`Error loading signature for HC #${item.id}:`, e);
+                    }
+                }
+                return { ...item, firmaPaciente: sign || null };
+            }));
+
+            const tableColumn = ["Fecha", "Pieza", "Tratamiento", "Observaciones", "Cant.", "Doctor", "Diagnóstico", "Estado", "Firma"];
+            const tableRows = processedHistoria.map(item => [
                 formatDate(item.fecha),
                 item.pieza || '-',
                 item.tratamiento || '-',
@@ -249,10 +282,11 @@ const HistoriaClinica: React.FC = () => {
                 item.cantidad,
                 item.doctor ? `${item.doctor.paterno} ${item.doctor.nombre}` : '-',
                 item.diagnostico || '-',
-                item.estadoTratamiento
+                item.estadoTratamiento,
+                '' // Placeholder for signature
             ]);
 
-            const tableStartY = boxY + boxHeight + 5; // Start table 5 units after the box
+            const tableStartY = boxY + boxHeight + 5;
 
             autoTable(doc, {
                 head: [tableColumn],
@@ -263,60 +297,50 @@ const HistoriaClinica: React.FC = () => {
                 styles: {
                     fontSize: 8,
                     cellPadding: 2,
+                    valign: 'middle'
                 },
                 headStyles: {
                     fillColor: [52, 152, 219], // #3498db
                     textColor: [255, 255, 255],
                     fontStyle: 'bold',
                     lineWidth: 0,
+                    halign: 'center'
                 },
                 columnStyles: {
-                    0: { cellWidth: 20 },
-                    1: { cellWidth: 12 },
-                    2: { cellWidth: 30 },
-                    3: { cellWidth: 'auto' }, // Observaciones takes remaining space
-                    4: { cellWidth: 10 },
-                    5: { cellWidth: 25 },
-                    6: { cellWidth: 30 },
-                    7: { cellWidth: 18 }
+                    0: { cellWidth: 18, halign: 'center' },
+                    1: { cellWidth: 10, halign: 'center' },
+                    2: { cellWidth: 25 },
+                    3: { cellWidth: 'auto' }, 
+                    4: { cellWidth: 8, halign: 'center' },
+                    5: { cellWidth: 22 },
+                    6: { cellWidth: 25 },
+                    7: { cellWidth: 16, halign: 'center' },
+                    8: { cellWidth: 25, halign: 'center' } // Firma column
                 },
                 alternateRowStyles: {
                     fillColor: [248, 249, 250] // #f8f9fa
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body') {
+                        const item = processedHistoria[data.row.index];
+                        if (item.firmaPaciente) {
+                            data.row.height = 20; // Set a fixed height for rows with signatures
+                        }
+                    }
+                },
+                didDrawCell: (data) => {
+                    if (data.section === 'body' && data.column.index === 8) {
+                        const item = processedHistoria[data.row.index];
+                        if (item.firmaPaciente) {
+                            try {
+                                doc.addImage(item.firmaPaciente, 'PNG', data.cell.x + 2, data.cell.y + 2, data.cell.width - 4, data.cell.height - 4);
+                            } catch (e) {
+                                console.warn('Could not draw signature in cell', e);
+                            }
+                        }
+                    }
                 }
             });
-        }
-
-        const historiaWithFirma = filteredHistoria.slice().reverse().find(h => h.firmaPaciente);
-        if (historiaWithFirma && historiaWithFirma.firmaPaciente) {
-            try {
-                const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 150;
-                let signatureY = finalY + 20;
-                
-                if (signatureY + 60 > doc.internal.pageSize.height) {
-                    doc.addPage();
-                    signatureY = 30;
-                }
-
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(11);
-                doc.setTextColor(44, 62, 80);
-                doc.text('CONFORMIDAD DEL PACIENTE', 105, signatureY, { align: 'center' });
-                
-                const sigImg = await loadImage(historiaWithFirma.firmaPaciente);
-                doc.addImage(sigImg, 'PNG', 105 - 40, signatureY + 5, 80, 40);
-                
-                doc.setDrawColor(150);
-                doc.setLineWidth(0.5);
-                doc.line(105 - 35, signatureY + 45, 105 + 35, signatureY + 45);
-                
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                doc.setTextColor(100);
-                doc.text('Firma o Rúbrica del Paciente', 105, signatureY + 50, { align: 'center' });
-                doc.text(`Fecha de Firma: ${formatDate(historiaWithFirma.fecha)}`, 105, signatureY + 55, { align: 'center' });
-            } catch (err) {
-                console.warn('Error loading signature image for PDF', err);
-            }
         }
 
         const blobUrl = URL.createObjectURL(doc.output('blob'));
@@ -444,7 +468,7 @@ const HistoriaClinica: React.FC = () => {
             <SeguimientoClinicoModal
                 isOpen={showSeguimientoModal}
                 onClose={() => setShowSeguimientoModal(false)}
-                historia={historia}
+                historia={filteredHistoria}
                 pacienteNombre={paciente ? `${paciente.nombre} ${paciente.paterno}` : ''}
                 proformas={proformas}
             />

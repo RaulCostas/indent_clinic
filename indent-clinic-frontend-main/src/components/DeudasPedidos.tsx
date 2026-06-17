@@ -5,6 +5,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import Pagination from './Pagination';
 import type { Pedidos } from '../types';
+import { formatNumber } from '../utils/formatters';
 
 const DeudasPedidos: React.FC = () => {
     const navigate = useNavigate();
@@ -119,13 +120,13 @@ const DeudasPedidos: React.FC = () => {
                                     {pedido.proveedor ? pedido.proveedor.proveedor : '-'}
                                 </td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">
-                                    {Number(pedido.Sub_Total).toFixed(2)}
+                                    {formatNumber(pedido.Sub_Total)}
                                 </td>
                                 <td className="p-3 text-gray-700 dark:text-gray-300">
-                                    {Number(pedido.Descuento).toFixed(2)}
+                                    {formatNumber(pedido.Descuento)}
                                 </td>
                                 <td className="p-3 text-green-600 dark:text-green-400 font-bold">
-                                    {Number(pedido.Total).toFixed(2)}
+                                    {formatNumber(pedido.Total)}
                                 </td>
                                 <td className="p-3">
                                     <button
@@ -160,7 +161,7 @@ const DeudasPedidos: React.FC = () => {
                             Total de Deudas:
                         </span>
                         <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                            Bs {filteredDeudas.reduce((sum, pedido) => sum + (Number(pedido.Total) || 0), 0).toFixed(2)}
+                            Bs {formatNumber(filteredDeudas.reduce((sum, pedido) => sum + (Number(pedido.Total) || 0), 0))}
                         </span>
                     </div>
                 </div>

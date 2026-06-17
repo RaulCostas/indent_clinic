@@ -12,6 +12,7 @@ import { formatDate, getLocalDateString } from '../utils/dateUtils';
 import EgresoForm from './EgresoForm';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Download, Printer, MinusCircle } from 'lucide-react';
+import { formatNumber } from '../utils/formatters';
 
 
 interface PaginatedResponse {
@@ -258,7 +259,7 @@ const EgresoList: React.FC = () => {
                 egreso.id,
                 formatDate(egreso.fecha),
                 egreso.detalle,
-                Number(egreso.monto).toFixed(2),
+                formatNumber(Number(egreso.monto)),
                 egreso.moneda,
                 egreso.formaPago?.forma_pago || ''
             ]);
@@ -490,7 +491,7 @@ const EgresoList: React.FC = () => {
                                     <td>${formatDate(egreso.fecha)}</td>
 
                                     <td>${egreso.detalle}</td>
-                                    <td>${egreso.monto}</td>
+                                    <td>${formatNumber(egreso.monto)}</td>
                                     <td>${egreso.moneda}</td>
                                     <td>${egreso.formaPago?.forma_pago || 'N/A'}</td>
                                 </tr>
@@ -510,10 +511,10 @@ const EgresoList: React.FC = () => {
                             key === 'QR' ? '📱 ' : '💰 '} ${key}
                                     </div>
                                     <div class="total-row">
-                                        <span>Bs:</span> <span>${value.bolivianos.toFixed(2)}</span>
+                                        <span>Bs:</span> <span>${formatNumber(value.bolivianos)}</span>
                                     </div>
                                     <div class="total-row">
-                                        <span>$us:</span> <span>${value.dolares.toFixed(2)}</span>
+                                        <span>$us:</span> <span>${formatNumber(value.dolares)}</span>
                                     </div>
                                 </div>
                             `).join('')}
@@ -753,7 +754,7 @@ const EgresoList: React.FC = () => {
                                                         <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-300 whitespace-nowrap">{formatDate(egreso.fecha)}</td>
                                                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">{egreso.detalle}</td>
                                                         <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white text-right">
-                                                            {egreso.monto.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+                                                            {formatNumber(egreso.monto)}
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{egreso.moneda}</td>
                                                         <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
@@ -822,10 +823,10 @@ const EgresoList: React.FC = () => {
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex justify-between text-base">
-                                            <span className="text-gray-500">Bs:</span> <span className="font-bold text-gray-900 dark:text-white">{(value.bolivianos || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}</span>
+                                            <span className="text-gray-500">Bs:</span> <span className="font-bold text-gray-900 dark:text-white">{formatNumber(value.bolivianos || 0)}</span>
                                         </div>
                                         <div className="flex justify-between text-base">
-                                            <span className="text-gray-500">$us:</span> <span className="font-bold text-gray-900 dark:text-white">{(value.dolares || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                            <span className="text-gray-500">$us:</span> <span className="font-bold text-gray-900 dark:text-white">{formatNumber(value.dolares || 0)}</span>
                                         </div>
                                     </div>
                                 </div>

@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Search, User, Calendar, DollarSign, Download, Printer, PieChart, Eye, X } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import type { Personal } from '../types';
 import ManualModal, { type ManualSection } from './ManualModal';
 import * as XLSX from 'xlsx';
@@ -92,22 +93,43 @@ const ReporteComisiones: React.FC = () => {
             const formasPago = resFP.data.data || [];
             
             const options = (formasPago || []).map((fp: any) => `<option value="${fp.id}">${fp.forma_pago}</option>`).join('');
+            
+            // Fecha de hoy para el default del input
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // Detectar modo oscuro para aplicar estilos inline (más robusto para Swal)
+            const isDark = document.documentElement.classList.contains('dark');
+            const boxBg = isDark ? 'rgba(30, 58, 138, 0.3)' : '#eff6ff';
+            const boxBorder = isDark ? '#1e3a8a' : '#dbeafe';
+            const labelColor = isDark ? '#9ca3af' : '#4b5563'; // gray-400 : gray-600
+            const valueColor = isDark ? '#ffffff' : '#111827'; // white : gray-900
+            const mainLabelColor = isDark ? '#9ca3af' : '#6b7280'; // gray-400 : gray-500
 
             const { value: formValues } = await Swal.fire({
-                title: '<div class="flex items-center justify-center gap-3 text-blue-700"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Registrar Pago de Comisión</div>',
+                title: `<div class="flex items-center justify-center gap-3" style="color: ${isDark ? '#60a5fa' : '#1d4ed8'}; font-weight: bold;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dollar-sign"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> 
+                            Registrar Pago de Comisión
+                        </div>`,
                 html: `
                     <div style="text-align: left; padding: 10px;">
-                        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                            <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Personal:</strong> <span class="text-gray-900 dark:text-white font-semibold">${item.nombre} ${item.paterno}</span></p>
-                            <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Monto a Pagar:</strong> <span class="text-blue-600 dark:text-blue-400 font-bold text-lg">${Number(item.total_comision).toLocaleString()} Bs.</span></p>
+                        <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: ${boxBg}; border: 1px solid ${boxBorder}; border-radius: 0.5rem;">
+                            <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Personal:</strong> <span style="color: ${valueColor}; font-weight: 600;">${item.nombre} ${item.paterno} ${item.materno || ''}</span></p>
+                            <p style="margin: 0; font-size: 0.875rem; color: ${labelColor};"><strong>Monto a Pagar:</strong> <span style="color: ${isDark ? '#60a5fa' : '#2563eb'}; font-weight: bold; font-size: 1.125rem;">${formatNumber(Number(item.total_comision))} Bs.</span></p>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label for="swal-fecha" style="display: block; font-size: 0.75rem; font-weight: bold; color: ${mainLabelColor}; text-transform: uppercase; margin-bottom: 0.25rem; margin-left: 0.25rem;">Fecha de Pago:</label>
+                            <input type="date" id="swal-fecha" value="${todayStr}" class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm">
                         </div>
                         
-                        <label for="swal-fp" class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Forma de Pago:</label>
+                        <label for="swal-fp" style="display: block; font-size: 0.75rem; font-weight: bold; color: ${mainLabelColor}; text-transform: uppercase; margin-bottom: 0.25rem; margin-left: 0.25rem;">Forma de Pago:</label>
                         <select id="swal-fp" class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm">
                             ${options}
                         </select>
                     </div>
                 `,
+                background: isDark ? '#1f2937' : '#fff',
+                color: isDark ? '#f3f4f6' : '#111827',
                 focusConfirm: false,
                 showCancelButton: true,
                 confirmButtonText: '<div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Confirmar Pago</div>',
@@ -117,9 +139,22 @@ const ReporteComisiones: React.FC = () => {
                     cancelButton: 'bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2 mx-2'
                 },
                 buttonsStyling: false,
+                didOpen: () => {
+                    const fpSelect = document.getElementById('swal-fp');
+                    if (fpSelect) fpSelect.focus();
+                },
                 preConfirm: () => {
+                    const fecha = (document.getElementById('swal-fecha') as HTMLInputElement).value;
+                    const formaPagoId = (document.getElementById('swal-fp') as HTMLSelectElement).value;
+                    
+                    if (!fecha) {
+                        Swal.showValidationMessage('Por favor, seleccione la fecha del pago');
+                        return false;
+                    }
+                    
                     return {
-                        formaPagoId: (document.getElementById('swal-fp') as HTMLSelectElement).value
+                        formaPagoId,
+                        fecha
                     }
                 }
             });
@@ -130,6 +165,7 @@ const ReporteComisiones: React.FC = () => {
                     year: year,
                     month: month,
                     formaPagoId: parseInt(formValues.formaPagoId),
+                    fecha: formValues.fecha,
                     total: item.total_comision,
                     clinicaId: clinicaSeleccionada || 0
                 });
@@ -189,8 +225,8 @@ const ReporteComisiones: React.FC = () => {
                 <td>${new Date(v.fecha).toLocaleDateString()}</td>
                 <td>${v.paciente}</td>
                 <td>${v.productos}</td>
-                <td style="text-align: right;">${Number(v.total).toFixed(2)}</td>
-                <td style="text-align: right;">${Number(v.comision).toFixed(2)}</td>
+                <td style="text-align: right;">${formatNumber(Number(v.total))}</td>
+                <td style="text-align: right;">${formatNumber(Number(v.comision))}</td>
             </tr>
         `).join('') || '<tr><td colspan="5">No hay detalles disponibles</td></tr>';
 
@@ -226,7 +262,7 @@ const ReporteComisiones: React.FC = () => {
                         
                         <div class="summary">
                             <div><strong>Personal:</strong> ${nombreCompleto}</div>
-                            <div><strong>Total Comisión a Liquidar (40% de Utilidad):</strong> <span style="color: #2563eb; font-weight: bold;">${Number(row.total_comision).toFixed(2)} Bs.</span></div>
+                            <div><strong>Total Comisión a Liquidar (40% de Utilidad):</strong> <span style="color: #2563eb; font-weight: bold;">${formatNumber(Number(row.total_comision))} Bs.</span></div>
                         </div>
 
                         <h3 style="font-size: 14px; border-left: 4px solid #3b82f6; padding-left: 10px; margin-bottom: 10px;">Desglose de Ventas</h3>
@@ -246,8 +282,8 @@ const ReporteComisiones: React.FC = () => {
                             <tfoot>
                                 <tr class="total-row">
                                     <td colspan="3" style="text-align: right;">TOTALES:</td>
-                                    <td style="text-align: right;">${Number(row.total_ventas).toFixed(2)}</td>
-                                    <td style="text-align: right;">${Number(row.total_comision).toFixed(2)}</td>
+                                    <td style="text-align: right;">${formatNumber(Number(row.total_ventas))}</td>
+                                    <td style="text-align: right;">${formatNumber(Number(row.total_comision))}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -286,8 +322,8 @@ const ReporteComisiones: React.FC = () => {
             head: [['Concepto', 'Total']],
             body: [
                 ['Cantidad de Ventas', (row.cantidad_ventas || 0).toString()],
-                ['Monto Total Ventas', `${Number(row.total_ventas || 0).toFixed(2)} Bs.`],
-                ['Total Comisión (40% de Utilidad)', `${Number(row.total_comision || 0).toFixed(2)} Bs.`]
+                ['Monto Total Ventas', `${formatNumber(Number(row.total_ventas || 0))} Bs.`],
+                ['Total Comisión (40% de Utilidad)', `${formatNumber(Number(row.total_comision || 0))} Bs.`]
             ],
             theme: 'grid',
             headStyles: { fillColor: [30, 64, 175] }
@@ -304,8 +340,8 @@ const ReporteComisiones: React.FC = () => {
             v.fecha ? new Date(v.fecha).toLocaleDateString() : 'N/A',
             v.paciente || 'N/A',
             v.productos || 'Sin productos',
-            Number(v.total || 0).toFixed(2),
-            Number(v.comision || 0).toFixed(2)
+            formatNumber(Number(v.total || 0)),
+            formatNumber(Number(v.comision || 0))
         ]);
 
         if (tableBody.length === 0) {
@@ -362,7 +398,7 @@ const ReporteComisiones: React.FC = () => {
         doc.text(`Reporte de Comisiones - ${month}/${year}`, 14, 15);
         autoTable(doc, {
             head: [['Personal', 'Cant. Ventas', 'Total Ventas', 'Comisión 40%']],
-            body: report.map(r => [`${r.nombre} ${r.paterno} ${r.materno || ''}`.trim(), r.cantidad_ventas, Number(r.total_ventas).toFixed(2), Number(r.total_comision).toFixed(2)]),
+            body: report.map(r => [`${r.nombre} ${r.paterno} ${r.materno || ''}`.trim(), r.cantidad_ventas, formatNumber(Number(r.total_ventas)), formatNumber(Number(r.total_comision))]),
             startY: 20
         });
         doc.save(`comisiones_${month}_${year}.pdf`);
@@ -465,7 +501,7 @@ const ReporteComisiones: React.FC = () => {
                                             {row.nombre} {row.paterno} {row.materno || ''}
                                         </td>
                                         <td className="px-6 py-4 text-center text-sm font-bold text-gray-700 dark:text-gray-300">{row.cantidad_ventas}</td>
-                                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-900 dark:text-white">{Number(row.total_ventas || 0).toFixed(2)}</td>
+                                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-900 dark:text-white">{formatNumber(Number(row.total_ventas || 0))}</td>
                                         <td className="px-6 py-4 text-right">
                                             {(() => {
                                                 const comisionTotal = Number(row.total_comision || 0);
@@ -475,7 +511,7 @@ const ReporteComisiones: React.FC = () => {
                                                 return (
                                                     <div className="flex flex-col items-end">
                                                         <span className={`font-extrabold ${pendiente > 0.01 ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                            {comisionTotal.toFixed(2)}
+                                                            {formatNumber(comisionTotal)}
                                                         </span>
                                                         {pendiente <= 0.01 && comisionTotal > 0 ? (
                                                             <span className="text-[10px] font-bold text-emerald-500 uppercase flex items-center gap-1">
@@ -484,7 +520,7 @@ const ReporteComisiones: React.FC = () => {
                                                         ) : pendiente > 0.01 ? (
                                                             pagado > 0 ? (
                                                                 <span className="text-[10px] font-bold text-amber-500 uppercase flex items-center gap-1">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Saldo: {pendiente.toFixed(2)}
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Saldo: {formatNumber(pendiente)}
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-[10px] font-bold text-blue-400 uppercase">Pendiente</span>
@@ -548,9 +584,9 @@ const ReporteComisiones: React.FC = () => {
                                 <tr className="bg-blue-50/30 dark:bg-blue-900/10 font-black">
                                     <td className="px-6 py-4 text-gray-900 dark:text-white uppercase tracking-widest text-xs font-bold">TOTAL GENERAL</td>
                                     <td className="px-6 py-4 text-center text-gray-900 dark:text-white text-sm font-bold">{report.reduce((acc, row) => acc + row.cantidad_ventas, 0)}</td>
-                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white text-sm font-bold">{report.reduce((acc, row) => acc + Number(row.total_ventas), 0).toFixed(2)}</td>
+                                    <td className="px-6 py-4 text-right text-gray-900 dark:text-white text-sm font-bold">{formatNumber(report.reduce((acc, row) => acc + Number(row.total_ventas), 0))}</td>
                                     <td className="px-6 py-4 text-right text-blue-700 dark:text-blue-300 text-sm font-bold">
-                                        {report.reduce((acc, row) => acc + Number(row.total_comision), 0).toFixed(2)}
+                                        {formatNumber(report.reduce((acc, row) => acc + Number(row.total_comision), 0))}
                                     </td>
                                     <td className="px-6 py-4"></td>
                                 </tr>
@@ -588,11 +624,11 @@ const ReporteComisiones: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
                                         <p className="text-xs font-bold text-blue-600/70 dark:text-blue-400/70 uppercase mb-1">Total Ventas</p>
-                                        <p className="text-2xl font-black text-blue-700 dark:text-blue-300">{Number(viewItem.total_ventas).toFixed(2)} <span className="text-xs">Bs.</span></p>
+                                        <p className="text-2xl font-black text-blue-700 dark:text-blue-300">{formatNumber(Number(viewItem.total_ventas))} <span className="text-xs">Bs.</span></p>
                                     </div>
                                     <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800">
                                         <p className="text-xs font-bold text-emerald-600/70 dark:text-emerald-400/70 uppercase mb-1">Comisión Generada</p>
-                                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{Number(viewItem.total_comision).toFixed(2)} <span className="text-xs">Bs.</span></p>
+                                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatNumber(Number(viewItem.total_comision))} <span className="text-xs">Bs.</span></p>
                                     </div>
                                     <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-800">
                                         <p className="text-xs font-bold text-amber-600/70 dark:text-amber-400/70 uppercase mb-1">Ventas Realizadas</p>
@@ -624,8 +660,8 @@ const ReporteComisiones: React.FC = () => {
                                                                 {venta.productos}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-xs text-right font-medium text-gray-700 dark:text-gray-300">{Number(venta.total).toFixed(2)}</td>
-                                                        <td className="px-4 py-3 text-xs text-right font-black text-emerald-600 dark:text-emerald-400">{Number(venta.comision).toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-xs text-right font-medium text-gray-700 dark:text-gray-300">{formatNumber(Number(venta.total))}</td>
+                                                        <td className="px-4 py-3 text-xs text-right font-black text-emerald-600 dark:text-emerald-400">{formatNumber(Number(venta.comision))}</td>
                                                     </tr>
                                                 ))
                                             ) : (

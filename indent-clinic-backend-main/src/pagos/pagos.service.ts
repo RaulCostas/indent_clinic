@@ -38,16 +38,30 @@ export class PagosService {
                 }
             }
 
+            // Map idUsuario to usuarioId if needed (backward compatibility)
+            if (createDto.idUsuario && !createDto.usuarioId) {
+                createDto.usuarioId = createDto.idUsuario;
+            }
+
             const results: Pago[] = [];
 
             // Case 1: Bulk assignments from frontend
             if (createDto.assignments && createDto.assignments.length > 0) {
                 for (const asgn of createDto.assignments) {
                     const hcId = Number(asgn.historiaClinicaId);
+                    
+                    // Fallback robusto: si el descuento de la asignación es 0 pero hay un descuento global
+                    // y solo hay una asignación, usamos el descuento global.
+                    let finalDescuento = Number(asgn.descuento || 0);
+                    if (finalDescuento === 0 && createDto.assignments.length === 1 && createDto.descuento) {
+                        finalDescuento = Number(createDto.descuento);
+                        console.log(`[PAGOS_AUDIT] Aplicando fallback de descuento global (${finalDescuento}) a la única asignación.`);
+                    }
+
                     const pago = this.pagoRepository.create({
                         ...createDto,
                         monto: Number(asgn.monto),
-                        descuento: Number(asgn.descuento || 0),
+                        descuento: finalDescuento,
                         historiaClinicaId: hcId,
                         fecha: createDto.fecha || getBoliviaDate().split('T')[0],
                         clinicaId: finalClinicaId,
@@ -81,11 +95,9 @@ export class PagosService {
                 const saved = await this.pagoRepository.save(pago);
                 results.push(saved);
 
-            }
-
-            // REBALANCEO GLOBAL: Si el pago está asociado a una proforma, rebalancear todos sus tratamientos
-            if (createDto.proformaId) {
-                await this.historiaClinicaService.rebalanceProformaStatus(Number(createDto.proformaId));
+                if (hcId) {
+                    await this.historiaClinicaService.syncTreatmentStatus(hcId);
+                }
             }
 
             console.log(`[PAGOS_AUDIT] FINALIZADO creación de ${results.length} pagos.`);
@@ -103,8 +115,15 @@ export class PagosService {
             .leftJoinAndSelect('proforma.historiaClinica', 'historiaClinica')
             .leftJoinAndSelect('proforma.pagos', 'proformaPagos')
             .leftJoinAndSelect('pago.comisionTarjeta', 'comisionTarjeta')
-            .leftJoinAndSelect('pago.formaPagoRel', 'formaPagoRel')
-            .orderBy('pago.fecha', 'DESC');
+            .leftJoinAndSelect('pago.formaPagoRel', 'formaPagoRel');
+            
+        if (startDate && endDate) {
+            qb.orderBy('pago.fecha', 'ASC');
+        }
+        
+        qb.addOrderBy('paciente.nombre', 'ASC')
+          .addOrderBy('paciente.paterno', 'ASC')
+          .addOrderBy('paciente.materno', 'ASC');
 
         if (startDate && endDate) {
             qb.andWhere('pago.fecha BETWEEN :start AND :end', {
@@ -176,10 +195,9 @@ export class PagosService {
         
         const savedPago = await this.pagoRepository.save(pago);
         
-        // Rebalancear si hay proforma
-        const pfId = savedPago.proformaId || (savedPago.proforma ? savedPago.proforma.id : null);
-        if (pfId) {
-            await this.historiaClinicaService.rebalanceProformaStatus(Number(pfId));
+        // Sincronizar tratamiento individual
+        if (savedPago.historiaClinicaId) {
+            await this.historiaClinicaService.syncTreatmentStatus(Number(savedPago.historiaClinicaId));
         }
 
         return savedPago;
@@ -208,13 +226,13 @@ export class PagosService {
         }
 
 
-        const pfId = pago.proformaId;
+        const hcId = pago.historiaClinicaId;
         
         await this.pagoRepository.delete(id);
 
-        // Rebalancear después de eliminar para que los tratamientos vuelvan a estar pendientes si falta dinero
-        if (pfId) {
-            await this.historiaClinicaService.rebalanceProformaStatus(Number(pfId));
+        // Sincronizar tratamiento individual después de eliminar
+        if (hcId) {
+            await this.historiaClinicaService.syncTreatmentStatus(Number(hcId));
         }
     }
 

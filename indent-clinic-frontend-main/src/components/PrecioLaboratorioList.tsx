@@ -11,6 +11,7 @@ import Swal from 'sweetalert2';
 import PrecioLaboratorioModal from './PrecioLaboratorioModal';
 import { FileText, Download, Printer, BadgeDollarSign } from 'lucide-react';
 import { useClinica } from '../context/ClinicaContext';
+import { formatNumber } from '../utils/formatters';
 
 
 const PrecioLaboratorioList: React.FC = () => {
@@ -155,7 +156,7 @@ const PrecioLaboratorioList: React.FC = () => {
     const exportToExcel = () => {
         const dataToExport = precios.map(p => ({
             Detalle: p.detalle,
-            Precio: p.precio,
+            Precio: formatNumber(p.precio),
             Laboratorio: p.laboratorio?.laboratorio || 'N/A',
             Estado: p.estado
         }));
@@ -396,7 +397,7 @@ const PrecioLaboratorioList: React.FC = () => {
                             ${allPrecios.map((precio: any) => `
                                 <tr>
                                     <td>${precio.detalle || 'N/A'}</td>
-                                    <td>${precio.precio ? Number(precio.precio).toFixed(2) : '0.00'}</td>
+                                    <td>${precio.precio ? formatNumber(precio.precio) : '0,00'}</td>
                                     ${!isSpecificLabSelected ? `<td>${precio.laboratorio?.laboratorio || 'N/A'}</td>` : ''}
                                     <td class="${precio.estado === 'activo' ? 'status-active' : 'status-inactive'}">
                                         ${precio.estado ? precio.estado.charAt(0).toUpperCase() + precio.estado.slice(1) : 'N/A'}
@@ -512,7 +513,7 @@ const PrecioLaboratorioList: React.FC = () => {
             const tableRows = allPrecios.map((p: any) => {
                 const row = [
                     p.detalle || 'N/A',
-                    `Bs ${p.precio ? Number(p.precio).toFixed(2) : '0.00'}`
+                    `Bs ${p.precio ? formatNumber(p.precio) : '0,00'}`
                 ];
                 if (!isSpecificLabSelected) {
                     row.push(p.laboratorio?.laboratorio || 'N/A');
@@ -670,7 +671,7 @@ const PrecioLaboratorioList: React.FC = () => {
                                     {precio.detalle}
                                 </td>
                                 <td className="px-5 py-4 whitespace-nowrap text-sm text-green-600 dark:text-green-400 font-bold">
-                                    {Number(precio.precio).toFixed(2)}
+                                    {formatNumber(precio.precio)}
                                 </td>
                                 <td className="px-5 py-4 whitespace-nowrap text-sm">
                                     <span className={`px-2 py-1 rounded text-sm ${precio.estado === 'activo' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>

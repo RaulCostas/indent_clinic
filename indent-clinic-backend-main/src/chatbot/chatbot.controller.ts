@@ -50,8 +50,8 @@ export class ChatbotController {
     @Post('enviar-saldo-deudor')
     async enviarSaldoDeudor(
         @Param('clinicId') clinicId: string,
-        @Body() body: { pacienteId: number, instance?: number }
+        @Body() body: { pacienteId: number, instance?: number, historiaClinicaId?: number }
     ) {
-        return this.chatbotService.enviarSaldoDeudor(body.pacienteId, +clinicId, body.instance || 1);
+        return this.chatbotService.enviarSaldoDeudor(body.pacienteId, +clinicId, body.instance || 1, body.historiaClinicaId);
     }
 }

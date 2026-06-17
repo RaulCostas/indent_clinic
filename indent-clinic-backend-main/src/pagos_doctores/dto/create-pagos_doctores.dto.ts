@@ -30,6 +30,10 @@ class DetalleDto {
     @IsOptional()
     comision?: number;
 
+    @IsString()
+    @IsOptional()
+    tipo_comision?: string;
+
     @IsNumber()
     @IsNotEmpty()
     total: number;
@@ -43,10 +47,6 @@ export class CreatePagosDoctoresDto {
     @IsDateString()
     @IsNotEmpty()
     fecha: string;
-
-    @IsNumber()
-    @IsNotEmpty()
-    comision: number;
 
     @IsNumber()
     @IsNotEmpty()

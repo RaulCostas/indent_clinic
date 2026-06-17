@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
 import { PacientesService } from './pacientes.service';
 import { CreatePacienteDto } from './dto/create-paciente.dto';
+import { CreateQuickPacienteDto } from './dto/create-quick-paciente.dto';
 import { UpdatePacienteDto } from './dto/update-paciente.dto';
 
 @Controller('pacientes')
@@ -8,8 +9,22 @@ export class PacientesController {
     constructor(private readonly pacientesService: PacientesService) { }
 
     @Post()
-    create(@Body() createPacienteDto: CreatePacienteDto) {
+    create(@Body() createPacienteDto: CreatePacienteDto, @Req() req: any) {
+        if (req.user && req.user.id) {
+            createPacienteDto.usuarioId = req.user.id;
+            if (createPacienteDto.fichaMedica) {
+                createPacienteDto.fichaMedica.usuarioId = req.user.id;
+            }
+        }
         return this.pacientesService.create(createPacienteDto);
+    }
+
+    @Post('quick')
+    createQuick(@Body() createQuickPacienteDto: CreateQuickPacienteDto, @Req() req: any) {
+        if (req.user && req.user.id) {
+            createQuickPacienteDto.usuarioId = req.user.id;
+        }
+        return this.pacientesService.createQuick(createQuickPacienteDto);
     }
 
 
@@ -63,6 +78,11 @@ export class PacientesController {
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.pacientesService.findOne(+id);
+    }
+
+    @Get(':id/firma-base64')
+    getFirmaBase64(@Param('id') id: string) {
+        return this.pacientesService.getFirmaBase64(+id);
     }
 
     @Patch(':id')

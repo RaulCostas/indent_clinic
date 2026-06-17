@@ -7,6 +7,7 @@ import { useClinica, type Clinica } from '../context/ClinicaContext';
 import ManualModal, { type ManualSection } from './ManualModal';
 import ArancelForm from './ArancelForm';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 import SearchableSelect from './SearchableSelect';
 
 
@@ -59,7 +60,7 @@ const PresupuestoForm: React.FC = () => {
     const seguroMedico = (paciente?.seguro_medico || '').toUpperCase();
     const isAlianzaGold = seguroMedico.includes('GOLD');
     const isAlianzaSilver = seguroMedico.includes('SILVER');
-    const isAlianzaOdonto = seguroMedico.includes('ODONTOLOGICO') || seguroMedico.includes('ODONTOLÓGICO');
+    const isAlianzaOdonto = seguroMedico.includes('ODONTOLOGICO') || seguroMedico.includes('ODONTOLÓGICO') || seguroMedico.includes('ODONT');
     const hasAlianza = isAlianzaGold || isAlianzaSilver || isAlianzaOdonto;
     const [showManual, setShowManual] = useState(false);
     const [isArancelModalOpen, setIsArancelModalOpen] = useState(false);
@@ -467,25 +468,25 @@ const PresupuestoForm: React.FC = () => {
                                                     const parts = [];
                                                     // Solo mostrar los precios relevantes al seguro del paciente
                                                     if (isAlianzaGold) {
-                                                        if (a.precio_gold != null) parts.push(`Gold: ${Number(a.precio_gold).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_gold != null) parts.push(`Gold: ${formatNumber(Number(a.precio_gold))}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(Number(a.precio_sin_seguro))}`);
                                                     } else if (isAlianzaSilver) {
-                                                        if (a.precio_silver != null) parts.push(`Silver: ${Number(a.precio_silver).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_silver != null) parts.push(`Silver: ${formatNumber(Number(a.precio_silver))}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(Number(a.precio_sin_seguro))}`);
                                                     } else if (isAlianzaOdonto) {
-                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${Number(a.precio_odontologico).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${formatNumber(Number(a.precio_odontologico))}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(Number(a.precio_sin_seguro))}`);
                                                     } else {
                                                         // Sin seguro específico: mostrar todos
-                                                        if (a.precio_gold != null) parts.push(`Gold: ${Number(a.precio_gold).toFixed(2)}`);
-                                                        if (a.precio_silver != null) parts.push(`Silver: ${Number(a.precio_silver).toFixed(2)}`);
-                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${Number(a.precio_odontologico).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_gold != null) parts.push(`Gold: ${formatNumber(Number(a.precio_gold))}`);
+                                                        if (a.precio_silver != null) parts.push(`Silver: ${formatNumber(Number(a.precio_silver))}`);
+                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${formatNumber(Number(a.precio_odontologico))}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(Number(a.precio_sin_seguro))}`);
                                                     }
                                                     subLabel = parts.length > 0 ? `${parts.join(' | ')} ${itemMoneda}` : `Sin precios asignados`;
                                                 } else {
-                                                    const precioNor = Number(a.precio).toFixed(2);
-                                                    const precioSS = a.precio_sin_seguro != null ? Number(a.precio_sin_seguro).toFixed(2) : null;
+                                                    const precioNor = formatNumber(Number(a.precio));
+                                                    const precioSS = a.precio_sin_seguro != null ? formatNumber(Number(a.precio_sin_seguro)) : null;
                                                     subLabel = `${precioNor} ${itemMoneda}${precioSS ? ` (S/S: ${precioSS})` : ''}`;
                                                 }
                                                 return {
@@ -565,7 +566,7 @@ const PresupuestoForm: React.FC = () => {
                                                             <div className="ml-3">
                                                                 <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{op.label}</span>
                                                                 <span className="block text-sm text-gray-600 dark:text-gray-400 font-medium">
-                                                                    {Number(op.precio).toFixed(2)} Bs.
+                                                                    {formatNumber(Number(op.precio))} Bs.
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -594,7 +595,7 @@ const PresupuestoForm: React.FC = () => {
                                                     <div className="ml-3">
                                                         <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Precio Normal</span>
                                                         <span className="block text-sm text-gray-500 dark:text-gray-400">
-                                                            {Number(arancel.precio).toFixed(2)} {arancel.moneda || 'Bs.'}
+                                                            {formatNumber(Number(arancel.precio))} {arancel.moneda || 'Bs.'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -612,7 +613,7 @@ const PresupuestoForm: React.FC = () => {
                                                     <div className="ml-3">
                                                         <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">Precio S/ Seguro</span>
                                                         <span className="block text-sm text-amber-600 dark:text-amber-400 font-medium">
-                                                            {Number(arancel.precio_sin_seguro).toFixed(2)} {arancel.moneda || 'Bs.'}
+                                                            {formatNumber(Number(arancel.precio_sin_seguro))} {arancel.moneda || 'Bs.'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -810,13 +811,13 @@ const PresupuestoForm: React.FC = () => {
                                                 {isCompleted && <span className="ml-2 text-xs bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-300 px-2 py-0.5 rounded-full">COMPLETADO</span>}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-200">{renderPiezasWithCompletion()}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right">{item.precioUnitario.toFixed(2)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right">{formatNumber(item.precioUnitario)}</td>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-center">{item.cantidad}</td>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right">
                                                 {detalles[index]?.arancelId ? (
                                                     aranceles.find(a => a.id === detalles[index].arancelId)?.moneda ||
                                                     clinicas.find(c => c.id === clinicaId)?.monedaDefault || 'Bs.'
-                                                ) : 'Bs.'} {item.total.toFixed(2)}
+                                                ) : 'Bs.'} {formatNumber(item.total)}
                                             </td>
                                             {!isReadOnly && (
                                                 <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-center">
@@ -878,7 +879,7 @@ const PresupuestoForm: React.FC = () => {
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-500 dark:text-gray-400 font-bold uppercase text-xs tracking-wider">Subtotal</span>
                                     <span className="text-lg font-semibold text-gray-800 dark:text-white">
-                                        {clinicas.find(c => c.id === clinicaId)?.monedaDefault || 'Bs.'} {calculateTotalBruto().toFixed(2)}
+                                        {clinicas.find(c => c.id === clinicaId)?.monedaDefault || 'Bs.'} {formatNumber(calculateTotalBruto())}
                                     </span>
                                 </div>
 
@@ -886,7 +887,7 @@ const PresupuestoForm: React.FC = () => {
                                     <div className="flex flex-col items-end">
                                         <span className="text-gray-500 dark:text-gray-400 font-bold uppercase text-xs tracking-wider mb-1">Total Tratamiento Neto</span>
                                         <div className="text-3xl font-black text-blue-600 dark:text-blue-400 tracking-tight mb-6">
-                                            {clinicas.find(c => c.id === clinicaId)?.monedaDefault || 'Bs.'} {calculateTotal().toFixed(2)}
+                                            {clinicas.find(c => c.id === clinicaId)?.monedaDefault || 'Bs.'} {formatNumber(calculateTotal())}
                                         </div>
 
                                         {(() => {

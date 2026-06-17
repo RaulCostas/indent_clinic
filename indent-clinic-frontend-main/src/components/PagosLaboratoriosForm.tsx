@@ -5,6 +5,7 @@ import type { TrabajoLaboratorio, FormaPago } from '../types';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { useClinica } from '../context/ClinicaContext';
+import { formatNumber } from '../utils/formatters';
 import FormaPagoForm from './FormaPagoForm';
 
 
@@ -324,7 +325,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         type="date"
                                         value={fecha}
                                         onChange={(e) => setFecha(e.target.value)}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required
                                     />
                                 </div>
@@ -342,7 +343,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <select
                                         value={selectedLabId}
                                         onChange={handleLabChange}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required
                                         disabled={isEdit}
                                     >
@@ -366,7 +367,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <select
                                         value={selectedPatientId}
                                         onChange={handlePatientChange}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required={!!selectedLabId}
                                         disabled={!selectedLabId || isEdit}
                                     >
@@ -390,14 +391,14 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <select
                                         value={idTrabajosLaboratorios}
                                         onChange={(e) => setIdTrabajosLaboratorios(Number(e.target.value))}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required={!!selectedPatientId}
                                         disabled={!selectedPatientId || isEdit}
                                     >
                                         <option value="">Seleccione el Trabajo...</option>
                                         {availableWorks.map((t) => (
                                             <option key={t.id} value={t.id}>
-                                                {t.precioLaboratorio?.detalle || 'Trabajo'} - {t.fecha ? formatDate(t.fecha) : ''} - Bs. {t.total}
+                                                {t.precioLaboratorio?.detalle || 'Trabajo'} - {t.fecha ? formatDate(t.fecha) : ''} - {formatNumber(t.total)} Bs.
                                             </option>
                                         ))}
                                     </select>
@@ -418,7 +419,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         <select
                                             value={moneda}
                                             onChange={(e) => setMoneda(e.target.value)}
-                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         >
                                             <option value="" disabled>-- Seleccione --</option>
                                             <option value="Bolivianos">Bolivianos</option>
@@ -437,7 +438,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                             value={tc}
                                             onChange={(e) => setTc(e.target.value)}
                                             placeholder="Ej: 6.96"
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         />
                                     </div>
                                 )}
@@ -456,7 +457,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         <select
                                             value={idFormaPago}
                                             onChange={(e) => setIdFormaPago(Number(e.target.value))}
-                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                             required
                                         >
                                             <option value="">Seleccione Forma de Pago...</option>
@@ -487,11 +488,11 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                             {selectedWork && (
                                 <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-4 text-right">
                                     <span className="text-sm text-gray-600 dark:text-gray-300 mr-2">Monto del Trabajo (Base):</span>
-                                    <span className="font-medium text-gray-900 dark:text-white">Bs. {amountInBs.toFixed(2)}</span>
+                                    <span className="font-medium text-gray-900 dark:text-white">Bs. {formatNumber(amountInBs)}</span>
 
                                     <div className="mt-2 text-xl font-bold text-gray-800 dark:text-white">
                                         Total a Pagar: <span className="text-green-600 dark:text-green-400">
-                                            {moneda === 'Dólares' ? '$us ' : 'Bs. '} {amountToPay.toFixed(2)}
+                                            {moneda === 'Dólares' ? '$us ' : 'Bs. '} {formatNumber(amountToPay)}
                                         </span>
                                     </div>
                                 </div>

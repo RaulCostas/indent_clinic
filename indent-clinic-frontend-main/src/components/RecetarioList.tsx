@@ -92,16 +92,44 @@ const RecetarioList: React.FC = () => {
     };
 
     const handlePrint = async (receta: Receta) => {
-        // Fetch signatures
-        let signatures: any[] = [];
-        try {
-            const response = await api.get(`/firmas/documento/receta/${receta.id}`);
-            signatures = response.data;
-        } catch (error) {
-            console.error('Error fetching signatures for print:', error);
-        }
+        let finalSignatureData = '';
+        let signatureName = receta.user ? receta.user.name : 'Doctor';
 
-        const doctorSignature = signatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        // 1. Check direct firma field
+        if (receta.firma) {
+            finalSignatureData = receta.firma;
+            if (!finalSignatureData.startsWith('data:image')) {
+                try {
+                    const proxyRes = await api.get<{ base64: string }>(`/receta/${receta.id}/firma-base64`);
+                    finalSignatureData = proxyRes.data.base64;
+                } catch (e) {
+                    console.error('Error loading direct receta signature via proxy:', e);
+                }
+            }
+        }
+        
+        // 2. Fallback to old firmas table
+        if (!finalSignatureData) {
+            try {
+                const response = await api.get(`/firmas/documento/receta/${receta.id}`);
+                const signatures = Array.isArray(response.data) ? response.data : [];
+                const doctorSignature = signatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+                if (doctorSignature && doctorSignature.firmaData) {
+                    finalSignatureData = doctorSignature.firmaData;
+                    signatureName = doctorSignature.usuario.name;
+                    if (!finalSignatureData.startsWith('data:image') && doctorSignature.id) {
+                        try {
+                            const proxyRes = await api.get<{ base64: string }>(`/firmas/${doctorSignature.id}/base64`);
+                            finalSignatureData = proxyRes.data.base64;
+                        } catch (e) {
+                            console.error('Error loading legacy receta signature via proxy:', e);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching signatures for print:', error);
+            }
+        }
 
         const iframe = document.createElement('iframe');
         iframe.style.position = 'fixed';
@@ -130,12 +158,6 @@ const RecetarioList: React.FC = () => {
                     <td>${d.indicacion}</td>
                 </tr>
             `).join('');
-        } else if (receta.medicamentos) {
-            medicationRows = `
-                <tr>
-                    <td colspan="3">${receta.medicamentos}</td>
-                </tr>
-            `;
         }
 
         const printContent = `
@@ -311,23 +333,17 @@ const RecetarioList: React.FC = () => {
                     </tbody>
                 </table>
                 
-                ${receta.indicaciones ? `
-                    <div class="section-title">INDICACIONES GENERALES / OBSERVACIONES</div>
-                    <div style="font-size: 11px; line-height: 1.5; color: #555;">
-                        ${receta.indicaciones.replace(/\n/g, '<br>')}
-                    </div>
-                ` : ''}
                 
                 <div class="signature-box">
-                    ${doctorSignature ? `
-                        <img src="${doctorSignature.firmaData}" class="signature-image" />
+                    ${finalSignatureData ? `
+                        <img src="${finalSignatureData}" class="signature-image" />
                         <div class="signature-technical">
-                            DIGITALMENTE FIRMADO POR: ${doctorSignature.usuario.name}
+                            DIGITALMENTE FIRMADO POR: ${signatureName}
                         </div>
                     ` : '<div style="height: 60px;"></div>'}
                     <div style="width: 200px; border-top: 1px solid #333; margin-top: 5px;"></div>
                     <div style="font-size: 10px; font-weight: bold; margin-top: 5px; text-align: center;">
-                        ${doctorSignature ? doctorSignature.usuario.name : 'Firma y Sello'}
+                        ${signatureName}
                     </div>
                 </div>
 
@@ -528,7 +544,7 @@ const RecetarioList: React.FC = () => {
                                 <td className="p-3 text-gray-700 dark:text-gray-300 max-w-xs truncate">
                                     {receta.detalles && receta.detalles.length > 0
                                         ? `${receta.detalles.length} medicamento${receta.detalles.length !== 1 ? 's' : ''} (${receta.detalles[0].medicamento}...)`
-                                        : receta.medicamentos}
+                                        : 'N/A'}
                                 </td>
                                 <td className="p-3 flex gap-2">
                                     <button

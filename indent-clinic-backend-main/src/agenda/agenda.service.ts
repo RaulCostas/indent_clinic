@@ -8,6 +8,7 @@ import { CreateAgendaDto } from './dto/create-agenda.dto';
 import { UpdateAgendaDto } from './dto/update-agenda.dto';
 import { ChatbotService } from '../chatbot/chatbot.service';
 import { PersonalService } from '../personal/personal.service';
+import { getBoliviaFullDate } from '../common/utils/date.utils';
 
 @Injectable()
 export class AgendaService {
@@ -21,7 +22,7 @@ export class AgendaService {
 
     async enviarRecordatoriosManana(clinicaId?: number, instance?: number): Promise<{ success: boolean; message: string; programados: number }> {
         // Calculate tomorrow's date string (YYYY-MM-DD)
-        const manana = new Date();
+        const manana = getBoliviaFullDate();
         manana.setDate(manana.getDate() + 1);
         const year = manana.getFullYear();
         const month = String(manana.getMonth() + 1).padStart(2, '0');
@@ -85,7 +86,13 @@ export class AgendaService {
             const nomClinica = (cita.clinica?.nombre || 'Selec Dental').trim();
             const sucursalNombre = (cita.sucursal?.nombre || cita.clinica?.nombre || 'nuestra clínica').trim();
 
-            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana:\n\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
+            const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            const [cy, cm, cd] = cita.fecha.toString().split('-').map(Number);
+            const fechaObj = new Date(cy, cm - 1, cd);
+            const diaSemana = diasSemana[fechaObj.getDay()];
+            const fechaFormateada = `${String(cd).padStart(2,'0')}/${String(cm).padStart(2,'0')}/${cy}`;
+
+            const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita:\n\n🗓️ *${diaSemana} ${fechaFormateada}*\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
 
             await this.chatbotService.sendAgendaMenu(
                 jid,
@@ -128,7 +135,13 @@ export class AgendaService {
                 const nomClinica = (cita.clinica?.nombre || 'Selec Dental').trim();
                 const sucursalNombre = (cita.sucursal?.nombre || cita.clinica?.nombre || 'nuestra clínica').trim();
 
-                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana:\n\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
+                const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                const [cy, cm, cd] = cita.fecha.toString().split('-').map(Number);
+                const fechaObj = new Date(cy, cm - 1, cd);
+                const diaSemana = diasSemana[fechaObj.getDay()];
+                const fechaFormateada = `${String(cd).padStart(2,'0')}/${String(cm).padStart(2,'0')}/${cy}`;
+
+                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita:\n\n🗓️ *${diaSemana} ${fechaFormateada}*\n⏰ A hrs. *${horaStr}*\n📍 Sucursal: *${sucursalNombre}*.`;
 
                 await this.chatbotService.sendAgendaMenu(
                     jid,
@@ -151,14 +164,14 @@ export class AgendaService {
         console.log(`[AgendaService] Proceso de recordatorios completado. Enviados: ${enviados}, Fallidos: ${fallidos}`);
     }
 
-    private _today() { return new Date().toISOString(); }
+    private _today() { return getBoliviaFullDate().toISOString(); }
 
     private getRecordatorioStatusFilePath() {
         return path.join(process.cwd(), 'last_reminder_date.json');
     }
 
     async estadoRecordatoriosManana(clinicaId?: number): Promise<{ enviadoHoy: boolean }> {
-        const todayD = new Date();
+        const todayD = getBoliviaFullDate();
         const today = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}-${String(todayD.getDate()).padStart(2, '0')}`;
         const filePath = this.getRecordatorioStatusFilePath();
         try {
@@ -176,7 +189,7 @@ export class AgendaService {
     }
 
     private markRecordatoriosEnviadosHoy(clinicaId?: number) {
-        const todayD = new Date();
+        const todayD = getBoliviaFullDate();
         const today = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}-${String(todayD.getDate()).padStart(2, '0')}`;
         const filePath = this.getRecordatorioStatusFilePath();
         let data: any = {};
@@ -270,13 +283,23 @@ export class AgendaService {
 
     async findAll(date?: string, fechaInicio?: string, fechaFinal?: string, pacienteId?: number, usuarioId?: number, clinicaId?: number, doctorId?: number): Promise<Agenda[]> {
         const query = this.agendaRepository.createQueryBuilder('agenda')
-            .leftJoinAndSelect('agenda.paciente', 'paciente')
-
+            // Essential fields only to avoid heavy signatures/photos
+            .leftJoin('agenda.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular', 'paciente.ci', 'paciente.seguro_medico', 'paciente.fecha_vencimiento'])
+            
             .leftJoinAndSelect('agenda.doctor', 'doctor')
-            .leftJoinAndSelect('agenda.proforma', 'proforma')
-            .leftJoinAndSelect('agenda.clinica', 'clinica')
+            
+            .leftJoin('agenda.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total', 'proforma.fecha'])
+            
+            .leftJoin('agenda.clinica', 'clinica')
+            .addSelect(['clinica.id', 'clinica.nombre', 'clinica.slug'])
+            
             .leftJoinAndSelect('agenda.sucursal', 'sucursal')
-            .leftJoinAndSelect('agenda.usuario', 'usuario')
+            
+            .leftJoin('agenda.usuario', 'usuario')
+            .addSelect(['usuario.id', 'usuario.name'])
+            
             .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
             .where("agenda.estado != 'eliminado'"); // Filter out deleted
 
@@ -318,11 +341,21 @@ export class AgendaService {
     }
 
     async findAllByPaciente(pacienteId: number): Promise<Agenda[]> {
-        return await this.agendaRepository.find({
-            where: { pacienteId }, // Return all history for this patient
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'doctorDeriva', 'sucursal'],
-            order: { fecha: 'DESC', hora: 'ASC' }
-        });
+        // Optimizing to exclude heavy signatures/photos in history view
+        return await this.agendaRepository.createQueryBuilder('agenda')
+            .leftJoin('agenda.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.seguro_medico', 'paciente.fecha_vencimiento'])
+            .leftJoinAndSelect('agenda.doctor', 'doctor')
+            .leftJoin('agenda.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total'])
+            .leftJoin('agenda.usuario', 'usuario')
+            .addSelect(['usuario.id', 'usuario.name'])
+            .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
+            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
+            .where('agenda.pacienteId = :pacienteId', { pacienteId })
+            .orderBy('agenda.fecha', 'DESC')
+            .addOrderBy('agenda.hora', 'ASC')
+            .getMany();
     }
 
     async findOne(id: number): Promise<Agenda> {
@@ -347,6 +380,15 @@ export class AgendaService {
 
         if (newEstado !== 'cancelado' && newEstado !== 'eliminado') {
             await this.validarCruceDoctor(newDoctorId, newFecha, newHora, newDuracion, id);
+        }
+
+        // Si se cambia la fecha o la hora de la cita, permitimos enviar el recordatorio de nuevo
+        if (
+            (updateDto.fecha !== undefined && updateDto.fecha !== cita.fecha) ||
+            (updateDto.hora !== undefined && updateDto.hora !== cita.hora)
+        ) {
+            console.log(`[AgendaService] Cita #${id} reprogramada. Reiniciando recordatorioEnviado a false.`);
+            cita.recordatorioEnviado = false;
         }
 
         // If relation IDs are being updated, we must clear the eager relationship object
@@ -398,14 +440,24 @@ export class AgendaService {
     }
 
     async findAllByDoctor(doctorId: number): Promise<Agenda[]> {
-        return await this.agendaRepository.find({
-            where: { 
-                doctorId, 
-                estado: In(['agendado', 'confirmado', 'sala de espera'])
-            } as any,
-            relations: ['paciente', 'doctor', 'proforma', 'usuario', 'clinica', 'doctorDeriva', 'sucursal'],
-            order: { fecha: 'ASC', hora: 'ASC' }
-        });
+        // Optimized query for doctor specific view
+        return await this.agendaRepository.createQueryBuilder('agenda')
+            .leftJoin('agenda.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular', 'paciente.seguro_medico', 'paciente.fecha_vencimiento'])
+            .leftJoinAndSelect('agenda.doctor', 'doctor')
+            .leftJoin('agenda.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero'])
+            .leftJoin('agenda.usuario', 'usuario')
+            .addSelect(['usuario.id', 'usuario.name'])
+            .leftJoin('agenda.clinica', 'clinica')
+            .addSelect(['clinica.id', 'clinica.nombre'])
+            .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
+            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
+            .where('agenda.doctorId = :doctorId', { doctorId })
+            .andWhere('agenda.estado IN (:...estados)', { estados: ['agendado', 'confirmado', 'sala de espera'] })
+            .orderBy('agenda.fecha', 'ASC')
+            .addOrderBy('agenda.hora', 'ASC')
+            .getMany();
     }
 
     async deleteAll(): Promise<{ message: string; deletedCount: number }> {

@@ -27,6 +27,9 @@ export class Sucursal {
     @Column({ type: 'text', nullable: true })
     google_maps_url: string;
 
+    @Column({ type: 'text', nullable: true })
+    foto: string;
+
     @Column({ default: false })
     es_principal: boolean;
 

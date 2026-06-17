@@ -37,6 +37,7 @@ interface Sucursal {
     longitud?: number;
     google_maps_url?: string;
     es_principal?: boolean;
+    foto?: string;
 }
 
 const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSuccess }) => {
@@ -51,7 +52,8 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
         telefono: '',
         latitud: 0,
         longitud: 0,
-        google_maps_url: ''
+        google_maps_url: '',
+        foto: ''
     } as Sucursal);
     const [showSucursalForm, setShowSucursalForm] = useState(false);
     const [editingSucursalId, setEditingSucursalId] = useState<number | null>(null);
@@ -191,7 +193,8 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                 telefono: '',
                 latitud: 0,
                 longitud: 0,
-                google_maps_url: ''
+                google_maps_url: '',
+                foto: ''
             } as Sucursal);
             setEditingSucursalId(null);
             Swal.fire({ icon: 'success', title: 'Sucursal guardada', showConfirmButton: false, timer: 1000 });
@@ -427,6 +430,38 @@ const ClinicaForm: React.FC<ClinicaFormProps> = ({ isOpen, onClose, id, onSaveSu
                                                     <label htmlFor="es_principal" className="text-xs font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
                                                         Marcar como Sede Principal
                                                     </label>
+                                                </div>
+                                                {/* Foto de Sucursal */}
+                                                <div className="md:col-span-2 mt-1">
+                                                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">📷 Foto de la Sucursal (para el Chatbot)</p>
+                                                    <div className="flex items-center gap-3 p-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
+                                                        {nuevaSucursal.foto && (
+                                                            <img src={nuevaSucursal.foto} alt="Foto sucursal" className="w-16 h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0" />
+                                                        )}
+                                                        <div className="flex gap-2">
+                                                            <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 py-1 px-3 rounded-lg text-xs font-semibold transition-colors border border-blue-200 dark:border-blue-800">
+                                                                📷 {nuevaSucursal.foto ? 'Cambiar foto' : 'Subir foto'}
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) {
+                                                                            const reader = new FileReader();
+                                                                            reader.onloadend = () => setNuevaSucursal({ ...nuevaSucursal, foto: reader.result as string });
+                                                                            reader.readAsDataURL(file);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                            {nuevaSucursal.foto && (
+                                                                <button type="button" onClick={() => setNuevaSucursal({ ...nuevaSucursal, foto: '' })} className="py-1 px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 text-xs font-semibold">
+                                                                    Eliminar
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

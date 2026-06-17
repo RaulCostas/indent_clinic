@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Inject, forwardRef, Req } from '@nestjs/common';
 import { PagosService } from './pagos.service';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { UpdatePagoDto } from './dto/update-pago.dto';
@@ -18,7 +18,10 @@ export class PagosController {
     ) { }
 
     @Post()
-    create(@Body() createDto: CreatePagoDto) {
+    create(@Body() createDto: CreatePagoDto, @Req() req: any) {
+        if (req.user && req.user.id) {
+            createDto.usuarioId = req.user.id;
+        }
         console.log('Recibiendo payload para crear pago:', createDto);
         return this.pagosService.create(createDto);
     }

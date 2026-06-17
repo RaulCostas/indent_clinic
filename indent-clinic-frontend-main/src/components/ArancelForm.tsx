@@ -100,7 +100,7 @@ const ArancelForm: React.FC<ArancelFormProps> = ({ isOpen, onClose, id, onSaveSu
 
     const fetchEspecialidades = async () => {
         try {
-            const response = await api.get<{ data: Especialidad[] }>('/especialidad?limit=100');
+            const response = await api.get<{ data: Especialidad[] }>('/especialidad?estado=activo&limit=100');
             setEspecialidades(response.data.data);
         } catch (error) {
             console.error('Error fetching especialidades:', error);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import Swal from 'sweetalert2';
 import type { Paciente, Proforma, Pago, ComisionTarjeta } from '../types';
 import ManualModal, { type ManualSection } from './ManualModal';
@@ -164,7 +165,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                 setFormData(prev => ({ ...prev, proformaId: Number(proformaIdProp) }));
             }
             if (montoProp) {
-                setFormData(prev => ({ ...prev, monto: String(Number(montoProp).toFixed(2)) }));
+                setFormData(prev => ({ ...prev, monto: String(formatNumber(Number(montoProp))) }));
             }
         }
     }, [id, clinicaSeleccionada, isModal, pagoIdProp, proformaIdProp, montoProp, tratamientoIdProp]);
@@ -200,61 +201,93 @@ const PagosForm: React.FC<PagosFormProps> = ({
         return fecha <= clinicaActual.fecha_cierre_caja;
     };
 
-    // Fuente Única de Verdad: Tratamientos con saldos rebalanceados basados en la tabla de Pagos
+    // Fuente Única de Verdad: Usamos los campos persistentes montoPagado y saldo del servidor
     const balancedTreatments = useMemo(() => {
-        const totalPaidInProforma = allPagos
-            .filter(p => {
-                const pId = p.proformaId || (p as any).proforma?.id;
-                return pId && Number(pId) === Number(formData.proformaId) && p.id !== pagoIdProp;
-            })
-            .reduce((acc, p) => acc + Number(p.monto), 0);
-        
+        if (isModal && !isOpen) return [];
+
         const discountValue = Number(formData.descuento) || 0;
         
-        // El descuento se aplica al tratamiento específico (tratamientoIdProp), 
-        // o si hay un solo tratamiento seleccionado (comportamiento esperado del usuario)
+        // 1. CONSOLIDAR: Igual que en PacienteTabPagos, agrupamos de forma inteligente
+        const normalizePiezas = (p: string) => {
+            if (!p) return '';
+            return p.split(/[-/,\s]+/).map(s => s.trim()).filter(Boolean).sort().join(',');
+        };
+
+        const proforma = filteredProformas.find(p => p.id === formData.proformaId);
+        
+        const map = new Map<string, any>();
+        tratamientosPlan.forEach(t => {
+            const det = proforma?.detalles?.find((d: any) => d.id === t.proformaDetalleId);
+            const isSingleItem = det && Number(det.cantidad) <= 1;
+            const normPz = normalizePiezas(t.pieza || '');
+            
+            const key = t.proformaDetalleId 
+                ? (isSingleItem ? `det_${t.proformaDetalleId}` : `det_${t.proformaDetalleId}_pz_${normPz}`)
+                : `gen_${t.id}`;
+
+            if (!map.has(key)) {
+                map.set(key, { ...t, allIds: [t.id] });
+            } else {
+                const master = map.get(key);
+                master.allIds.push(t.id);
+                // Si alguno está terminado, el consolidado está terminado
+                if ((t.estadoTratamiento || '').trim().toLowerCase() === 'terminado') {
+                    master.estadoTratamiento = 'terminado';
+                }
+                if (!master.pieza && t.pieza) master.pieza = t.pieza;
+                // Sumar montos pagados y recalcular saldo
+                master.montoPagado = Number(master.montoPagado) + Number(t.montoPagado);
+                master.saldo = Number(master.saldo) + Number(t.saldo);
+                // El precio base debería ser el mismo o el mayor registrado (porque son las mismas piezas)
+                master.precio = Math.max(Number(master.precio), Number(t.precio));
+                master.descuento = Math.max(Number(master.descuento), Number(t.descuento));
+            }
+        });
+        const consolidated = Array.from(map.values());
+
         const targetTratId = tratamientoIdProp 
             ? Number(tratamientoIdProp) 
             : (selectedTreatments.length === 1 ? selectedTreatments[0] : null);
 
-        let pool = totalPaidInProforma;
-        
-        // Rebalanceo cronológico: Ordenamos por fecha ASC para asignar el dinero
-        const sortedForBalance = [...tratamientosPlan].sort((a, b) => 
-            new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id
-        );
-
-        if (isModal && !isOpen) return [];
-
-        return sortedForBalance.map(t => {
+        // 2. MAPEAR PARA LA VISTA
+        return consolidated.map(t => {
             let discountAmount = Number(t.descuento || 0);
             
-            // Si es el tratamiento objetivo
             if (t.id === targetTratId) {
                 const discountInput = String(formData.descuento || '').trim();
                 if (discountInput !== '') {
-                    // OVERRIDE total: lo que está en la caja de texto MANDA sobre la BD
                     discountAmount = Number(discountInput);
                 } else {
-                    // Si la caja está vacía, su intención es resetear a 0 el descuento
-                    // para ver el precio completo (ej. 70) en lugar del precio guardado (ej. 68)
                     discountAmount = 0;
                 }
             }
 
+            // Recuperar el monto que ESTE pago en particular está aportando a este tratamiento
+            let thisPaymentContribution = 0;
+            if (isEditing && pagoIdProp) {
+                const currentPago = allPagos.find(p => p.id === pagoIdProp);
+                if (currentPago) {
+                    const allHCIds = t.allIds || [t.id];
+                    if (allHCIds.includes(Number(currentPago.historiaClinicaId))) {
+                        thisPaymentContribution = Number(currentPago.monto);
+                    }
+                }
+            }
+
             const netPrice = Math.max(0, Number(t.precio) - discountAmount);
-            
-            const paid = Math.min(pool, netPrice);
-            pool -= paid;
+            const paidSoFar = Number(t.montoPagado) - thisPaymentContribution;
+            const balancedSaldo = Math.max(0, netPrice - paidSoFar);
+
             return {
                 ...t,
                 computedDiscount: discountAmount,
                 netPrice,
-                balancedPaid: paid,
-                balancedSaldo: netPrice - paid
+                balancedPaid: paidSoFar,
+                balancedSaldo,
+                remainingToPay: balancedSaldo
             };
-        });
-    }, [tratamientosPlan, allPagos, formData.proformaId, formData.descuento, selectedTreatments, tratamientoIdProp, isModal, isOpen]);
+        }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
+    }, [tratamientosPlan, allPagos, formData.proformaId, formData.descuento, selectedTreatments, tratamientoIdProp, isModal, isOpen, isEditing, pagoIdProp]);
 
     const toggleTreatment = (id: number) => {
         setSelectedTreatments(prev => {
@@ -278,20 +311,50 @@ const PagosForm: React.FC<PagosFormProps> = ({
     };
 
     const updateAssignment = (id: number, field: 'amount' | 'discount', value: number) => {
-        setAssignments(prev => ({
-            ...prev,
-            [id]: {
-                ...(prev[id] || { amount: 0, discount: 0 }),
-                [field]: value
+        setAssignments(prev => {
+            const current = prev[id] || { amount: 0, discount: 0 };
+            const trat = balancedTreatments.find(t => t.id === id);
+            // El precio base es el saldo disponible + lo que ya estamos aportando en este form
+            const baseBalance = trat ? trat.balancedSaldo + current.amount : 999999;
+            
+            let newAmount = current.amount;
+            let newDiscount = current.discount;
+            
+            if (field === 'discount') {
+                newDiscount = value;
+                // Si el descuento cubre parte del monto ya asignado, reducimos el monto
+                if (newAmount + newDiscount > baseBalance) {
+                    newAmount = Math.max(0, baseBalance - newDiscount);
+                }
+            } else {
+                newAmount = value;
+                // Si el monto + descuento supera el balance, reducimos el descuento
+                if (newAmount + newDiscount > baseBalance) {
+                    newDiscount = Math.max(0, baseBalance - newAmount);
+                }
             }
-        }));
+            
+            return {
+                ...prev,
+                [id]: { amount: newAmount, discount: newDiscount }
+            };
+        });
     };
     useEffect(() => {
         if (montoProp !== undefined && montoProp !== null) {
-            setFormData(prev => ({ ...prev, monto: String(Number(montoProp).toFixed(2)) }));
+            setFormData(prev => ({ ...prev, monto: String(formatNumber(Number(montoProp))) }));
         }
         if (tratamientoIdProp) {
             const tId = Number(tratamientoIdProp);
+            
+            // Pre-llenar el descuento si el tratamiento ya tiene uno asignado en la historia clínica
+            if (tratamientosPlan.length > 0 && !isEditing && !formData.descuento) {
+                const trat = tratamientosPlan.find(t => t.id === tId);
+                if (trat && Number(trat.descuento) > 0) {
+                    setFormData(prev => ({ ...prev, descuento: String(trat.descuento) }));
+                }
+            }
+
             // Ensure ID is selected
             if (!selectedTreatments.includes(tId)) {
                 setSelectedTreatments([tId]);
@@ -305,7 +368,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                 };
             });
         }
-    }, [montoProp, tratamientoIdProp, tratamientosPlan]); // Re-run when tre    // Update main monto when assignments change (Auto-summing logic)
+    }, [montoProp, tratamientoIdProp, tratamientosPlan, isEditing]); // Update main monto when assignments change (Auto-summing logic)
     useEffect(() => {
         // PROTECCIÓN: Si estamos en modo tratamiento específico (modal $), 
         // el usuario edita directamente los campos principales. 
@@ -456,9 +519,9 @@ const PagosForm: React.FC<PagosFormProps> = ({
             const response = await api.get(`/pagos/${pagoId}`);
             const pago = response.data;
             
-            // Extraer el descuento si existe en el Record de tratamientosDescuentos
-            let storedDescuento = '';
-            if (pago.tratamientosDescuentos) {
+            // Extraer el descuento de la columna o del Record de tratamientosDescuentos
+            let storedDescuento = String(pago.descuento || '');
+            if ((!storedDescuento || storedDescuento === '0') && pago.tratamientosDescuentos) {
                 const discounts = Object.values(pago.tratamientosDescuentos);
                 if (discounts.length > 0) {
                     storedDescuento = String(discounts[0]);
@@ -707,8 +770,8 @@ const PagosForm: React.FC<PagosFormProps> = ({
                         ${existingPagos.map(pago => {
             const isDollar = pago.moneda === 'Dólares';
             const displayMonto = isDollar
-                ? `${Number(pago.monto).toFixed(2)} (TC: ${Number(pago.tc).toFixed(2)})`
-                : Number(pago.monto).toFixed(2);
+                ? `${formatNumber(Number(pago.monto))} (TC: ${formatNumber(Number(pago.tc))})`
+                : formatNumber(Number(pago.monto));
             const displayMoneda = pago.moneda || 'Bolivianos';
 
             return `
@@ -729,19 +792,19 @@ const PagosForm: React.FC<PagosFormProps> = ({
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #3498db;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Total Plan de Tratamiento:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #2c3e50;">Bs. ${totalPresupuesto.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #2c3e50;">Bs. ${formatNumber(totalPresupuesto)}</div>
                         </div>
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #27ae60;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Pagado por Paciente:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #27ae60;">Bs. ${totalPagado.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #27ae60;">Bs. ${formatNumber(totalPagado)}</div>
                         </div>
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #3498db;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Saldo a Favor:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #3498db;">Bs. ${saldoFavor.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #3498db;">Bs. ${formatNumber(saldoFavor)}</div>
                         </div>
                         <div style="padding: 10px; background-color: white; border-radius: 4px; border-left: 4px solid #e74c3c;">
                             <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Saldo en Contra:</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #e74c3c;">Bs. ${saldoContra.toFixed(2)}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #e74c3c;">Bs. ${formatNumber(saldoContra)}</div>
                         </div>
                     </div>
                 </div>
@@ -797,23 +860,26 @@ const PagosForm: React.FC<PagosFormProps> = ({
             if (name === 'descuento' && montoProp && !isEditing) {
                 const disc = Number(value) || 0;
                 const initial = Number(montoProp) || 0;
-                newData.monto = String(Math.max(0, initial - disc).toFixed(2));
+                newData.monto = String(formatNumber(Math.max(0, initial - disc)));
             }
             
             return newData;
         });
 
-        // Sync main field changes back to the single assignment if we are in target mode
-        if (tratamientoIdProp && (name === 'monto' || name === 'descuento')) {
-            const tId = Number(tratamientoIdProp);
+        const targetId = tratamientoIdProp ? Number(tratamientoIdProp) : (selectedTreatments.length === 1 ? selectedTreatments[0] : (selectedTreatments.length > 0 ? selectedTreatments[0] : null));
+
+        if (targetId && (name === 'monto' || name === 'descuento')) {
+            const tId = Number(targetId);
+            const trat = balancedTreatments.find(t => t.id === tId);
+            
             setAssignments(prev => {
                 const current = prev[tId] || { amount: 0, discount: 0 };
                 
-                // Si cambiamos descuento, el monto en la asignación también debe actualizarse 
-                // para mantener la consistencia con lo que el usuario ve en la caja principal
                 let newAmount = current.amount;
-                if (name === 'descuento' && montoProp && !isEditing) {
-                    newAmount = Math.max(0, Number(montoProp) - (Number(value) || 0));
+                const baseMonto = montoProp ? Number(montoProp) : (trat ? trat.balancedSaldo + current.amount : 0);
+
+                if (name === 'descuento' && baseMonto > 0 && !isEditing) {
+                    newAmount = Math.max(0, baseMonto - (Number(value) || 0));
                 } else if (name === 'monto') {
                     newAmount = Number(value) || 0;
                 }
@@ -883,6 +949,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                     formData.formaPagoId && formasPago.find(fp => fp.id === formData.formaPagoId)?.forma_pago?.toLowerCase() === 'tarjeta' && Number(formData.comisionTarjetaId) > 0
                         ? (finalMonto * (comisiones.find(c => c.id === Number(formData.comisionTarjetaId))?.monto || 0)) / 100
                         : undefined,
+                descuento: Number(formData.descuento || 0),
                 // NEW: Send manual assignments based on selected treatments
                 assignments: (() => {
                     const asgns = selectedTreatments
@@ -1160,7 +1227,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div>
                                     <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-0.5">Precio Original</p>
                                     <p className="font-bold text-sm text-gray-700 dark:text-gray-300">
-                                        Bs. {Number(balancedTreatments.find(t => t.id === Number(tratamientoIdProp))?.precio || 0).toFixed(2)}
+                                        {formatMoney(balancedTreatments.find(t => t.id === Number(tratamientoIdProp))?.precio || 0, 'Bs')}
                                     </p>
                                 </div>
                             </div>
@@ -1257,7 +1324,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                             </div>
 
                         {/* Descuento del Tratamiento */}
-                        {(!isRefund && (!tratamientoIdProp || balancedTreatments.find(t => t.id === Number(tratamientoIdProp))?.estadoTratamiento === 'terminado')) && (
+                        {!isRefund && (
                             <div>
                                 <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">Descuento:</label>
                                 <div className="relative">
@@ -1486,11 +1553,17 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 { title: 'Tratamientos Terminados (Saldo Pendiente)', filter: 'terminado', color: 'orange' },
                                 { title: 'Tratamientos en Curso / Otros', filter: 'curso', color: 'blue' }
                             ].map(section => {
-                                const list = balancedTreatments.filter(t => 
-                                    section.filter === 'terminado' 
+                                const list = balancedTreatments.filter(t => {
+                                    // Mostrar si tiene saldo pendiente (no cancelado) O si ya está seleccionado (para edición)
+                                    const isSelected = selectedTreatments.includes(t.id);
+                                    const hasBalance = t.balancedSaldo > 0.01 && !t.cancelado;
+
+                                    if (!isSelected && !hasBalance) return false;
+
+                                    return section.filter === 'terminado' 
                                         ? t.estadoTratamiento === 'terminado' 
-                                        : t.estadoTratamiento !== 'terminado'
-                                );
+                                        : t.estadoTratamiento !== 'terminado';
+                                });
 
                                 if (list.length === 0) return null;
 
@@ -1533,8 +1606,8 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                                                     <p className="font-bold text-gray-900 dark:text-white">{trat.tratamiento}</p>
                                                                     <p className="text-[10px] text-gray-500">{trat.pieza ? `Pz. ${trat.pieza}` : ''}</p>
                                                                 </td>
-                                                                <td className="px-4 py-2 text-xs text-right text-gray-600 dark:text-gray-400">Bs. {trat.netPrice.toFixed(2)}</td>
-                                                                <td className="px-4 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">Bs. {trat.balancedSaldo.toFixed(2)}</td>
+                                                                <td className="px-4 py-2 text-xs text-right text-gray-600 dark:text-gray-400">{formatMoney(trat.netPrice, 'Bs')}</td>
+                                                                <td className="px-4 py-2 text-xs text-right font-bold text-red-600 dark:text-red-400">{formatMoney(trat.balancedSaldo, 'Bs')}</td>
                                                                 <td className="px-4 py-2 text-right bg-green-50/30 dark:bg-green-900/5">
                                                                     <input 
                                                                         type="number"
@@ -1611,7 +1684,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-600 pb-3">
                                     <div className="text-gray-600 dark:text-gray-300 text-sm italic">Total Plan de Tratamiento:</div>
                                     <div className="font-bold text-lg text-gray-500 dark:text-gray-400">
-                                        Bs. {totalPresupuesto.toFixed(2)}
+                                        {formatMoney(totalPresupuesto, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1619,7 +1692,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-600 pb-3">
                                     <div className="text-red-700 dark:text-red-400 text-sm font-black uppercase">Deuda Real (Terminado):</div>
                                     <div className="font-black text-xl text-red-600 dark:text-red-500 animate-pulse-slow">
-                                        Bs. {deudaReal.toFixed(2)}
+                                        {formatMoney(deudaReal, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1627,7 +1700,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-600 pb-3">
                                     <div className="text-gray-600 dark:text-gray-300 text-sm">Total Pagado:</div>
                                     <div className="font-bold text-lg text-green-600 dark:text-green-400">
-                                        Bs. {totalPagado.toFixed(2)}
+                                        {formatMoney(totalPagado, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1635,7 +1708,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                 <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                                     <div className="text-blue-800 dark:text-blue-300 text-sm font-bold uppercase">Anticipo / Saldo a Favor:</div>
                                     <div className="font-black text-xl text-blue-600 dark:text-blue-400">
-                                        Bs. {anticipoDisponible.toFixed(2)}
+                                        {formatMoney(anticipoDisponible, 'Bs')}
                                     </div>
                                 </div>
 
@@ -1668,7 +1741,7 @@ const PagosForm: React.FC<PagosFormProps> = ({
                                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-not-allowed"
                                     />
                                     <p className="mt-1 text-sm font-bold text-green-600 dark:text-green-400">
-                                        Saldo Disponible: Bs. {saldoFavor.toFixed(2)}
+                                        Saldo Disponible: {formatMoney(saldoFavor, 'Bs')}
                                     </p>
                                 </div>
 

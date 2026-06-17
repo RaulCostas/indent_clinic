@@ -4,6 +4,7 @@ import { GrupoInventario } from 'src/grupo_inventario/entities/grupo_inventario.
 import { EgresoInventario } from 'src/egreso_inventario/entities/egreso_inventario.entity';
 import { PedidosDetalle } from 'src/pedidos/entities/pedidos-detalle.entity';
 import { Clinica } from 'src/clinicas/entities/clinica.entity';
+import { UnidadMedida } from 'src/unidad_medida/entities/unidad_medida.entity';
 
 @Entity('inventario')
 export class Inventario {
@@ -35,6 +36,13 @@ export class Inventario {
 
     @Column({ nullable: true })
     idgrupo_inventario: number;
+
+    @ManyToOne(() => UnidadMedida, (unidad) => unidad.inventarios)
+    @JoinColumn({ name: 'idunidad_medida' })
+    unidadMedida: UnidadMedida;
+
+    @Column({ nullable: true })
+    idunidad_medida: number;
 
     @OneToMany(() => EgresoInventario, (egreso) => egreso.inventario)
     egresosInventario: EgresoInventario[];

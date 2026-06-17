@@ -63,11 +63,6 @@ const SeguimientoClinicoModal: React.FC<SeguimientoClinicoModalProps> = ({ isOpe
                                                         <Calendar size={12} />
                                                         {formatDate(item.fecha)}
                                                     </span>
-                                                    {item.pieza && (
-                                                        <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-bold shadow-sm">
-                                                            Pieza: {item.pieza}
-                                                        </span>
-                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
@@ -88,6 +83,7 @@ const SeguimientoClinicoModal: React.FC<SeguimientoClinicoModalProps> = ({ isOpe
                                                     <div className="space-y-3">
                                                         <p className="text-gray-800 dark:text-gray-200 font-bold text-lg leading-tight">
                                                             {item.tratamiento || 'Sin tratamiento especificado'}
+                                                            {item.pieza && <span className="ml-2 text-blue-600 dark:text-blue-400 font-medium text-base">(Pieza: {item.pieza})</span>}
                                                         </p>
                                                         {item.diagnostico && (
                                                             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600 italic text-sm text-gray-600 dark:text-gray-300">

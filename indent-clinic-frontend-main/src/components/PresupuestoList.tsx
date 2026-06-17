@@ -6,7 +6,7 @@ import type { Paciente } from '../types';
 import jsPDF from 'jspdf';
 import Pagination from './Pagination';
 import autoTable from 'jspdf-autotable';
-import { formatDateSpanish, numberToWords } from '../utils/formatters';
+import { formatDateSpanish, numberToWords, formatNumber } from '../utils/formatters';
 import { formatDate } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
@@ -28,6 +28,7 @@ interface Proforma {
     detalles: any[];
     usuarioAprobado?: { name: string };
     fecha_aprobado?: string;
+    firma?: string;
 }
 
 const PresupuestoList: React.FC = () => {
@@ -273,7 +274,28 @@ const PresupuestoList: React.FC = () => {
         const doc = new jsPDF();
 
         // Fetch signatures before generating PDF
+        let finalClinicSignature: any = null;
         let pdfSignatures: any[] = [];
+        
+        // 1. Try to load direct signature
+        if (proforma.firma) {
+            let base64Data = proforma.firma;
+            if (!base64Data.startsWith('data:image')) {
+                try {
+                    const proxyRes = await api.get<{ base64: string }>(`/proformas/${proforma.id}/firma-base64`);
+                    base64Data = proxyRes.data.base64;
+                } catch (e) {
+                    console.error('Error loading direct proforma signature via proxy:', e);
+                }
+            }
+            finalClinicSignature = {
+                firmaData: base64Data,
+                usuario: proforma.usuario || { name: 'Doctor' },
+                rolFirmante: 'doctor'
+            };
+        }
+
+        // 2. Fetch from legacy table for patient signature or fallback clinic signature
         try {
             const response = await api.get(`/firmas/documento/presupuesto/${proforma.id}`);
             pdfSignatures = response.data;
@@ -281,36 +303,43 @@ const PresupuestoList: React.FC = () => {
             console.error('Error fetching signatures for PDF:', error);
         }
 
-        const patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente');
-        const clinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        let patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente');
+        
+        // Fallback: If no budget signature, use patient's general consent signature (firmaFC)
+        if (!patientSignature && paciente && paciente.firmaFC) {
+            patientSignature = {
+                firmaData: paciente.firmaFC,
+                rolFirmante: 'paciente'
+            };
+        }
 
+        if (patientSignature && patientSignature.firmaData && !patientSignature.firmaData.startsWith('data:image')) {
+            // Use proxy based on whether it's a legacy signature with ID or a direct patient signature
+            try {
+                if (patientSignature.id) {
+                    const proxyRes = await api.get<{ base64: string }>(`/firmas/${patientSignature.id}/base64`);
+                    patientSignature.firmaData = proxyRes.data.base64;
+                } else if (paciente?.id) {
+                    const proxyRes = await api.get<{ base64: string }>(`/pacientes/${paciente.id}/firma-base64`);
+                    patientSignature.firmaData = proxyRes.data.base64;
+                }
+            } catch (e) {
+                console.error('Error loading patient signature via proxy:', e);
+            }
+        }
+        
+        // Use legacy clinic signature only if direct one was not found
+        const legacyClinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        const clinicSignature = finalClinicSignature || legacyClinicSignature;
 
-
-        // [Same Date/Salutation/Table Logic - lines 131-216 are unchanged, but I need to be careful not to delete them if I'm not replacing them. 
-        // Wait, replace_file_content needs me to replace the function definition if I change the signature.
-        // I'll start the replacement at the function definition line.]
-
-        // ... (I will reuse the existing logic but I need to provide the full function or a chunk).
-        // It's a large function (lines 128-299).
-        // I will do two edits.
-        // 1. Update signature and Payment System logic.
-        // 2. Update the buttons in the table.
-
-        // This tool call is for step 1: Update signature and logic? 
-        // No, I can't easily change signature without rewriting the whole function body in replace_file_content or using specific targeted replaces if possible.
-        // I'll change the signature first.
-
-        // Actually, I'll update the whole `generatePDF` opening and the specific section 7.
-        // But `replace_file_content` works best with contiguous blocks.
-        // Use `multi_replace_file_content`? I don't have that tool enabled for me? I do! `multi_replace_file_content`.
-        // Ah, checked tools... yes I have `multi_replace_file_content`.
-
-        // I will use `replace_file_content` for the signature change and payment section?
-        // No, signature is line 128. Section 7 is line 256. They are far apart.
-        // I'll use `multi_replace_file_content`.
-
-
-
+        if (!finalClinicSignature && clinicSignature && clinicSignature.firmaData && !clinicSignature.firmaData.startsWith('data:image') && clinicSignature.id) {
+             try {
+                const proxyRes = await api.get<{ base64: string }>(`/firmas/${clinicSignature.id}/base64`);
+                clinicSignature.firmaData = proxyRes.data.base64;
+            } catch (e) {
+                console.error('Error loading legacy proforma signature via proxy:', e);
+            }
+        }
         // 1. Header (Logo)
         try {
             const logoSrc = clinicaActual?.logo || '';
@@ -360,8 +389,8 @@ const PresupuestoList: React.FC = () => {
                 item.piezas,
                 isPosible ? `${item.arancel.detalle} (*)` : item.arancel.detalle,
                 item.cantidad,
-                Number(item.precioUnitario).toFixed(2),
-                isPosible ? '-' : sub.toFixed(2)  // posible items show '-' in total
+                formatNumber(Number(item.precioUnitario)),
+                isPosible ? '-' : formatNumber(sub)  // posible items show '-' in total
             ];
             tableRows.push(row);
             tableStyles.push(isPosible ? { fontStyle: 'italic', textColor: [120, 90, 0] } : {});
@@ -450,11 +479,15 @@ const PresupuestoList: React.FC = () => {
 
         doc.setFont('helvetica', 'bold');
 
-        doc.rect(penultColX, finalY - 4, penultColWidth, 7);
+        // Ensure the label box is wide enough for "TOTAL Bs."
+        const labelWidth = Math.max(penultColWidth, 30);
+        const labelX = lastColX - labelWidth;
+
+        doc.rect(labelX, finalY - 4, labelWidth, 7);
         doc.rect(lastColX, finalY - 4, lastColWidth, 7);
 
-        doc.text('TOTAL Bs.', penultColX + penultColWidth - 2, finalY + 1, { align: 'right' });
-        doc.text(Number(proforma.total).toFixed(2), lastColX + lastColWidth - 2, finalY + 1, { align: 'right' });
+        doc.text('TOTAL Bs.', labelX + labelWidth - 2, finalY + 1, { align: 'right' });
+        doc.text(formatNumber(Number(proforma.total)), lastColX + lastColWidth - 2, finalY + 1, { align: 'right' });
 
         finalY += 10;
 
@@ -578,7 +611,8 @@ const PresupuestoList: React.FC = () => {
         doc.line(120, sigY + 7, 190, sigY + 7);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        doc.text(patientName, 155, sigY + 11, { align: 'center' });
+        const patientNameSignature = `${paciente?.paterno || ''} ${paciente?.materno || ''} ${paciente?.nombre || ''}`.trim().toUpperCase();
+        doc.text(patientNameSignature, 155, sigY + 11, { align: 'center' });
         doc.setFont('helvetica', 'normal');
         doc.text('PACIENTE', 155, sigY + 15, { align: 'center' });
 
@@ -710,7 +744,7 @@ const PresupuestoList: React.FC = () => {
                                         {proforma.usuario?.name || 'Sistema'}
                                     </td>
                                     <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-gray-800 dark:text-gray-200">
-                                        {Number(proforma.total).toFixed(2)}
+                                        {formatNumber(Number(proforma.total))}
                                     </td>
                                     <td className="px-5 py-4 whitespace-nowrap text-center no-print">
                                         <button

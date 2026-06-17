@@ -258,7 +258,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                     <select
                                         value={idpersonal}
                                         onChange={(e) => setIdPersonal(Number(e.target.value))}
-                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         required
                                     >
                                         <option value="">Seleccione Personal...</option>
@@ -290,7 +290,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                         type="date"
                                         value={fecha}
                                         onChange={(e) => setFecha(e.target.value)}
-                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         required
                                     />
                                 </div>
@@ -309,7 +309,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                     <select
                                         value={tipoSolicitud}
                                         onChange={(e) => setTipoSolicitud(e.target.value)}
-                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     >
                                         <option value="" disabled>-- Seleccione --</option>
                                         {tipoSolicitudOptions.map(opt => (
@@ -337,7 +337,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                             min="1"
                                             value={cantidadDias}
                                             onChange={(e) => setCantidadDias(Number(e.target.value))}
-                                            className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                             required
                                         />
                                     </div>
@@ -358,7 +358,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                             type="date"
                                             value={fechaDesde}
                                             onChange={(e) => setFechaDesde(e.target.value)}
-                                            className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                             required
                                         />
                                     </div>
@@ -379,7 +379,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                             type="date"
                                             value={fechaHasta}
                                             onChange={(e) => setFechaHasta(e.target.value)}
-                                            className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                             required
                                         />
                                     </div>
@@ -400,7 +400,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                         type="text"
                                         value={autorizado}
                                         onChange={(e) => setAutorizado(e.target.value)}
-                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         placeholder="Nombre de quien autoriza..."
 
                                     />
@@ -420,7 +420,7 @@ const VacacionesForm: React.FC<VacacionesFormProps> = ({ isOpen, onClose, id, on
                                     <textarea
                                         value={observaciones}
                                         onChange={(e) => setObservaciones(e.target.value)}
-                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         rows={3}
                                     />
                                 </div>

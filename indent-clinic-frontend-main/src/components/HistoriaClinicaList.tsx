@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { HistoriaClinica } from '../types';
 
+import api from '../services/api';
+
 interface HistoriaClinicaListProps {
     historia: HistoriaClinica[];
     onDelete: (id: number) => void;
@@ -26,7 +28,7 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
     const [currentPage, setCurrentPage] = useState(1);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [selectedSignature, setSelectedSignature] = useState('');
-    const itemsPerPage = 5;
+    const itemsPerPage = 10;
 
     const manualSections: ManualSection[] = [
         {
@@ -193,8 +195,17 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         <span className="truncate">{item.observaciones || '-'}</span>
                                         {item.firmaPaciente && (
                                             <button
-                                                onClick={() => {
-                                                    setSelectedSignature(item.firmaPaciente!);
+                                                onClick={async () => {
+                                                    let sign = item.firmaPaciente!;
+                                                    if (!sign.startsWith('data:image')) {
+                                                        try {
+                                                            const res = await api.get<{ base64: string }>(`/historia-clinica/${item.id}/firma-base64`);
+                                                            sign = res.data.base64;
+                                                        } catch (e) {
+                                                            console.error('Error loading signature via proxy:', e);
+                                                        }
+                                                    }
+                                                    setSelectedSignature(sign);
                                                     setShowSignatureModal(true);
                                                 }}
                                                 className="text-xs flex items-center gap-1 text-blue-600 hover:text-white dark:text-blue-400 font-semibold bg-blue-50 hover:bg-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-600 px-2 py-0.5 rounded shadow-sm transition-all w-fit"
@@ -211,7 +222,7 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                     {item.especialidad ? item.especialidad.especialidad : '-'}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                    {item.doctor ? `${item.doctor.paterno} ${item.doctor.nombre}` : '-'}
+                                    {item.doctor ? `${item.doctor.nombre} ${item.doctor.paterno} ${item.doctor.materno || ''}`.trim() : '-'}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate" title={item.diagnostico}>
                                     {item.diagnostico || '-'}
@@ -229,7 +240,7 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                                         : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
                                         }`}>
-                                        {item.estadoPresupuesto}
+                                        {item.estadoPresupuesto || 'no terminado'}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
@@ -270,8 +281,12 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         </button>
                                         <button
                                             onClick={() => onDelete(item.id)}
-                                            className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
-                                            title="Eliminar"
+                                            disabled={item.tienePagos}
+                                            className={`p-1.5 rounded-lg shadow-md transition-all transform ${item.tienePagos
+                                                ? 'bg-gray-400 cursor-not-allowed opacity-60 text-white'
+                                                : 'bg-red-500 hover:bg-red-600 text-white hover:-translate-y-0.5'
+                                                }`}
+                                            title={item.tienePagos ? "No se puede eliminar: tiene pagos asociados" : "Eliminar"}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />

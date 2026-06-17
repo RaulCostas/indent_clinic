@@ -18,12 +18,6 @@ export class Receta {
     @Column({ type: 'date' })
     fecha: string;
 
-    @Column({ type: 'text' })
-    medicamentos: string;
-
-    @Column({ type: 'text' })
-    indicaciones: string;
-
     @ManyToOne(() => Paciente)
     @JoinColumn({ name: 'paciente_id' })
     paciente: Paciente;
@@ -44,4 +38,7 @@ export class Receta {
     @ManyToOne(() => Clinica, { nullable: true, eager: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ type: 'text', nullable: true })
+    firma: string;
 }

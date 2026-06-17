@@ -11,13 +11,7 @@ import ArancelForm from './ArancelForm';
 import { useClinica } from '../context/ClinicaContext';
 import { getLocalDateString } from '../utils/dateUtils';
 import { FileText, Download, Printer, ClipboardList, Search, X, Stethoscope } from 'lucide-react';
-// Local currency formatter
-const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-BO', {
-        style: 'currency',
-        currency: 'BOB',
-    }).format(amount);
-};
+import { formatNumber } from '../utils/formatters';
 
 
 interface PaginatedResponse {
@@ -736,15 +730,15 @@ const ArancelList: React.FC = () => {
                                     {a.detalle}
                                 </td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300">{a.especialidad?.especialidad}</td>
-                                {!isClinica2 && <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{formatCurrency(a.precio)}</td>}
+                                {!isClinica2 && <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{formatNumber(a.precio)} Bs.</td>}
                                 {isClinica2 && (
                                     <>
-                                        <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_gold ? formatCurrency(a.precio_gold) : '-'}</td>
-                                        <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_silver ? formatCurrency(a.precio_silver) : '-'}</td>
-                                        <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_odontologico ? formatCurrency(a.precio_odontologico) : '-'}</td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_gold ? `${formatNumber(a.precio_gold)} Bs.` : '-'}</td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_silver ? `${formatNumber(a.precio_silver)} Bs.` : '-'}</td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_odontologico ? `${formatNumber(a.precio_odontologico)} Bs.` : '-'}</td>
                                     </>
                                 )}
-                                <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_sin_seguro ? formatCurrency(a.precio_sin_seguro) : '-'}</td>
+                                <td className="p-3 text-gray-800 dark:text-gray-300 font-bold">{a.precio_sin_seguro ? `${formatNumber(a.precio_sin_seguro)} Bs.` : '-'}</td>
                                 <td className="p-3 text-gray-800 dark:text-gray-300 font-medium text-blue-600 dark:text-blue-400">{a.clinica?.nombre || 'General'}</td>
                                 <td className="p-3">
                                     <span className={`px-2 py-1 rounded text-sm ${a.estado === 'activo' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>

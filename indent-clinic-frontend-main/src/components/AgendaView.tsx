@@ -53,7 +53,6 @@ const AgendaView: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(getLocalDateString());
     const [dateValue, setDateValue] = useState<Value>(new Date());
     const [appointments, setAppointments] = useState<Agenda[]>([]);
-    const [globalAppointments, setGlobalAppointments] = useState<Agenda[]>([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<{ time: string, clinicaId: number | null }>({ time: '', clinicaId: null });
     const [editingAppointment, setEditingAppointment] = useState<Agenda | null>(null);
@@ -61,17 +60,31 @@ const AgendaView: React.FC = () => {
     const [recordatoriosEnviadosHoy, setRecordatoriosEnviadosHoy] = useState(false);
 
     const [doctors, setDoctors] = useState<Doctor[]>([]);
-    const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+    const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(() => {
+        const saved = sessionStorage.getItem('selectedDoctorId');
+        return saved ? Number(saved) : null;
+    });
     const [isRestricted, setIsRestricted] = useState(false);
 
 
-    const isTomorrow = (() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const y = tomorrow.getFullYear();
-        const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const d = String(tomorrow.getDate()).padStart(2, '0');
-        return currentDate === `${y}-${m}-${d}`;
+    const isEligibleForReminder = (() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const currentParts = currentDate.split('-');
+        if (currentParts.length !== 3) return false;
+        
+        const current = new Date(Number(currentParts[0]), Number(currentParts[1]) - 1, Number(currentParts[2]));
+        current.setHours(0, 0, 0, 0);
+
+        const diffTime = current.getTime() - today.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) return true; // Mañana
+        if (today.getDay() === 6 && diffDays === 2) return true; // Sábado -> Lunes
+        if (today.getDay() === 5 && diffDays === 3) return true; // Viernes -> Lunes
+
+        return false;
     })();
 
     useEffect(() => {
@@ -149,9 +162,11 @@ const AgendaView: React.FC = () => {
 
     useEffect(() => {
         fetchAppointments();
-        fetchGlobalAppointments();
-        fetchPatients();
     }, [currentDate, globalClinicaId, selectedDoctorId]);
+
+    useEffect(() => {
+        fetchPatients();
+    }, [globalClinicaId]);
 
     useEffect(() => {
         const fetchStatus = async () => {
@@ -171,6 +186,14 @@ const AgendaView: React.FC = () => {
     useEffect(() => {
         fetchDoctors();
     }, []);
+
+    useEffect(() => {
+        if (selectedDoctorId !== null) {
+            sessionStorage.setItem('selectedDoctorId', selectedDoctorId.toString());
+        } else {
+            sessionStorage.removeItem('selectedDoctorId');
+        }
+    }, [selectedDoctorId]);
 
 
 
@@ -219,8 +242,8 @@ const AgendaView: React.FC = () => {
     const fetchPatients = async () => {
         try {
             const url = globalClinicaId 
-                ? `/pacientes?limit=2000&clinicaId=${globalClinicaId}&estado=activo` 
-                : '/pacientes?limit=2000&estado=activo';
+                ? `/pacientes?limit=2000&clinicaId=${globalClinicaId}&estado=activo&minimal=true` 
+                : '/pacientes?limit=2000&estado=activo&minimal=true';
             const response = await api.get(url);
             setPacientes(Array.isArray(response.data.data) ? response.data.data : response.data);
         } catch (error) {
@@ -262,15 +285,7 @@ const AgendaView: React.FC = () => {
         }
     };
 
-    const fetchGlobalAppointments = async () => {
-        try {
-            const url = `/agenda?date=${currentDate}`;
-            const response = await api.get(url);
-            setGlobalAppointments(response.data || []);
-        } catch (error) {
-            console.error('Error fetching global appointments:', error);
-        }
-    };
+
 
     const handlePrevDay = () => {
         const date = new Date(currentDate + 'T00:00:00'); // Force local time interpretation
@@ -384,18 +399,15 @@ const AgendaView: React.FC = () => {
             });
 
             fetchAppointments();
-            fetchGlobalAppointments();
         } catch (error: any) {
             console.error('Error updating status:', error);
             Swal.fire('Error', 'No se pudo actualizar el estado', 'error');
             fetchAppointments();
-            fetchGlobalAppointments();
         }
     };
 
     const handleFormSave = () => {
         fetchAppointments();
-        fetchGlobalAppointments();
         handleFormClose();
     };
 
@@ -539,9 +551,9 @@ const AgendaView: React.FC = () => {
     // ... logic up to return
 
     return (
-        <div className="flex flex-col h-[85vh] p-2 md:p-5">
+        <div className="flex flex-col h-[85vh] p-2 xl:p-5">
             {/* Main View Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-2 md:mb-6 no-print gap-2 md:gap-4">
+            <div className="flex flex-col xl:flex-row justify-between items-center mb-2 xl:mb-6 no-print gap-2 xl:gap-4">
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col">
                         <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2 sm:gap-3">
@@ -552,7 +564,7 @@ const AgendaView: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex gap-2 flex-wrap justify-center md:justify-end items-center flex-1 max-w-[550px]">
+                <div className="flex gap-2 flex-wrap justify-center xl:justify-end items-center flex-1 max-w-[550px]">
                     <button
                         onClick={() => setShowManual(true)}
                         className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center mr-2 flex-shrink-0"
@@ -605,12 +617,12 @@ const AgendaView: React.FC = () => {
                     </div>
 
                     {/* Global Doctor Filter in Header */}
-                    <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 flex-1 min-w-[200px] xl:min-w-[250px]">
                         <div className="relative w-full">
                             <SearchableSelect
                                 options={doctors.map(d => ({
                                     id: d.id,
-                                    label: `${d.nombre} ${d.paterno}`,
+                                    label: `${d.nombre} ${d.paterno} ${d.materno || ''}`.trim(),
                                     subLabel: d.especialidad?.especialidad
                                 }))}
                                 value={selectedDoctorId || 0}
@@ -633,10 +645,10 @@ const AgendaView: React.FC = () => {
             </div>
         </div>
 
-        <div className="flex flex-col md:flex-row-reverse gap-5 flex-1 overflow-hidden">
+        <div className="flex flex-col xl:flex-row-reverse gap-5 flex-1 overflow-hidden">
 
-                {/* Sidebar Calendar - Hidden on mobile */}
-                <div className="hidden md:flex w-[300px] flex-shrink-0 flex-col gap-5">
+                {/* Sidebar Calendar - Hidden on mobile and tablets (including iPad Pro) */}
+                <div className="hidden xl:flex w-[300px] flex-shrink-0 flex-col gap-5">
 
                     {/* Availability Widget */}
                     {/* Management Actions Sidebar */}
@@ -734,7 +746,7 @@ const AgendaView: React.FC = () => {
                             </button>
                             <button
                                 onClick={() => setShowMobileCalendar(true)}
-                                className="md:hidden px-2 py-1.5 bg-blue-600 text-white rounded font-bold transition-all shadow-md flex items-center justify-center translate-y-[2px]"
+                                className="xl:hidden px-2 py-1.5 bg-blue-600 text-white rounded font-bold transition-all shadow-md flex items-center justify-center translate-y-[2px]"
                                 title="Abrir Calendario"
                             >
                                 <CalendarIcon size={16} />
@@ -768,7 +780,7 @@ const AgendaView: React.FC = () => {
                         <table className="min-w-[500px] md:min-w-[800px] w-full border-collapse table-fixed">
                             <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700 z-10 shadow-sm">
                                 <tr>
-                                    <th className="sticky left-0 bg-gray-100 dark:bg-gray-700 z-[25] border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 md:w-32 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">HORA</th>
+                                    <th className="sticky left-0 bg-gray-100 dark:bg-gray-700 z-[25] border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 xl:w-32 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">HORA</th>
                                     {visibleClinics.map(clinica => (
                                         <th key={clinica.id} className="border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 uppercase">{clinica.nombre}</th>
                                     ))}
@@ -902,7 +914,7 @@ const AgendaView: React.FC = () => {
                                                                                             Dr. {`${appointment.doctorDeriva.nombre} ${appointment.doctorDeriva.paterno} ${appointment.doctorDeriva.materno || ''}`.trim()}
                                                                                         </div>
                                                                                     )}
-                                                                                    {isTomorrow && appointment.paciente && appointment.paciente.celular && (
+                                                                                    {isEligibleForReminder && appointment.paciente && appointment.paciente.celular && (
                                                                                         <button
                                                                                             onClick={(e) => { e.stopPropagation(); handleEnviarRecordatorioIndividual(appointment); }}
                                                                                             disabled={appointment.recordatorioEnviado}
@@ -976,7 +988,7 @@ const AgendaView: React.FC = () => {
                                                 <tr key={cita.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{formatDate(cita.fecha)}</td>
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{cita.hora ? cita.hora.substring(0, 5) : '-'}</td>
-                                                    <td className="p-3 text-gray-700 dark:text-gray-300">{cita.doctor ? `Dr. ${cita.doctor.nombre}` : '-'}</td>
+                                                    <td className="p-3 text-gray-700 dark:text-gray-300">{cita.doctor ? `Dr. ${cita.doctor.nombre} ${cita.doctor.paterno} ${cita.doctor.materno || ''}`.trim() : '-'}</td>
                                                     <td className="p-3 text-gray-700 dark:text-gray-300">{cita.tratamiento || '-'}</td>
                                                     <td className="p-3">
                                                         <span className="px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: getStatusColor(cita.estado, !cita.pacienteId && !cita.paciente) }}>

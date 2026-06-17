@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { Doctor } from '../../doctors/entities/doctor.entity';
 import { Especialidad } from '../../especialidad/entities/especialidad.entity';
@@ -7,6 +8,13 @@ import { ProformaDetalle } from '../../proformas/entities/proforma-detalle.entit
 import { Clinica } from '../../clinicas/entities/clinica.entity';
 
 @Entity('historia_clinica')
+@Index(['pacienteId'])
+@Index(['proformaId'])
+@Index(['proformaDetalleId'])
+@Index(['doctorId'])
+@Index(['clinicaId'])
+@Index(['fecha'])
+@Index(['estadoTratamiento'])
 export class HistoriaClinica {
     @PrimaryGeneratedColumn()
     id: number;
@@ -23,6 +31,12 @@ export class HistoriaClinica {
 
     @Column({ nullable: true })
     pieza: string;
+
+    @Column('decimal', { precision: 12, scale: 2, default: 0 })
+    montoPagado: number;
+
+    @Column('decimal', { precision: 12, scale: 2, default: 0 })
+    saldo: number;
 
     @Column({ type: 'int', default: 1 })
     cantidad: number;
@@ -51,7 +65,6 @@ export class HistoriaClinica {
     @JoinColumn({ name: 'doctorId' })
     doctor: Doctor;
 
-
     @Column({ type: 'text', nullable: true })
     diagnostico: string;
 
@@ -74,7 +87,6 @@ export class HistoriaClinica {
     @Column({ default: false, name: 'Caso_Clinico' })
     casoClinico: boolean;
 
-
     @Column({ default: 'NO' })
     pagado: string; // 'SI' | 'NO' (pago al doctor)
 
@@ -90,10 +102,8 @@ export class HistoriaClinica {
     @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
     precioConDescuento: number;
 
-
     @Column({ type: 'text', nullable: true })
     firmaPaciente: string;
-
 
     @Column({ nullable: true })
     clinicaId: number;
@@ -101,6 +111,16 @@ export class HistoriaClinica {
     @ManyToOne(() => Clinica, { nullable: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;
+
+    @Column({ nullable: true })
+    usuarioId: number;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'usuarioId' })
+    usuario: User;
+
+    @OneToMany('PagosDetalleDoctores', (p: any) => p.historiaClinica)
+    pagosDetalleDoctores: any[];
 
     @CreateDateColumn()
     createdAt: Date;

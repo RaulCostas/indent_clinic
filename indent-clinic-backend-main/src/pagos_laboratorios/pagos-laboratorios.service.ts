@@ -81,24 +81,37 @@ export class PagosLaboratoriosService {
         }
     }
 
-    findAll(fecha?: string, startDate?: string, endDate?: string, clinicaId?: number) {
-        const options: any = {
-            relations: ['trabajoLaboratorio', 'trabajoLaboratorio.paciente', 'trabajoLaboratorio.laboratorio', 'trabajoLaboratorio.precioLaboratorio', 'formaPago'],
-            where: {},
-            order: { id: 'DESC' }
-        };
+    async findAll(fecha?: string, startDate?: string, endDate?: string, clinicaId?: number) {
+        const queryBuilder = this.pagoLaboratorioRepository.createQueryBuilder('pago')
+            .leftJoinAndSelect('pago.trabajoLaboratorio', 'trabajoLaboratorio')
+            .leftJoinAndSelect('trabajoLaboratorio.paciente', 'paciente')
+            .leftJoinAndSelect('trabajoLaboratorio.laboratorio', 'laboratorio')
+            .leftJoinAndSelect('trabajoLaboratorio.precioLaboratorio', 'precioLaboratorio')
+            .leftJoinAndSelect('pago.formaPago', 'formaPago');
+
+        if (startDate && endDate) {
+            queryBuilder.orderBy('pago.fecha', 'ASC');
+        }
+        
+        queryBuilder.addOrderBy('laboratorio.laboratorio', 'ASC');
 
         if (clinicaId) {
-            options.where.clinicaId = clinicaId;
+            queryBuilder.andWhere('pago.clinicaId = :clinicaId', { clinicaId });
         }
 
-        // Use Between with explicit time strings to cover the full day range
         if (startDate && endDate) {
-            options.where.fecha = Between(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+            queryBuilder.andWhere('pago.fecha BETWEEN :startDate AND :endDate', {
+                startDate: `${startDate} 00:00:00`,
+                endDate: `${endDate} 23:59:59`
+            });
         } else if (fecha) {
-            options.where.fecha = Between(`${fecha} 00:00:00`, `${fecha} 23:59:59`);
+            queryBuilder.andWhere('pago.fecha BETWEEN :startDate AND :endDate', {
+                startDate: `${fecha} 00:00:00`,
+                endDate: `${fecha} 23:59:59`
+            });
         }
-        return this.pagoLaboratorioRepository.find(options);
+
+        return await queryBuilder.getMany();
     }
 
     findOne(id: number) {

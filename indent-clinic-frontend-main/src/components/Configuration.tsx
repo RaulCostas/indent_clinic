@@ -133,6 +133,22 @@ const Configuration: React.FC = () => {
                     <p className="text-gray-600 dark:text-gray-400">Asignar categorías y grupos a los productos del inventario</p>
                 </div>
 
+                {/* 8. Unidades de Medida */}
+                <div
+                    onClick={() => window.location.href = '/unidad-medida'}
+                    className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer border-2 border-transparent hover:border-indigo-500"
+                >
+                    <div className="flex items-center gap-4 mb-3">
+                        <div className="p-3 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-600 dark:text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-white">Unidades de Medida</h3>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400">Administrar las unidades de medida (Caja, Blíster, etc.)</p>
+                </div>
+
 
                 {/* 9. Clínicas */}
                 <div

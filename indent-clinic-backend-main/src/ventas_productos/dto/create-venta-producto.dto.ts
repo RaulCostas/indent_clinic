@@ -16,6 +16,11 @@ class VentaDetalleDto {
     @IsInt()
     @IsOptional()
     loteId?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    descuento?: number;
 }
 
 export class CreateVentaProductoDto {

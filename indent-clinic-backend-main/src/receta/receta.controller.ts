@@ -26,6 +26,11 @@ export class RecetaController {
         return this.recetaService.findOne(+id);
     }
 
+    @Get(':id/firma-base64')
+    getFirmaBase64(@Param('id') id: string) {
+        return this.recetaService.getFirmaBase64(+id);
+    }
+
     @Patch(':id')
     update(@Param('id') id: string, @Body() updateRecetaDto: any) {
         return this.recetaService.update(+id, updateRecetaDto);

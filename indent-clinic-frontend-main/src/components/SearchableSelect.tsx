@@ -59,7 +59,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return (
         <div className={`relative ${className}`} ref={dropdownRef}>
             <div
-                className={`flex items-center w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer ${disabled ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60' : 'hover:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500'}`}
+                className={`flex items-center w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer ${disabled ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60' : 'hover:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500'}`}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
             >
                 {icon && <span className="mr-2 text-gray-400">{icon}</span>}
@@ -83,7 +83,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                             ref={inputRef}
                             autoFocus
                             type="text"
-                            className="w-full px-3 py-1.5 text-sm rounded bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-white"
+                            className="w-full px-3 py-1.5 text-sm rounded bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white"
                             placeholder="Buscar..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}

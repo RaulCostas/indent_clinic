@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { Doctor } from '../../doctors/entities/doctor.entity';
 import { Proforma } from '../../proformas/entities/proforma.entity';
@@ -7,6 +7,10 @@ import { Clinica } from '../../clinicas/entities/clinica.entity';
 import { Sucursal } from '../../clinicas/entities/sucursal.entity';
 
 @Entity('agenda')
+@Index(['fecha'])
+@Index(['clinicaId'])
+@Index(['doctorId'])
+@Index(['estado'])
 export class Agenda {
     @PrimaryGeneratedColumn()
     id: number;
@@ -19,7 +23,6 @@ export class Agenda {
 
     @Column({ type: 'int' })
     duracion: number;
-
 
     @Column({ nullable: true })
     pacienteId: number;
@@ -77,9 +80,6 @@ export class Agenda {
 
     @Column({ type: 'boolean', default: false })
     recordatorioEnviado: boolean;
-
-    @Column({ default: false })
-    notificado: boolean;
 
     @Column({ nullable: true })
     clinicaId: number;

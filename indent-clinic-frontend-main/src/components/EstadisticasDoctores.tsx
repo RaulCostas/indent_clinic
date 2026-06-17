@@ -3,6 +3,7 @@ import ManualModal, { type ManualSection } from './ManualModal';
 import api from '../services/api';
 import { useClinica } from '../context/ClinicaContext';
 import { User } from 'lucide-react';
+import { formatMoney } from '../utils/formatters';
 
 interface DoctorStat {
     id: number;
@@ -191,7 +192,7 @@ const EstadisticasDoctores: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="w-32 pl-4 text-gray-800 dark:text-white font-bold">
-                                        {stat.totalGenerado.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' })}
+                                        {formatMoney(stat.totalGenerado, 'Bs')}
                                     </div>
                                 </div>
                             );

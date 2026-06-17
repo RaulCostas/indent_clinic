@@ -10,7 +10,7 @@ export class WhatsappSession {
     @Index()
     clinicId: number;
 
-    @Column()
+    @Column({ nullable: true, default: 'creds' })
     @Index()
     type: string; // 'creds' or 'keys'
 
@@ -22,6 +22,6 @@ export class WhatsappSession {
     @Index()
     instanceNumber: number;
 
-    @Column({ type: 'jsonb' }) // Use 'jsonb' for better compatibility with TypeORM and PG comparison operators
+    @Column({ type: 'jsonb', nullable: true }) // Use 'jsonb' for better compatibility with TypeORM and PG comparison operators
     data: any;
 }

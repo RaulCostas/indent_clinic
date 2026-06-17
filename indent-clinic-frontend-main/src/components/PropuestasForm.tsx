@@ -8,6 +8,7 @@ import ManualModal, { type ManualSection } from './ManualModal';
 import ArancelForm from './ArancelForm';
 import SearchableSelect from './SearchableSelect';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber } from '../utils/formatters';
 
 interface DetalleItem {
     id?: number;
@@ -76,18 +77,13 @@ const PropuestasForm: React.FC = () => {
         {
             title: 'Pestañas A-F',
             content: 'Use las pestañas para organizar hasta 6 propuestas diferentes. Agregue tratamientos a cada pestaña según las opciones que desea ofrecer al paciente.'
-        },
-        {
-            title: 'Pasar a Plan de Tratamiento',
-            content: 'Una vez que el paciente elija una propuesta, puede convertirla en plan de tratamiento oficial usando el botón "Pasar a Plan de Tratamiento".'
-        }];
+        }
+    ];
 
-    // State for editing an item
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
     useEffect(() => {
         if (!isClinica2 || !hasAlianza || !selectedArancelId) return;
-        // Auto-select the patient's insurance price when a treatment is selected
         if (isAlianzaGold) setTipoPrecio('gold');
         else if (isAlianzaSilver) setTipoPrecio('silver');
         else if (isAlianzaOdonto) setTipoPrecio('odontologico');
@@ -285,6 +281,7 @@ const PropuestasForm: React.FC = () => {
         try {
             const payload = {
                 pacienteId: paciente.id,
+                clinicaId: clinicaId, // Added clinicaId
                 usuarioId: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).id : 1,
                 nota,
                 letra: letraHeader,
@@ -340,54 +337,7 @@ const PropuestasForm: React.FC = () => {
         }
     };
 
-    const handleConvertToBudget = async () => {
-        if (!propuestaId) return;
 
-        const result = await Swal.fire({
-            title: 'Convertir a Plan de Tratamiento',
-            text: `¿Crear un nuevo plan de tratamiento con los items de la Propuesta ${activeTab}?`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, crear',
-            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-            color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-        });
-
-        if (result.isConfirmed) {
-            try {
-                const usuarioId = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).id : 1;
-                const response = await api.post(`/propuestas/${propuestaId}/convertir`, {
-                    letra: activeTab,
-                    usuarioId: usuarioId
-                });
-
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Creado!',
-                    text: 'El plan de tratamiento ha sido creado.',
-                    showConfirmButton: false,
-                    timer: 1500,
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-                });
-
-                navigate(`/pacientes/${id}/presupuestos/edit/${response.data.id}`);
-
-            } catch (error: any) {
-                console.error('Error converting to budget:', error);
-                const errorMessage = error.response?.data?.message || 'Error al crear el plan de tratamiento';
-                Swal.fire({
-                    title: 'Error',
-                    text: errorMessage,
-                    icon: 'error',
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
-                });
-            }
-        }
-    };
 
     return (
         <div className="content-card max-w-[1400px] mx-auto text-gray-800 dark:text-white bg-white dark:bg-gray-800">
@@ -505,25 +455,25 @@ const PropuestasForm: React.FC = () => {
                                                     const parts = [];
                                                     // Solo mostrar los precios relevantes al seguro del paciente
                                                     if (isAlianzaGold) {
-                                                        if (a.precio_gold != null) parts.push(`Gold: ${Number(a.precio_gold).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_gold != null) parts.push(`Gold: ${formatNumber(a.precio_gold)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     } else if (isAlianzaSilver) {
-                                                        if (a.precio_silver != null) parts.push(`Silver: ${Number(a.precio_silver).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_silver != null) parts.push(`Silver: ${formatNumber(a.precio_silver)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     } else if (isAlianzaOdonto) {
-                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${Number(a.precio_odontologico).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${formatNumber(a.precio_odontologico)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     } else {
                                                         // Sin seguro específico: mostrar todos
-                                                        if (a.precio_gold != null) parts.push(`Gold: ${Number(a.precio_gold).toFixed(2)}`);
-                                                        if (a.precio_silver != null) parts.push(`Silver: ${Number(a.precio_silver).toFixed(2)}`);
-                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${Number(a.precio_odontologico).toFixed(2)}`);
-                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${Number(a.precio_sin_seguro).toFixed(2)}`);
+                                                        if (a.precio_gold != null) parts.push(`Gold: ${formatNumber(a.precio_gold)}`);
+                                                        if (a.precio_silver != null) parts.push(`Silver: ${formatNumber(a.precio_silver)}`);
+                                                        if (a.precio_odontologico != null) parts.push(`Odont.: ${formatNumber(a.precio_odontologico)}`);
+                                                        if (a.precio_sin_seguro != null) parts.push(`Privado: ${formatNumber(a.precio_sin_seguro)}`);
                                                     }
                                                     optionText = parts.length > 0 ? `${a.detalle} - ${parts.join(' | ')} ${itemMoneda}` : `${a.detalle} - Sin precios`;
                                                 } else {
-                                                    const precioNor = Number(a.precio).toFixed(2);
-                                                    const precioSS = a.precio_sin_seguro != null ? Number(a.precio_sin_seguro).toFixed(2) : null;
+                                                    const precioNor = formatNumber(a.precio);
+                                                    const precioSS = a.precio_sin_seguro != null ? formatNumber(a.precio_sin_seguro) : null;
                                                     optionText = precioSS ? `${a.detalle} - ${precioNor} | S/S: ${precioSS} ${itemMoneda}` : `${a.detalle} - ${precioNor} ${itemMoneda}`;
                                                 }
                                                 return { id: a.id, label: optionText };
@@ -597,7 +547,7 @@ const PropuestasForm: React.FC = () => {
                                                             <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">{op.label}</span>
                                                         </div>
                                                         <span className="text-purple-600 dark:text-purple-300 font-bold">
-                                                            {Number(op.precio).toFixed(2)} Bs.
+                                                            {formatNumber(op.precio)} Bs.
                                                         </span>
                                                     </div>
                                                 </label>
@@ -618,7 +568,7 @@ const PropuestasForm: React.FC = () => {
                                                     <input type="radio" name="priceType" className="w-4 h-4 text-purple-600 focus:ring-purple-500" checked={tipoPrecio === 'normal'} onChange={() => setTipoPrecio('normal')} />
                                                     <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">Precio Normal</span>
                                                 </div>
-                                                <span className="text-purple-600 dark:text-purple-300 font-bold">{Number(arancel.precio).toFixed(2)} Bs.</span>
+                                                <span className="text-purple-600 dark:text-purple-300 font-bold">{formatNumber(arancel.precio)} Bs.</span>
                                             </div>
                                         </label>
                                         <label className={`flex-1 cursor-pointer border rounded-lg p-3 transition-colors ${tipoPrecio === 'sin_seguro' ? 'bg-purple-50 border-purple-500 dark:bg-purple-900/30 dark:border-purple-400' : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
@@ -627,7 +577,7 @@ const PropuestasForm: React.FC = () => {
                                                     <input type="radio" name="priceType" className="w-4 h-4 text-purple-600 focus:ring-purple-500" checked={tipoPrecio === 'sin_seguro'} onChange={() => setTipoPrecio('sin_seguro')} />
                                                     <span className="ml-2 font-semibold text-gray-800 dark:text-gray-100">Sin Seguro</span>
                                                 </div>
-                                                <span className="text-orange-600 dark:text-orange-400 font-bold">{Number(arancel.precio_sin_seguro).toFixed(2)} Bs.</span>
+                                                <span className="text-orange-600 dark:text-orange-400 font-bold">{formatNumber(arancel.precio_sin_seguro)} Bs.</span>
                                             </div>
                                         </label>
                                     </div>
@@ -753,9 +703,9 @@ const PropuestasForm: React.FC = () => {
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">{index + 1}</td>
                                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{item.tratamiento}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">{item.piezas}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right">{item.precioUnitario.toFixed(2)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right">{formatNumber(item.precioUnitario)}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">{item.cantidad}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right font-medium">{item.total.toFixed(2)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right font-medium">{formatNumber(item.total)}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${item.posible ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
                                                 {item.posible ? 'SÍ' : 'NO'}
@@ -817,13 +767,13 @@ const PropuestasForm: React.FC = () => {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center text-sm font-medium text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 pb-2">
                                 <span className="uppercase tracking-wide">SubTotal Propuesta {activeTab}</span>
-                                <span className="text-gray-800 dark:text-white font-semibold text-lg">{calculateTabSubTotal().toFixed(2)} Bs.</span>
+                                <span className="text-gray-800 dark:text-white font-semibold text-lg">{formatNumber(calculateTabSubTotal())} Bs.</span>
                             </div>
 
                             <div className="flex justify-between items-center pt-2">
                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">TOTAL PROPUESTA {activeTab}</span>
                                 <div className="text-4xl font-bold text-purple-600 dark:text-purple-400">
-                                    {calculateTabTotal().toFixed(2)} <span className="text-xl text-gray-500 dark:text-gray-400">Bs.</span>
+                                    {formatNumber(calculateTabTotal())} <span className="text-xl text-gray-500 dark:text-gray-400">Bs.</span>
                                 </div>
                             </div>
                         </div>
@@ -840,21 +790,11 @@ const PropuestasForm: React.FC = () => {
                                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                                         <polyline points="7 3 7 8 15 8"></polyline>
                                     </svg>
-                                    Guardar
+                                    {propuestaId ? 'Actualizar' : 'Guardar'}
                                 </button>
                             )}
 
-                            {propuestaId && (
-                                <button
-                                    onClick={handleConvertToBudget}
-                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Pasar a Plan de Tratamiento
-                                </button>
-                            )}
+
 
                             <button
                                 onClick={() => navigate(`/pacientes/${id}/propuestas`)}

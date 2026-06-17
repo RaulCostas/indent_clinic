@@ -21,22 +21,22 @@ export class CreateHistoriaClinicaDto {
     @IsNumber()
     proformaDetalleId?: number;
 
-    @IsOptional()
+    @IsNotEmpty()
     @IsString()
-    observaciones?: string;
+    observaciones: string;
 
     @IsOptional()
     @IsNumber()
     especialidadId?: number;
 
-    @IsOptional()
+    @IsNotEmpty()
     @IsNumber()
-    doctorId?: number;
+    doctorId: number;
 
 
-    @IsOptional()
+    @IsNotEmpty()
     @IsString()
-    diagnostico?: string;
+    diagnostico: string;
 
 
 
@@ -85,4 +85,8 @@ export class CreateHistoriaClinicaDto {
     @IsOptional()
     @IsNumber()
     clinicaId?: number;
+
+    @IsOptional()
+    @IsNumber()
+    usuarioId?: number;
 }

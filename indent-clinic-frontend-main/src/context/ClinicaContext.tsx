@@ -7,6 +7,7 @@ export interface Clinica {
     id: number;
     nombre: string;
     activo: boolean;
+    direccion?: string;
     monedaDefault?: string;
     logo?: string;
     qr_pago?: string;

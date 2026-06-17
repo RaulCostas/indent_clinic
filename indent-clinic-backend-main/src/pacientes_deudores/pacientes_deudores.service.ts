@@ -12,212 +12,134 @@ export class PacientesDeudoresService {
     ) { }
 
     async findAll(estado: 'terminado' | 'no terminado', clinicaId?: number) {
-        // Step 1: Get all proformas, optionally filtered by clinic
-        let proformasQuery = `SELECT * FROM proformas`;
-        const params: any[] = [];
-        if (clinicaId) {
-            proformasQuery += ` WHERE "clinicaId" = $1`;
-            params.push(clinicaId);
-        }
-        const proformas = await this.proformaRepository.query(proformasQuery, params);
+        try {
+            // Reformulated logic: Group by patient, proforma item, and piece to consolidate debt rows.
+            let q = `
+                SELECT 
+                    MIN(hc.id) as id,
+                    hc."proformaId",
+                    hc."pacienteId",
+                    SUM(hc.precio) as "totalPresupuestoBruto",
+                    SUM(hc."montoPagado") as "totalPagado",
+                    SUM(hc.saldo) as saldo,
+                    SUM(hc.cantidad) as cantidad,
+                    hc.tratamiento,
+                    MAX(hc.fecha) as "ultimaCita",
+                    hc."estadoPresupuesto",
+                    p.numero as "numeroPresupuesto",
+                    pac.nombre, pac.paterno, pac.materno, pac.estado as "pacienteEstado", pac.celular as telefono,
+                    e.especialidad
+                FROM historia_clinica hc
+                LEFT JOIN proformas p ON hc."proformaId" = p.id
+                LEFT JOIN pacientes pac ON hc."pacienteId" = pac.id
+                LEFT JOIN especialidad e ON hc."especialidadId" = e.id
+                WHERE hc.cancelado = false
+            `;
 
-        if (proformas.length === 0) return [];
-
-        const proformaIds = proformas.map(p => p.id);
-
-        // Step 2: Detect patientId key name (handles camelCase and snake_case)
-        const sampleProforma = proformas[0];
-        const patientIdKey = Object.keys(sampleProforma).find(k =>
-            k.toLowerCase() === 'pacienteid' || k.toLowerCase() === 'paciente_id'
-        ) || 'pacienteId';
-
-        const patientIds = [...new Set(proformas.map(p => p[patientIdKey]))].filter(id => id);
-
-        // Step 3: Fetch all payments for these patients (includes advances with no proformaId)
-        let pagos: any[] = [];
-        if (patientIds.length > 0) {
-            pagos = await this.dataSource.query(
-                `SELECT * FROM pagos WHERE "pacienteId" IN (${patientIds.join(',')})`
-            );
-        }
-
-        // Step 4: Fetch all historia_clinica entries for these proformas
-        let history: any[] = [];
-        if (proformaIds.length > 0) {
-            history = await this.dataSource.query(
-                `SELECT * FROM historia_clinica WHERE "proformaId" IN (${proformaIds.join(',')})`
-            );
-        }
-
-        // Step 5: Fetch patients for display info
-        let patients: any[] = [];
-        if (patientIds.length > 0) {
-            patients = await this.dataSource.query(
-                `SELECT * FROM pacientes WHERE id IN (${patientIds.join(',')})`
-            );
-        }
-
-        // Step 6: Fetch specialties for display info
-        const espIds = [...new Set(history.map(h => h.especialidadId))].filter(id => id);
-        let specialties: any[] = [];
-        if (espIds.length > 0) {
-            specialties = await this.dataSource.query(
-                `SELECT * FROM especialidad WHERE id IN (${espIds.join(',')})`
-            );
-        }
-
-        // --- Build lookup maps ---
-        const espMap = new Map(specialties.map(e => [e.id, e.especialidad]));
-        const patientMap = new Map(patients.map(p => [p.id, p]));
-
-        // Helper to safely get value from object by key (case-insensitive)
-        const getVal = (obj: any, keySub: string) => {
-            if (!obj) return null;
-            const keys = Object.keys(obj);
-            const exactKey = keys.find(k => k.toLowerCase() === keySub.toLowerCase());
-            if (exactKey) return obj[exactKey];
-            const partialKey = keys.find(key => key.toLowerCase().includes(keySub.toLowerCase()));
-            return partialKey ? obj[partialKey] : null;
-        };
-
-        // --- Build payment pools ---
-        // pagosProformaMap: sum of payments linked to a specific proforma
-        // pagosGeneralesMap: sum of advance payments NOT linked to any proforma (per patient)
-        const pagosProformaMap = new Map<number, number>();
-        const pagosGeneralesMap = new Map<number, number>();
-
-        pagos.forEach(pg => {
-            const monto = parseFloat(pg.monto) || 0;
-            const pgProformaId = pg.proformaId ? Number(pg.proformaId) : null;
-            const pgPacienteId = Number(pg.pacienteId);
-
-            if (pgProformaId && proformaIds.includes(pgProformaId)) {
-                const current = pagosProformaMap.get(pgProformaId) || 0;
-                pagosProformaMap.set(pgProformaId, current + monto);
-            } else if (!pgProformaId || pgProformaId === 0) {
-                const current = pagosGeneralesMap.get(pgPacienteId) || 0;
-                pagosGeneralesMap.set(pgPacienteId, current + monto);
+            if (estado === 'terminado') {
+                q += ` AND hc."estadoPresupuesto" = 'terminado'`;
+            } else {
+                q += ` AND hc."estadoPresupuesto" = 'no terminado'`;
             }
-        });
 
-        // --- Process each proforma ---
-        const results = proformas.map(p => {
-            const pid = p[patientIdKey];
-            const pac = patientMap.get(pid);
+            if (clinicaId) {
+                q += ` AND hc."clinicaId" = ${Number(clinicaId)}`;
+            }
 
-            const pacName = pac ? (getVal(pac, 'nombre') || '') : '';
-            const pacPaterno = pac ? (getVal(pac, 'paterno') || '') : '';
-            const pacMaterno = pac ? (getVal(pac, 'materno') || '') : '';
+            q += ` 
+                GROUP BY 
+                    hc."pacienteId", 
+                    hc."proformaId", 
+                    hc."proformaDetalleId", 
+                    COALESCE(hc.pieza, ''), 
+                    hc.tratamiento, 
+                    hc."estadoPresupuesto", 
+                    p.numero, 
+                    pac.nombre, pac.paterno, pac.materno, pac.estado, pac.celular, 
+                    e.especialidad
+                HAVING SUM(hc.saldo) > 0.05
+                ORDER BY "ultimaCita" DESC
+            `;
 
-            // Get all history entries for this proforma
-            const pHistory = history.filter(h => Number(h.proformaId) === Number(p.id));
+            const rows = await this.dataSource.query(q);
 
-            if (pHistory.length === 0) return null; // Skip proformas with no treatments
+            return rows.map(row => ({
+                id: row.id,
+                proformaId: row.proformaId,
+                pacienteId: row.pacienteId,
+                numeroPresupuesto: row.numeroPresupuesto || 0,
+                paciente: `${row.nombre || ''} ${row.paterno || ''} ${row.materno || ''}`.trim(),
+                totalPresupuesto: Number(row.totalPresupuestoBruto),
+                totalPagado: Number(row.totalPagado),
+                saldo: Number(row.saldo),
+                cantidadPendiente: Number(row.cantidad || 1),
+                ultimaCita: row.ultimaCita,
+                especialidad: row.especialidad || 'General',
+                tratamiento: row.tratamiento || 'Tratamiento',
+                pacienteEstado: row.pacienteEstado || 'activo',
+                telefono: row.telefono
+            }));
+        } catch (e) { 
+            console.error('Error in PacientesDeudoresService.findAll:', e);
+            return []; 
+        }
+    }
 
-            // --- DEBT CALCULATION ---
-            // Sort chronologically (oldest first) to apply FIFO payment allocation
-            const chronologicalHistory = [...pHistory].sort((a, b) => {
-                // Prioridad 1: Terminados primero (Deuda Real)
-                if (a.estadoTratamiento === 'terminado' && b.estadoTratamiento !== 'terminado') return -1;
-                if (a.estadoTratamiento !== 'terminado' && b.estadoTratamiento === 'terminado') return 1;
-                // Prioridad 2: Orden cronológico (FIFO)
-                return new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id;
+    async findPlanned(clinicaId?: number) {
+        try {
+            // Reformulated logic: Show treatments from "proforma_detalle" that have NO records in "historia_clinica" (No Iniciado).
+            let q = `
+                SELECT 
+                    pd.id, pd."proformaId", pd."precioUnitario", pd.piezas, pd.cantidad, 
+                    a.detalle as tratamiento, 
+                    e.especialidad,
+                    p.numero as "numeroPresupuesto",
+                    p.fecha as "ultimaCita",
+                    p."pacienteId",
+                    pac.nombre, pac.paterno, pac.materno, pac.estado as "pacienteEstado"
+                FROM proforma_detalle pd
+                LEFT JOIN proformas p ON pd."proformaId" = p.id
+                LEFT JOIN pacientes pac ON p."pacienteId" = pac.id
+                LEFT JOIN arancel a ON pd."arancelId" = a.id
+                LEFT JOIN especialidad e ON a."idEspecialidad" = e.id
+                LEFT JOIN historia_clinica hc ON pd.id = hc."proformaDetalleId"
+                WHERE hc.id IS NULL AND pd.posible = false
+            `;
+
+            if (clinicaId) {
+                q += ` AND p."clinicaId" = ${Number(clinicaId)}`;
+            }
+
+            q += ` ORDER BY p.fecha DESC`;
+
+            const details = await this.dataSource.query(q);
+
+            return details.map(det => {
+                const piezasArr = (det.piezas || '')
+                    .split(/[-,.]/)
+                    .map(p => p.trim())
+                    .filter(p => p !== '');
+
+                return {
+                    id: det.id,
+                    proformaId: det.proformaId,
+                    numeroPresupuesto: det.numeroPresupuesto,
+                    pacienteId: det.pacienteId,
+                    paciente: `${det.nombre || ''} ${det.paterno || ''} ${det.materno || ''}`.trim(),
+                    pacienteEstado: det.pacienteEstado || 'activo',
+                    especialidad: det.especialidad || 'General',
+                    tratamiento: det.tratamiento || 'Tratamiento',
+                    piezas: piezasArr.join('-') || det.piezas || '-',
+                    cantidadPendiente: Number(det.cantidad || 1),
+                    precioUnitario: Number(det.precioUnitario || 0),
+                    saldo: 0,
+                    saldoPlanificado: Number(det.cantidad || 1) * Number(det.precioUnitario || 0),
+                    ultimaCita: det.ultimaCita
+                };
             });
-
-            let pool = pagosProformaMap.get(Number(p.id)) || 0;
-            let priceTotal = 0;
-            let paidOnTreatments = 0;
-
-            chronologicalHistory.forEach(t => {
-                const price = parseFloat(t.precio) || 0;
-                const discount = parseFloat(t.descuento) || 0;
-                const netPrice = price - discount;
-
-                if (t.estadoTratamiento === 'terminado') {
-                    // Treatment is clinically DONE → its cost is billable debt
-                    const applied = pool > 0 ? Math.min(pool, netPrice) : 0;
-                    pool -= applied;
-                    priceTotal += netPrice;
-                    paidOnTreatments += applied;
-                } else {
-                    // Treatment still ongoing → not billable yet, but consume pool in order
-                    const applied = pool > 0 ? Math.min(pool, netPrice) : 0;
-                    pool -= applied;
-                }
-            });
-
-            // No finished treatments = no reportable debt
-            if (priceTotal <= 0) return null;
-
-            const saldo = Math.max(0, priceTotal - paidOnTreatments);
-
-            // Fully paid = not a debtor
-            if (saldo <= 0.01) return null;
-
-            // --- TAB CLASSIFICATION uses estadoPresupuesto ---
-            // Activos:  estadoPresupuesto != 'terminado' (plan still open administratively)
-            // Pasivos:  estadoPresupuesto == 'terminado' (plan closed administratively)
-            const anyTerminado = pHistory.some(t => t.estadoPresupuesto === 'terminado');
-            const proformaStatus = anyTerminado ? 'terminado' : 'no terminado';
-
-            // --- UI Display Fields (show latest treatment for context) ---
-            const sortedHistory = [...pHistory].sort((a, b) => {
-                const dateDiff = new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
-                if (dateDiff !== 0) return dateDiff;
-                return b.id - a.id;
-            });
-
-            const latest = sortedHistory[0] || {};
-
-            return {
-                proformaId: Number(p.id),
-                numeroPresupuesto: p.numero,
-                pacienteId: Number(pid),
-                totalPresupuesto: priceTotal,
-                totalPagado: paidOnTreatments,
-                saldo: saldo,
-                ultimaCita: latest.fecha || null,
-                especialidad: latest.especialidadId ? (espMap.get(latest.especialidadId) || '') : '',
-                tratamiento: latest.tratamiento || '',
-                paciente: `${pacName} ${pacPaterno} ${pacMaterno}`.trim().replace(/\s+/g, ' '),
-                pacienteEstado: pac ? getVal(pac, 'estado') : 'activo',
-                status: proformaStatus,
-                fechaProforma: p.fecha || p.createdAt,
-            };
-        }).filter(r => r !== null);
-
-        // --- Apply general advances (saldo a favor) ---
-        // Group results by patient and apply unlinked advances 
-        const patientResultsMap = new Map<number, any[]>();
-        results.forEach(r => {
-            const list = patientResultsMap.get(r.pacienteId) || [];
-            list.push(r);
-            patientResultsMap.set(r.pacienteId, list);
-        });
-
-        patientResultsMap.forEach((pResults, patientId) => {
-            let advancePool = pagosGeneralesMap.get(Number(patientId)) || 0;
-            if (advancePool <= 0) return;
-
-            // Apply advances to oldest proformas first
-            pResults.sort((a, b) => new Date(a.fechaProforma).getTime() - new Date(b.fechaProforma).getTime());
-
-            pResults.forEach(r => {
-                if (advancePool <= 0 || r.saldo <= 0.01) return;
-                const canReduce = Math.min(advancePool, r.saldo);
-                r.saldo -= canReduce;
-                r.totalPagado += canReduce;
-                advancePool -= canReduce;
-            });
-        });
-
-        // --- Final Filter: only show records matching the requested status AND with remaining debt ---
-        return results.filter(r => {
-            const hasBalance = r.saldo > 0.01;
-            const matchesStatus = estado === 'terminado'
-                ? r.status === 'terminado'
-                : r.status !== 'terminado';
-            return hasBalance && matchesStatus;
-        });
+        } catch (e) { 
+            console.error('Error in PacientesDeudoresService.findPlanned:', e);
+            return []; 
+        }
     }
 }

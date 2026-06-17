@@ -11,8 +11,6 @@ interface FormData {
     pacienteId: number;
     userId: number;
     fecha: string;
-    medicamentos: string; // Legacy/Notes
-    indicaciones: string; // Legacy/General Notes
     detalles: RecetaDetalle[];
     clinicaId: number;
 }
@@ -33,8 +31,6 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, onSa
         pacienteId: 0,
         userId: 0,
         fecha: localDate,
-        medicamentos: '',
-        indicaciones: '',
         detalles: [{
             id: 0,
             recetaId: 0,
@@ -60,10 +56,6 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, onSa
         {
             title: 'Eliminar Medicamentos',
             content: 'Para eliminar un medicamento de la lista, haga clic en el botón rojo de papelera en la fila correspondiente. Debe mantener al menos un medicamento en la receta.'
-        },
-        {
-            title: 'Notas Adicionales',
-            content: 'Puede expandir la sección "Notas Adicionales / Generales" para agregar indicaciones generales que apliquen a toda la receta, no solo a un medicamento específico.'
         },
         {
             title: 'Guardar Receta',
@@ -95,8 +87,6 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, onSa
                 pacienteId: 0,
                 userId: currentUserId,
                 fecha: localDate,
-                medicamentos: '',
-                indicaciones: '',
                 detalles: [{
                     id: 0,
                     recetaId: 0,
@@ -132,8 +122,6 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, onSa
                 pacienteId: data.pacienteId,
                 userId: data.userId,
                 fecha: data.fecha.split('T')[0],
-                medicamentos: data.medicamentos || '',
-                indicaciones: data.indicaciones || '',
                 detalles: data.detalles || [],
                 clinicaId: data.clinicaId || 0
             });
@@ -386,25 +374,6 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, onSa
                             </div>
                         </div>
 
-                        {/* Legacy/General Notes Section if needed */}
-                        <div className="grid grid-cols-1 gap-4 mt-6">
-                            <div className="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
-                                <input type="checkbox" />
-                                <div className="collapse-title text-md font-medium text-gray-500 dark:text-gray-400">
-                                    Notas Adicionales / Generales
-                                </div>
-                                <div className="collapse-content">
-                                    <textarea
-                                        name="indicaciones"
-                                        value={formData.indicaciones}
-                                        onChange={handleChange}
-                                        rows={3}
-                                        placeholder="Indicaciones generales o notas adicionales..."
-                                        className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </div>
-                        </div>
 
                         {/* Footer Buttons */}
                         <div className="flex justify-start gap-3 mt-8 p-5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl -mx-6 -mb-6">

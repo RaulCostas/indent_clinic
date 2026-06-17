@@ -3,15 +3,21 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Paciente } from './entities/paciente.entity';
 import { CreatePacienteDto } from './dto/create-paciente.dto';
+import { CreateQuickPacienteDto } from './dto/create-quick-paciente.dto';
 import { UpdatePacienteDto } from './dto/update-paciente.dto';
 
 import { getBoliviaDate } from '../common/utils/date.utils';
+
+import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 
 @Injectable()
 export class PacientesService {
     constructor(
         @InjectRepository(Paciente)
         private pacientesRepository: Repository<Paciente>,
+        private readonly storageService: SupabaseStorageService,
+        private readonly localStorageService: LocalStorageService,
     ) { }
     
     private formatPhoneNumber(celular: string): string {
@@ -20,6 +26,18 @@ export class PacientesService {
         if (trimmed.startsWith('+')) return trimmed;
         // If it lacks +, assume default +591 (or could be dynamic if needed, but per request +591 is standard here)
         return `+591${trimmed}`;
+    }
+
+    private calculateAge(fechaNacimiento: string): number {
+        if (!fechaNacimiento) return 0;
+        const today = new Date();
+        const birthDate = new Date(fechaNacimiento);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age;
     }
 
     async checkDuplicateCi(ci: string, clinicaId: number, excludeId?: number) {
@@ -39,15 +57,123 @@ export class PacientesService {
         }
     }
 
+    async checkDuplicateName(nombre: string, paterno: string, materno: string, clinicaId: number, excludeId?: number) {
+        if (!nombre || !paterno || !clinicaId) return;
+
+        const queryBuilder = this.pacientesRepository.createQueryBuilder('p')
+            .where('TRIM(LOWER(p.nombre)) = :nombre', { nombre: nombre.trim().toLowerCase() })
+            .andWhere('TRIM(LOWER(p.paterno)) = :paterno', { paterno: paterno.trim().toLowerCase() })
+            .andWhere('p.clinicaId = :clinicaId', { clinicaId });
+
+        if (materno && materno.trim() !== '') {
+            queryBuilder.andWhere('TRIM(LOWER(p.materno)) = :materno', { materno: materno.trim().toLowerCase() });
+        } else {
+            queryBuilder.andWhere('(p.materno IS NULL OR TRIM(p.materno) = \'\')');
+        }
+
+        if (excludeId) {
+            queryBuilder.andWhere('p.id != :excludeId', { excludeId });
+        }
+
+        const existing = await queryBuilder.getOne();
+        if (existing) {
+            throw new BadRequestException(['Ya existe un Paciente registrado con este nombre completo en esta clínica.']);
+        }
+    }
+
     async create(createPacienteDto: CreatePacienteDto): Promise<Paciente> {
         console.log('Creating Paciente with DTO:', createPacienteDto);
-        if (createPacienteDto.ci && createPacienteDto.clinicaId) {
-            await this.checkDuplicateCi(createPacienteDto.ci, createPacienteDto.clinicaId);
+        
+        if (createPacienteDto.clinicaId) {
+            const age = this.calculateAge(createPacienteDto.fecha_nacimiento);
+            const isMinor = age < 18;
+
+            if (createPacienteDto.ci) {
+                // If CI is provided (even if minor), check CI
+                await this.checkDuplicateCi(createPacienteDto.ci, createPacienteDto.clinicaId);
+            } else {
+                // If NO CI
+                if (!isMinor) {
+                    // For adults, CI is mandatory in regular registration
+                    throw new BadRequestException(['El CI es obligatorio para pacientes mayores de edad.']);
+                }
+                // For minors without CI, check Name duplication
+                await this.checkDuplicateName(
+                    createPacienteDto.nombre,
+                    createPacienteDto.paterno,
+                    createPacienteDto.materno || '',
+                    createPacienteDto.clinicaId
+                );
+            }
         }
+
         if (createPacienteDto.celular) {
             createPacienteDto.celular = this.formatPhoneNumber(createPacienteDto.celular);
         }
+
+        // Clean names
+        createPacienteDto.nombre = (createPacienteDto.nombre || '').trim();
+        createPacienteDto.paterno = (createPacienteDto.paterno || '').trim();
+        createPacienteDto.materno = (createPacienteDto.materno || '').trim();
+
+        // Handle Signature (Upload to Supabase if Base64, fallback to local storage)
+        if (createPacienteDto.firmaFC && createPacienteDto.firmaFC.startsWith('data:image')) {
+            const bucket = 'clinica-media';
+            const fileName = `signature-fc-${Date.now()}`;
+            
+            if (this.storageService.isConfigured()) {
+                try {
+                    createPacienteDto.firmaFC = await this.storageService.uploadBase64(bucket, fileName, createPacienteDto.firmaFC);
+                } catch (error) {
+                    console.warn('[PacientesService] Supabase upload failed, falling back to local storage:', error.message);
+                    createPacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, createPacienteDto.firmaFC);
+                }
+            } else {
+                createPacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, createPacienteDto.firmaFC);
+            }
+        }
+
         const paciente = this.pacientesRepository.create(createPacienteDto);
+        return await this.pacientesRepository.save(paciente);
+    }
+
+    async createQuick(dto: CreateQuickPacienteDto): Promise<Paciente> {
+        console.log('Creating Quick Paciente with DTO:', dto);
+
+        if (dto.clinicaId) {
+            // Quick registration ALWAYS checks Name duplication
+            await this.checkDuplicateName(
+                dto.nombre,
+                dto.paterno,
+                dto.materno || '',
+                dto.clinicaId
+            );
+        }
+
+        if (dto.celular) {
+            dto.celular = this.formatPhoneNumber(dto.celular);
+        }
+
+        const paciente = this.pacientesRepository.create({
+            direccion: '',
+            lugar_residencia: '',
+            telefono: '',
+            email: '',
+            profesion: '',
+            estado_civil: 'Soltero',
+            responsable: '',
+            parentesco: '',
+            direccion_responsable: '',
+            telefono_responsable: '',
+            ...dto,
+            nombre: (dto.nombre || '').trim(),
+            paterno: (dto.paterno || '').trim(),
+            materno: (dto.materno || '').trim(),
+            fecha: getBoliviaDate(),
+            fecha_nacimiento: getBoliviaDate(), // Default to today if not provided
+            estado: 'activo'
+        });
+
         return await this.pacientesRepository.save(paciente);
     }
 
@@ -72,11 +198,15 @@ export class PacientesService {
         }
 
         if (search) {
-            const searchTerm = `%${search}%`;
-            queryBuilder.andWhere(
-                "(paciente.nombre ILIKE :search OR paciente.paterno ILIKE :search OR paciente.materno ILIKE :search OR CONCAT(paciente.nombre, ' ', paciente.paterno, ' ', paciente.materno) ILIKE :search OR CONCAT(paciente.paterno, ' ', paciente.materno, ' ', paciente.nombre) ILIKE :search)",
-                { search: searchTerm }
-            );
+            const terms = search.trim().split(/\s+/).filter(t => t.length > 0);
+            terms.forEach((term, index) => {
+                const paramName = `search${index}`;
+                const searchTerm = `%${term}%`;
+                queryBuilder.andWhere(
+                    `(paciente.nombre ILIKE :${paramName} OR paciente.paterno ILIKE :${paramName} OR paciente.materno ILIKE :${paramName} OR paciente.ci ILIKE :${paramName})`,
+                    { [paramName]: searchTerm }
+                );
+            });
         }
 
         if (clinicaId) {
@@ -88,13 +218,27 @@ export class PacientesService {
         }
 
         queryBuilder
-            .orderBy('paciente.paterno', 'ASC')
+            .orderBy('paciente.nombre', 'ASC')
+            .addOrderBy('paciente.paterno', 'ASC')
             .addOrderBy('paciente.materno', 'ASC')
-            .addOrderBy('paciente.nombre', 'ASC')
             .skip(skip)
             .take(limit);
 
         const [data, total] = await queryBuilder.getManyAndCount();
+
+        // Check signatures for these patients
+        if (data.length > 0) {
+            const patientIds = data.map(p => p.id);
+            // Check BOTH the new column AND the old table for backward compatibility during migration
+            const signatures = await this.pacientesRepository.query(
+                `SELECT "documentoId" FROM firmas_digitales WHERE "tipoDocumento" = 'paciente' AND "firmaData" NOT LIKE 'https%' AND "firmaData" != '' AND "documentoId" IN (${patientIds.join(',')})`
+            );
+            const signedIdsInOldTable = new Set(signatures.map((s: any) => s.documentoId));
+            
+            data.forEach(p => {
+                (p as any).tieneFirmaFC = !!p.firmaFC || signedIdsInOldTable.has(p.id);
+            });
+        }
 
         return {
             data,
@@ -104,7 +248,10 @@ export class PacientesService {
     }
 
     async findOne(id: number): Promise<Paciente> {
-        const paciente = await this.pacientesRepository.findOne({ where: { id }, relations: ['fichaMedica'] });
+        const paciente = await this.pacientesRepository.findOne({ 
+            where: { id }, 
+            relations: ['fichaMedica', 'historiaClinica'] 
+        });
         if (!paciente) {
             throw new Error('Paciente not found');
         }
@@ -120,13 +267,42 @@ export class PacientesService {
         }
 
         const currentClinicaId = updatePacienteDto.clinicaId || paciente.clinicaId;
-        if (updatePacienteDto.ci && currentClinicaId) {
-            await this.checkDuplicateCi(updatePacienteDto.ci, currentClinicaId, id);
+        const currentCi = updatePacienteDto.ci !== undefined ? updatePacienteDto.ci : paciente.ci;
+        const currentNombre = updatePacienteDto.nombre || paciente.nombre;
+        const currentPaterno = updatePacienteDto.paterno || paciente.paterno;
+        const currentMaterno = updatePacienteDto.materno !== undefined ? updatePacienteDto.materno : (paciente.materno || '');
+
+        if (currentCi) {
+            await this.checkDuplicateCi(currentCi, currentClinicaId, id);
+        } else {
+            await this.checkDuplicateName(currentNombre, currentPaterno, currentMaterno, currentClinicaId, id);
+        }
+
+        // Handle Signature update (Upload to Supabase if Base64, fallback to local storage)
+        if (updatePacienteDto.firmaFC && updatePacienteDto.firmaFC.startsWith('data:image')) {
+            const bucket = 'clinica-media';
+            const fileName = `signature-fc-${id}-${Date.now()}`;
+
+            if (this.storageService.isConfigured()) {
+                try {
+                    updatePacienteDto.firmaFC = await this.storageService.uploadBase64(bucket, fileName, updatePacienteDto.firmaFC);
+                } catch (error) {
+                    console.warn('[PacientesService] Supabase upload failed during update, falling back to local storage:', error.message);
+                    updatePacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, updatePacienteDto.firmaFC);
+                }
+            } else {
+                updatePacienteDto.firmaFC = await this.localStorageService.uploadBase64(bucket, fileName, updatePacienteDto.firmaFC);
+            }
         }
 
         if (updatePacienteDto.celular) {
             updatePacienteDto.celular = this.formatPhoneNumber(updatePacienteDto.celular);
         }
+
+        // Clean names in DTO
+        if (updatePacienteDto.nombre) updatePacienteDto.nombre = updatePacienteDto.nombre.trim();
+        if (updatePacienteDto.paterno) updatePacienteDto.paterno = updatePacienteDto.paterno.trim();
+        if (updatePacienteDto.materno) updatePacienteDto.materno = updatePacienteDto.materno.trim();
 
         // Merge main patient data
         this.pacientesRepository.merge(paciente, updatePacienteDto);
@@ -244,8 +420,11 @@ export class PacientesService {
 
         // 3. Search logic
         if (search) {
-            const st = `%${search.toLowerCase()}%`;
-            whereClause += ` AND (LOWER(p.nombre) LIKE '${st}' OR LOWER(p.paterno) LIKE '${st}' OR LOWER(p.materno) LIKE '${st}')`;
+            const terms = search.trim().split(/\s+/).filter(t => t.length > 0);
+            terms.forEach(term => {
+                const st = `%${term.toLowerCase()}%`;
+                whereClause += ` AND (LOWER(p.nombre) LIKE '${st}' OR LOWER(p.paterno) LIKE '${st}' OR LOWER(p.materno) LIKE '${st}' OR p.ci LIKE '${st}')`;
+            });
         }
 
         // Execution
@@ -285,7 +464,7 @@ export class PacientesService {
                    ORDER BY hc.fecha DESC LIMIT 1) as numero_presupuesto
             FROM pacientes p
             WHERE ${whereClause.replace(/CURRENT_DATE/g, `'${today}'`)}
-            ORDER BY p.paterno ASC, p.materno ASC, p.nombre ASC
+            ORDER BY p.nombre ASC, p.paterno ASC, p.materno ASC
             LIMIT ${limit} OFFSET ${skip}
         `;
 
@@ -358,5 +537,27 @@ export class PacientesService {
         });
 
         return monthlyStats;
+    }
+
+    async getFirmaBase64(id: number): Promise<{ base64: string }> {
+        const paciente = await this.findOne(id);
+        if (!paciente.firmaFC) throw new BadRequestException('El paciente no tiene firma registrada');
+
+        if (paciente.firmaFC.startsWith('data:image')) {
+            return { base64: paciente.firmaFC };
+        }
+
+        try {
+            let base64 = '';
+            if (paciente.firmaFC.includes('supabase') || (this.storageService.isConfigured() && !paciente.firmaFC.includes('localhost') && !paciente.firmaFC.includes('127.0.0.1'))) {
+                base64 = await this.storageService.downloadAsBase64('clinica-media', paciente.firmaFC);
+            } else {
+                base64 = await this.localStorageService.downloadAsBase64('clinica-media', paciente.firmaFC);
+            }
+            return { base64 };
+        } catch (error) {
+            console.error('[PacientesService] Error downloading signature:', error);
+            throw new BadRequestException('No se pudo recuperar la imagen de la firma');
+        }
     }
 }

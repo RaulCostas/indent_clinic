@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
+import { Eye, EyeOff } from 'lucide-react';
 
 const CambiarPassword: React.FC = () => {
     const navigate = useNavigate();
@@ -13,6 +14,9 @@ const CambiarPassword: React.FC = () => {
     });
 
     const [showManual, setShowManual] = useState(false);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const manualSections: ManualSection[] = [
         {
@@ -149,14 +153,21 @@ const CambiarPassword: React.FC = () => {
                             </svg>
                         </div>
                         <input
-                            type="password"
+                            type={showCurrentPassword ? "text" : "password"}
                             name="currentPassword"
                             value={formData.currentPassword}
                             onChange={handleChange}
                             required
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                            className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                             placeholder="Ingrese su contraseña actual"
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none !bg-transparent !border-none !shadow-none"
+                        >
+                            {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
                     </div>
                 </div>
 
@@ -170,15 +181,22 @@ const CambiarPassword: React.FC = () => {
                             </svg>
                         </div>
                         <input
-                            type="password"
+                            type={showNewPassword ? "text" : "password"}
                             name="newPassword"
                             value={formData.newPassword}
                             onChange={handleChange}
                             required
                             minLength={6}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                            className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                             placeholder="Mínimo 6 caracteres"
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none !bg-transparent !border-none !shadow-none"
+                        >
+                            {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">La contraseña debe tener al menos 6 caracteres</p>
                 </div>
@@ -193,14 +211,21 @@ const CambiarPassword: React.FC = () => {
                             </svg>
                         </div>
                         <input
-                            type="password"
+                            type={showConfirmPassword ? "text" : "password"}
                             name="confirmPassword"
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             required
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                            className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
                             placeholder="Repita la nueva contraseña"
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none !bg-transparent !border-none !shadow-none"
+                        >
+                            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
                     </div>
                 </div>
 

@@ -37,14 +37,22 @@ export class PagosDoctoresService {
                         const detalle = manager.create(PagosDetalleDoctores, {
                             ...d,
                             pago: savedPago,
-                            comision: d.comision || 0 // Explicitly setting comision
+                            comision: d.comision || 0, // Explicitly setting comision
+                            tipo_comision: d.tipo_comision || '%'
                         });
                         await manager.save(detalle);
 
-                        // 3. Update HistoriaClinica status
-                        await manager.update(HistoriaClinica, d.idhistoria_clinica, {
-                            pagado: 'SI'
-                        });
+                        // 3. Update HistoriaClinica status (and its siblings from same treatment)
+                        const hc = await manager.findOne(HistoriaClinica, { where: { id: d.idhistoria_clinica } });
+                        if (hc && hc.proformaDetalleId) {
+                            await manager.query(
+                                `UPDATE historia_clinica SET pagado = 'SI' 
+                                 WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                                [hc.pacienteId, hc.proformaDetalleId, hc.pieza]
+                            );
+                        } else {
+                            await manager.update(HistoriaClinica, d.idhistoria_clinica, { pagado: 'SI' });
+                        }
                     }
                 }
                 return savedPago;
@@ -61,8 +69,14 @@ export class PagosDoctoresService {
             .leftJoinAndSelect('pago.formaPago', 'formaPago')
             .leftJoinAndSelect('pago.detalles', 'detalles')
             .leftJoinAndSelect('detalles.historiaClinica', 'historiaClinica')
-            .leftJoinAndSelect('historiaClinica.paciente', 'paciente')
-            .orderBy('pago.fecha', 'DESC');
+            .leftJoinAndSelect('historiaClinica.paciente', 'paciente');
+
+        // Default ordering
+        queryBuilder.orderBy('pago.fecha', 'DESC')
+            .addOrderBy('pago.id', 'DESC')
+            .addOrderBy('doctor.nombre', 'ASC')
+            .addOrderBy('doctor.paterno', 'ASC')
+            .addOrderBy('doctor.materno', 'ASC');
 
         // Apply date filters
         if (startDate && endDate) {
@@ -137,9 +151,16 @@ export class PagosDoctoresService {
             // 2. Revert previous effects: Set 'pagado' = 'NO' for all OLD details
             if (existingPago.detalles && existingPago.detalles.length > 0) {
                 for (const oldDetail of existingPago.detalles) {
-                    await manager.update(HistoriaClinica, oldDetail.idhistoria_clinica, {
-                        pagado: 'NO'
-                    });
+                    const hc = await manager.findOne(HistoriaClinica, { where: { id: oldDetail.idhistoria_clinica } });
+                    if (hc && hc.proformaDetalleId) {
+                        await manager.query(
+                            `UPDATE historia_clinica SET pagado = 'NO' 
+                             WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                            [hc.pacienteId, hc.proformaDetalleId, hc.pieza]
+                        );
+                    } else {
+                        await manager.update(HistoriaClinica, oldDetail.idhistoria_clinica, { pagado: 'NO' });
+                    }
                 }
             }
 
@@ -159,14 +180,22 @@ export class PagosDoctoresService {
                     const detalle = manager.create(PagosDetalleDoctores, {
                         ...d,
                         pago: savedPago,
-                        comision: d.comision || 0
+                        comision: d.comision || 0,
+                        tipo_comision: d.tipo_comision || '%'
                     });
                     await manager.save(detalle);
 
                     // Update HistoriaClinica status to 'SI'
-                    await manager.update(HistoriaClinica, d.idhistoria_clinica, {
-                        pagado: 'SI'
-                    });
+                    const hc = await manager.findOne(HistoriaClinica, { where: { id: d.idhistoria_clinica } });
+                    if (hc && hc.proformaDetalleId) {
+                        await manager.query(
+                            `UPDATE historia_clinica SET pagado = 'SI' 
+                             WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                            [hc.pacienteId, hc.proformaDetalleId, hc.pieza]
+                        );
+                    } else {
+                        await manager.update(HistoriaClinica, d.idhistoria_clinica, { pagado: 'SI' });
+                    }
                 }
             }
 
@@ -181,9 +210,16 @@ export class PagosDoctoresService {
         return this.dataSource.transaction(async manager => {
             if (pago.detalles && pago.detalles.length > 0) {
                 for (const detail of pago.detalles) {
-                    await manager.update(HistoriaClinica, detail.idhistoria_clinica, {
-                        pagado: 'NO'
-                    });
+                    const hc = await manager.findOne(HistoriaClinica, { where: { id: detail.idhistoria_clinica } });
+                    if (hc && hc.proformaDetalleId) {
+                        await manager.query(
+                            `UPDATE historia_clinica SET pagado = 'NO' 
+                             WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                            [hc.pacienteId, hc.proformaDetalleId, hc.pieza]
+                        );
+                    } else {
+                        await manager.update(HistoriaClinica, detail.idhistoria_clinica, { pagado: 'NO' });
+                    }
                 }
             }
             return await manager.remove(pago);

@@ -25,6 +25,10 @@ export class CreateInventarioDto {
 
     @IsNumber()
     @IsOptional()
+    idunidad_medida?: number;
+
+    @IsNumber()
+    @IsOptional()
     clinicaId?: number;
 }
 
@@ -52,6 +56,10 @@ export class UpdateInventarioDto {
     @IsNumber()
     @IsOptional()
     idgrupo_inventario?: number;
+
+    @IsNumber()
+    @IsOptional()
+    idunidad_medida?: number;
 
     @IsNumber()
     @IsOptional()

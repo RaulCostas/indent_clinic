@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente, Pago, Proforma, HistoriaClinica } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { FileText, Plus, Printer, AlertCircle, DollarSign, Lock } from 'lucide-react';
+import { formatNumber } from '../utils/formatters';
+import { FileText, Plus, Printer, AlertCircle, DollarSign, Lock, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useClinica } from '../context/ClinicaContext';
 import PagosForm from './PagosForm';
+import ManualModal, { type ManualSection } from './ManualModal';
 
 const PacienteTabPagos: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -19,6 +21,8 @@ const PacienteTabPagos: React.FC = () => {
     const [proformas, setProformas] = useState<Proforma[]>([]);
     const [historias, setHistorias] = useState<HistoriaClinica[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const [isModalPagoOpen, setIsModalPagoOpen] = useState(false);
     const [selectedProformaId, setSelectedProformaId] = useState<number | null>(null);
@@ -26,6 +30,31 @@ const PacienteTabPagos: React.FC = () => {
     const [selectedTratamientoId, setSelectedTratamientoId] = useState<number | null>(null);
     const [editingPagoId, setEditingPagoId] = useState<number | null>(null);
     const [isRefundMode, setIsRefundMode] = useState(false);
+    const [showManual, setShowManual] = useState(false);
+    const [isModalPlannedOpen, setIsModalPlannedOpen] = useState(false);
+
+    const manualSections: ManualSection[] = [
+        {
+            title: 'Historial de Pagos',
+            content: 'En esta sección se listan todos los abonos realizados por el paciente. Puede ver el detalle de cada pago, imprimir recibos individuales o editar/eliminar registros si tiene los permisos necesarios.'
+        },
+        {
+            title: 'Deudas Pendientes',
+            content: 'Muestra los tratamientos que han sido concluidos pero que aún tienen un saldo por pagar. Puede realizar pagos directos a estos tratamientos usando el botón azul de dólar ($).'
+        },
+        {
+            title: 'Adelantos y Pagos en Curso',
+            content: 'Aquí se visualizan los abonos realizados a tratamientos que aún están en proceso (no terminados). Estos pagos se consideran adelantos hasta que el tratamiento se marque como finalizado.'
+        },
+        {
+            title: 'Anticipos / Saldo a Favor',
+            content: 'Si el monto total pagado por el paciente supera el costo de todos sus tratamientos iniciados, la diferencia aparecerá como un "Saldo a Favor" resaltado en azul, el cual puede ser devuelto si es necesario.'
+        },
+        {
+            title: 'Impresión de Historial',
+            content: 'El botón "Imprimir Historial" genera un estado de cuenta detallado agrupado por tratamientos, ideal para entregar al paciente como resumen de su inversión.'
+        }
+    ];
 
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
@@ -60,28 +89,61 @@ const PacienteTabPagos: React.FC = () => {
     // NUEVO REQUERIMIENTO CRÍTICO: 
     // Los médicos a menudo crean MÚLTIPLES TIEMPOS (seguimientos) del mismo tratamiento por cada cita.
     // Si no consolidamos estas historias, el sistema facturará X veces el mismo precio de la misma corona.
+    // IMPORTANTE: Si el tratamiento tiene piezas diferentes (ej: Obturación pieza 36 vs pieza 38),
+    // cada pieza se trata como un item independiente con su propio precio.
+    const normalizePiezas = (p: string) => {
+        if (!p) return '';
+        return p.split(/[-/,\s]+/)
+            .map(s => s.trim())
+            .filter(Boolean)
+            .sort()
+            .join(',');
+    };
+
     const historiasConsolidadas = useMemo(() => {
         const map = new Map<string, any>();
+        
         historias.forEach(h => {
-            const key = h.proformaDetalleId 
-                ? `det_${h.proformaDetalleId}` 
-                : `prof_${h.proformaId || 'gen'}_trat_${h.tratamiento}_pz_${h.pieza || ''}`;
+            const pf = proformas.find(p => p.id === h.proformaId);
+            const det = pf?.detalles?.find((d: any) => d.id === h.proformaDetalleId);
+            const isSingleItem = det && Number(det.cantidad) <= 1;
+            
+            // REGLA DE CONSOLIDACIÓN:
+            // 1. Si es un ítem único (cantidad 1), agrupamos todo por proformaDetalleId (caso Virginia).
+            // 2. Si tiene cantidad > 1, agrupamos por proformaDetalleId + Pieza (caso Tartrectomía/Múltiples piezas).
+            const normPz = normalizePiezas(h.pieza || '');
+            const key = h.proformaDetalleId
+                ? (isSingleItem ? `det_${h.proformaDetalleId}` : `det_${h.proformaDetalleId}_pz_${normPz}`)
+                : `gen_${h.id}`;
                 
             if (!map.has(key)) {
                 map.set(key, { ...h, allIds: [h.id] });
             } else {
                 const master = map.get(key);
                 master.allIds.push(h.id);
-                if (h.estadoTratamiento === 'terminado') {
+                
+                // Si alguno está terminado, ese grupo se considera terminado
+                if ((h.estadoTratamiento || '').trim().toLowerCase() === 'terminado') {
                     master.estadoTratamiento = 'terminado';
-                    if (new Date(h.fecha) > new Date(master.fecha)) master.fecha = h.fecha;
                 }
-                master.precio = Math.max(Number(master.precio || 0), Number(h.precio || 0));
-                master.descuento = Math.max(Number(master.descuento || 0), Number(h.descuento || 0));
+                // Si el master no tiene pieza y el nuevo sí, la tomamos
+                if (!master.pieza && h.pieza) master.pieza = h.pieza;
+                
+                // Mantener la fecha más reciente
+                if (h.fecha && (!master.fecha || new Date(h.fecha) > new Date(master.fecha))) {
+                    master.fecha = h.fecha;
+                }
+                
+                // Para el precio en grupos consolidados (mismas piezas), usamos el máximo
+                // para no duplicar deuda si el doctor guardó el precio completo en cada sesión.
+                master.precio = Math.max(Number(master.precio) || 0, Number(h.precio) || 0);
+                master.descuento = (Number(master.descuento) || 0) + (Number(h.descuento) || 0);
+                master.precioConDescuento = Math.max(0, Number(master.precio) - Number(master.descuento));
+                master.cancelado = master.cancelado || h.cancelado;
             }
         });
         return Array.from(map.values());
-    }, [historias]);
+    }, [historias, proformas]);
 
     // Deuda por plan
     const { deudas, totalAdeudadoProformas } = useMemo(() => {
@@ -107,8 +169,8 @@ const PacienteTabPagos: React.FC = () => {
     const totalPagadoGlobal = pagos.reduce((s, p) => s + Number(p.monto), 0);
 
     // 2. Todos los tratamientos del paciente ordenados por prioridad (Terminados > Fecha)
-    const allSortedTreatments = [...historiasConsolidadas]
-        .sort((a, b) => {
+    const allSortedTreatments = useMemo(() => {
+        return [...historiasConsolidadas].sort((a, b) => {
             // Prioridad 1: Terminados primero
             if (a.estadoTratamiento === 'terminado' && b.estadoTratamiento !== 'terminado') return -1;
             if (a.estadoTratamiento !== 'terminado' && b.estadoTratamiento === 'terminado') return 1;
@@ -116,109 +178,132 @@ const PacienteTabPagos: React.FC = () => {
             // Prioridad 2: Orden cronológico
             return new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id;
         });
+    }, [historiasConsolidadas]);
+
+    // NUEVO: Tratamientos Pendientes por Iniciar (Están en proforma pero NO en historia clínica)
+    const plannedTreatments = useMemo(() => {
+        const planned: any[] = [];
+        
+        proformas.forEach(pf => {
+            if (!pf.detalles) return;
+            
+            pf.detalles.forEach(det => {
+                // Solo mostrar si posible es false, null o undefined (confirmados pero no iniciados)
+                if (det.posible === true) return;
+
+                // REGLA ESTRICTA: Si existe CUALQUIER registro en HC para este detalle, se considera INICIADO.
+                const yaIniciado = historias.some(h => Number(h.proformaDetalleId) === Number(det.id));
+                
+                if (!yaIniciado) {
+                    planned.push({
+                        ...det,
+                        proformaNumero: pf.numero,
+                        cantidadPendiente: Number(det.cantidad),
+                        tratamientoNombreReal: det.arancel?.detalle || 'Tratamiento'
+                    });
+                }
+            });
+        });
+        
+        return planned;
+    }, [proformas, historiasConsolidadas]);
 
     const deudasTratamientos = useMemo(() => {
-        // 1. Pool global de todos los pagos del paciente
-        const explicitPaidMap: Record<number, number> = {};
-        let currentGenericPool = 0;
+        // 1. Organizar Pagos
+        const pagosPorHC = new Map<number, number>();
+        const pagosGeneralesProforma = new Map<number, number>();
+        const descuentosPorHC = new Map<number, number>();
 
         pagos.forEach(p => {
-            const monto = Number(p.monto);
-            if ((p as any).historiaClinicaIds && (p as any).historiaClinicaIds.length > 0) {
-                let ids: string[] = [];
-                if (Array.isArray((p as any).historiaClinicaIds)) ids = (p as any).historiaClinicaIds.map(String);
-                else if (typeof (p as any).historiaClinicaIds === 'string') ids = (p as any).historiaClinicaIds.split(',');
-
-                if (ids.length > 0) {
-                    const fraction = monto / ids.length;
-                    ids.forEach(id => {
-                        const numId = Number(id);
-                        explicitPaidMap[numId] = (explicitPaidMap[numId] || 0) + fraction;
-                    });
-                    return;
+            const hId = (p as any).historiaClinicaId;
+            if (hId) {
+                pagosPorHC.set(Number(hId), (pagosPorHC.get(Number(hId)) || 0) + Number(p.monto));
+                descuentosPorHC.set(Number(hId), (descuentosPorHC.get(Number(hId)) || 0) + Number(p.descuento || 0));
+            } else {
+                const pfId = p.proformaId || (p.proforma as any)?.id;
+                if (pfId) {
+                    pagosGeneralesProforma.set(Number(pfId), (pagosGeneralesProforma.get(Number(pfId)) || 0) + Number(p.monto));
                 }
             }
-            
-            if ((p as any).tratamientosIds && (p as any).tratamientosIds.length > 0) {
-                 let ids: string[] = [];
-                 if (Array.isArray((p as any).tratamientosIds)) ids = (p as any).tratamientosIds.map(String);
-                 else if (typeof (p as any).tratamientosIds === 'string') ids = (p as any).tratamientosIds.split(',');
-     
-                 if (ids.length > 0) {
-                     const fraction = monto / ids.length;
-                     ids.forEach(id => {
-                         const numId = Number(id);
-                         explicitPaidMap[numId] = (explicitPaidMap[numId] || 0) + fraction;
-                     });
-                     return;
-                 }
-            }
-
-            currentGenericPool += monto;
         });
 
-        // 2. Todos los tratamientos del paciente ordenados
-        const sortedTreatments = [...historiasConsolidadas]
-            .sort((a, b) => {
-                if (a.estadoTratamiento === 'terminado' && b.estadoTratamiento !== 'terminado') return -1;
-                if (a.estadoTratamiento !== 'terminado' && b.estadoTratamiento === 'terminado') return 1;
-                return new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id;
-            });
-
-        return sortedTreatments.map(t => {
+        // 2. Pre-calcular deudas base (sin distribución proporcional aún)
+        const baseCalculada = historiasConsolidadas.map(t => {
             const pf = proformas.find(p => p.id === t.proformaId || (t.proforma && p.id === t.proforma.id));
-            const netPrice = Math.max(0, Number(t.precio) - (Number(t.descuento) || 0));
             
-            let paid = 0;
-            if (t.allIds && t.allIds.length > 0) {
-                t.allIds.forEach((id: number) => {
-                    paid += explicitPaidMap[id] || 0;
-                });
-            } else {
-                paid = explicitPaidMap[t.id] || 0;
+            // BUSCAR PRECIO ROBUSTO:
+            let basePrice = Number(t.precio) || 0;
+            let discount = Number(t.descuento) || 0;
+            
+            // Si el precio base es 0, intentamos recuperarlo de la proforma
+            if (basePrice < 0.01 && t.proformaDetalleId && pf?.detalles) {
+                const det = pf.detalles.find(d => Number(d.id) === Number(t.proformaDetalleId));
+                if (det) {
+                    basePrice = Number(det.precioUnitario) * Number(det.cantidad);
+                }
             }
-            
-            const remainingToPay = Math.max(0, netPrice - paid);
-            if (remainingToPay > 0 && currentGenericPool > 0) {
-                const genericPaid = Math.min(currentGenericPool, remainingToPay);
-                currentGenericPool -= genericPaid;
-                paid += genericPaid;
+
+            // Si sigue siendo 0, buscamos por nombre de tratamiento
+            if (basePrice < 0.01 && pf?.detalles) {
+                const det = pf.detalles.find(d => (d.arancel?.detalle || '').trim().toLowerCase() === (t.tratamiento || '').trim().toLowerCase());
+                if (det) {
+                    basePrice = Number(det.precioUnitario) * Number(det.cantidad);
+                }
             }
+
+            const allHCIds: number[] = (t.allIds || [t.id]).map((id: any) => Number(id));
             
-            return {
-                tratamiento: t,
-                proforma: pf,
-                netPrice,
-                paid,
-                saldo: Math.max(0, netPrice - paid)
+            // CALCULO DE DESCUENTO: Usamos el sumado de historias, pero respaldamos con los pagos reales
+            const discountFromPagos = allHCIds.reduce((acc, hcId) => acc + (descuentosPorHC.get(hcId) || 0), 0);
+            const price = Math.max(0, basePrice - Math.max(discount, discountFromPagos));
+
+            // CALCULO REAL: Solo confiar en el array de pagos del paciente, NO en las columnas montoPagado/saldo del backend
+            const paidDirecto = allHCIds.reduce((acc, hcId) => acc + (pagosPorHC.get(hcId) || 0), 0);
+            
+            return { 
+                tratamiento: t, 
+                proforma: pf, 
+                netPrice: Number(price), 
+                paid: Math.min(Number(price), Number(paidDirecto)),
+                saldoBase: Math.max(0, Number(price) - Number(paidDirecto))
             };
         });
-    }, [pagos, historiasConsolidadas, proformas]);
 
-    // Filtro para mostrar solo tratamientos TERMINADOS con saldo pendiente
-    const deudasTratamientosFiltradas = deudasTratamientos.filter(d => 
-        d.saldo > 0.01 && d.tratamiento.estadoTratamiento === 'terminado'
-    );
+        // 3. Resultados finales
+        return baseCalculada.map(item => ({
+            ...item,
+            saldo: Math.max(0, Number(item.netPrice) - Number(item.paid))
+        }));
+    }, [historiasConsolidadas, proformas, pagos]);
 
-    // Filtro para mostrar tratamientos EN CURSO / OTROS ESTADOS con saldo pendiente
-    const deudasTratamientosEnCurso = deudasTratamientos.filter(d => 
-        d.saldo > 0.01 && d.tratamiento.estadoTratamiento !== 'terminado'
-    );
+    const deudasTratamientosFiltradas = useMemo(() => 
+        deudasTratamientos.filter(d => 
+            d.saldo > 0.01 && 
+            !d.tratamiento.cancelado &&
+            (d.tratamiento.estadoTratamiento || '').trim().toLowerCase() === 'terminado'
+        ),
+    [deudasTratamientos]);
 
-    // Deuda solo basado en tratamientos terminados (lo que realmente debe el paciente)
-    const debtTerminados = deudasTratamientos
-        .filter(d => d.tratamiento.estadoTratamiento === 'terminado')
-        .reduce((s, d) => s + d.saldo, 0);
+    const deudasTratamientosEnCurso = useMemo(() => 
+        deudasTratamientos.filter(d => 
+            d.saldo > 0.01 && 
+            !d.tratamiento.cancelado &&
+            (d.tratamiento.estadoTratamiento || '').trim().toLowerCase() !== 'terminado'
+        ),
+    [deudasTratamientos]);
 
-    // Anticipo / Saldo a Favor = dinero que el paciente pagó de MÁS respecto al costo total de TODOS sus tratamientos.
-    // Si el paciente aún debe $, su saldo a favor es 0 aunque haya ciertos tratamientos terminados y pagados.
-    const costoTotalTodos = (historiasConsolidadas || []).reduce((acc, h) => {
-        const p = parseFloat(String(h.precio)) || 0;
-        const d = parseFloat(String(h.descuento)) || 0;
-        return acc + (p - d);
-    }, 0);
+    const totalDebt = useMemo(() => 
+        deudasTratamientos.reduce((s, d) => s + d.saldo, 0),
+    [deudasTratamientos]);
 
-    const anticipoDisponible = Math.max(0, totalPagadoGlobal - costoTotalTodos);
+    const costoTotalTodos = useMemo(() => 
+        deudasTratamientos.reduce((acc, d) => acc + d.netPrice, 0),
+    [deudasTratamientos]);
+
+    const anticipoDisponible = useMemo(() => {
+        const anticipo = totalPagadoGlobal - costoTotalTodos;
+        return anticipo > 1 ? anticipo : 0;
+    }, [totalPagadoGlobal, costoTotalTodos]);
 
     const loadImage = (src: string): Promise<HTMLImageElement> =>
         new Promise((resolve, reject) => {
@@ -276,7 +361,7 @@ const PacienteTabPagos: React.FC = () => {
         row('Nº Recibo:', pago.recibo || String(pago.id));
         row('Fecha:', formatDate(pago.fecha));
         row('Recibí de:', paciente ? `${paciente.paterno} ${paciente.materno} ${paciente.nombre}`.toUpperCase() : 'N/A');
-        row('La suma de:', pago.moneda === 'Dólares' ? `USD ${Number(pago.monto).toFixed(2)}` : `Bs ${Number(pago.monto).toFixed(2)}`);
+        row('La suma de:', pago.moneda === 'Dólares' ? `USD ${formatNumber(Number(pago.monto))}` : `Bs ${formatNumber(Number(pago.monto))}`);
         row('Por concepto de:', pago.proforma ? `Plan de Tratamiento #${pago.proforma.numero}` : 'Tratamiento Odontológico');
         row('Forma de Pago:', pago.formaPagoRel ? pago.formaPagoRel.forma_pago : pago.formaPago);
         if (pago.observaciones) row('Observaciones:', pago.observaciones);
@@ -335,128 +420,36 @@ const PacienteTabPagos: React.FC = () => {
 
 
     const flatTableRows = useMemo(() => {
-        // 0. Si no hay datos suficientes, retornar vacío
         if (!pagos || pagos.length === 0 || !historias) return [];
-
+        
         const sorted = [...pagos].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-        
-        // 1. Agrupar pagos e historias por proforma para procesar FIFO una sola vez por plan
-        const proformasData: Record<number, { 
-            payments: Pago[], 
-            treatments: any[], 
-            capacities: number[] 
-        }> = {};
 
-        // Organizar datos base
-        pagos.forEach(p => {
-            const pid = p.proformaId || p.proforma?.id;
-            if (!pid) return;
-            const numId = Number(pid);
-            if (!proformasData[numId]) {
-                const trats = historias.filter(h => h.proformaId && Number(h.proformaId) === numId);
-                const sortedTrats = [...trats].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-                
-                proformasData[numId] = {
-                    payments: pagos.filter(pago => {
-                        const pgId = pago.proformaId || pago.proforma?.id;
-                        return pgId && Number(pgId) === numId;
-                    }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id),
-                    treatments: sortedTrats,
-                    capacities: sortedTrats.map(t => Math.max(0, Number(t.precio) - (Number(t.descuento) || 0)))
-                };
-            }
+        return sorted.map(pago => {
+            const hc = historias.find(h => h.id === pago.historiaClinicaId);
+            return {
+                ...pago,
+                rowId: pago.id.toString(),
+                tratamientoNombre: hc 
+                    ? `${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`
+                    : (Number(pago.monto) < 0 ? 'Devolución' : (pago.proforma ? `Plan de Tratamiento #${pago.proforma.numero}` : 'Pago General / Anticipo')),
+                tratamientoPrecio: hc ? hc.precio : '-',
+                tratamientoDescuento: pago.descuento || 0,
+                pagoMonto: pago.monto,
+                tratamientoId: hc?.id
+            };
         });
-
-        // 2. Pre-calcular TODAS las asignaciones de una sola pasada por cada proforma (O(N))
-        const allocationMap = new Map<number, { treatment: any, allocated: number }[]>();
-        
-        Object.values(proformasData).forEach(data => {
-            let tratIndex = 0;
-            data.payments.forEach(pago => {
-                let pAmount = Number(pago.monto);
-                const covered: { treatment: any, allocated: number }[] = [];
-
-
-                // 1. Fase de Prioridad (Pagos Directos)
-                const rawIds = (pago as any).tratamientosIds || (pago as any).historiaClinicaIds || [];
-                const priorityIds: number[] = Array.isArray(rawIds) 
-                    ? rawIds.map((id: any) => Number(id)) 
-                    : String(rawIds).split(',').map((id: string) => Number(id.trim())).filter((id: number) => !isNaN(id));
-
-                if (pago.historiaClinicaId) {
-                    priorityIds.unshift(Number(pago.historiaClinicaId));
-                }
-
-                if (priorityIds.length > 0) {
-                    priorityIds.forEach((targetId: number) => {
-                        if (pAmount <= 0.001) return;
-                        const tIdx = data.treatments.findIndex(t => t.id === targetId);
-                        if (tIdx !== -1) {
-                            const available = data.capacities[tIdx];
-                            // Obligamos a aplicarlo si fue vinculado directamente, aunque la capacidad sea 0 por el rebalanceo
-                            const take = Math.min(pAmount, Math.max(pAmount, available));
-                            data.capacities[tIdx] -= Math.min(take, available);
-                            pAmount -= take;
-                            covered.push({ treatment: data.treatments[tIdx], allocated: take });
-                        }
-                    });
-                }
-
-                // 2. Fase de Fondo Común (FIFO)
-                let safetyExit = 0;
-                while (pAmount > 0.001 && tratIndex < data.treatments.length && safetyExit < 1000) {
-                    safetyExit++;
-                    const available = data.capacities[tratIndex];
-                    if (available > 0.001) {
-                        const take = Math.min(pAmount, available);
-                        data.capacities[tratIndex] -= take;
-                        pAmount -= take;
-                        
-                        const existing = covered.find(c => c.treatment.id === data.treatments[tratIndex].id);
-                        if (existing) existing.allocated += take;
-                        else covered.push({ treatment: data.treatments[tratIndex], allocated: take });
-                    }
-                    if (data.capacities[tratIndex] <= 0.001) {
-                        tratIndex++;
-                    }
-                }
-                allocationMap.set(pago.id, covered);
-            });
-        });
-
-        // 3. Aplanar las filas finales basadas en la pre-asignación
-        const result: any[] = [];
-        sorted.forEach(pago => {
-            const covered = allocationMap.get(pago.id) || [];
-            if (covered.length > 0) {
-                covered.forEach(cov => {
-                    const hc = cov.treatment;
-                    result.push({
-                        ...pago,
-                        rowId: `${pago.id}-${hc.id}`,
-                        tratamientoNombre: `${hc.estadoTratamiento !== 'terminado' ? '[ADELANTO] ' : ''}${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
-                        tratamientoPrecio: hc.precio,
-                        tratamientoDescuento: pago.descuento || hc.descuento || 0,
-                        pagoMonto: cov.allocated,
-                        tratamientoId: hc.id
-                    });
-                });
-            } else {
-                result.push({
-                    ...pago,
-                    rowId: `${pago.id}-gen`,
-                    tratamientoNombre: Number(pago.monto) < 0 
-                        ? 'Devolución a Paciente' 
-                        : (pago.proforma ? `Plan de Tratamiento #${pago.proforma.numero}` : (pago as any).observaciones?.includes('TRANS') ? 'Transferencia de Saldo' : 'Pago General / Cuenta'),
-                    tratamientoPrecio: '-',
-                    tratamientoDescuento: pago.descuento || 0,
-                    pagoMonto: pago.monto
-                });
-            }
-        });
-
-        return result;
     }, [pagos, historias]);
+
+    const totalPages = Math.ceil(flatTableRows.length / itemsPerPage);
+    const paginatedRows = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return flatTableRows.slice(start, start + itemsPerPage);
+    }, [flatTableRows, currentPage, itemsPerPage]);
+
+    // Reset to page 1 if data changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [flatTableRows.length]);
 
     const handlePrintSummary = () => {
         try {
@@ -475,84 +468,166 @@ const PacienteTabPagos: React.FC = () => {
                 return;
             }
 
+            // Group payments by treatment, initializing with ALL treatments from clinical history
+            const treatmentGroups: Record<string, { 
+                nombre: string, 
+                costo: number | string, 
+                pagos: any[] 
+            }> = {};
+            
+            historiasConsolidadas.forEach(hc => {
+                const key = `t_${hc.id}`;
+                treatmentGroups[key] = {
+                    nombre: `${hc.tratamiento}${hc.pieza ? ` (Pz. ${hc.pieza})` : ''}`,
+                    costo: Number(hc.precio || 0) - Number(hc.descuento || 0),
+                    pagos: []
+                };
+            });
+
+            const generalPayments: any[] = [];
+
+            flatTableRows.forEach(row => {
+                if (row.tratamientoId) {
+                    const key = `t_${row.tratamientoId}`;
+                    if (treatmentGroups[key]) {
+                        treatmentGroups[key].pagos.push(row);
+                    } else {
+                        // fallback if for some reason the ID wasn't in consolidated
+                        generalPayments.push(row);
+                    }
+                } else {
+                    generalPayments.push(row);
+                }
+            });
+
             const printContent = `
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Resumen de Pagos - ${paciente ? `${paciente.paterno} ${paciente.nombre}` : 'Paciente'}</title>
+                    <title>Estado de Cuenta - ${paciente ? `${paciente.paterno} ${paciente.nombre}` : 'Paciente'}</title>
                     <style>
-                        @page { size: A4; margin: 2cm 1.5cm; }
-                        body { font-family: Arial, sans-serif; color: #333; margin: 0; padding: 0; font-size: 11px; }
+                        @page { size: A4; margin: 1.5cm; }
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; padding: 0; font-size: 10px; line-height: 1.4; }
                         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #7e22ce; padding-bottom: 10px; }
-                        .header img { height: 50px; }
+                        .header img { height: 50px; object-fit: contain; }
                         .header-info { text-align: right; }
-                        .patient-box { background: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
-                        .patient-box h2 { margin: 0 0 5px 0; color: #1f2937; font-size: 16px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                        th { background-color: #7e22ce; color: white; padding: 10px 8px; text-align: left; font-weight: bold; border: 1px solid #6b21a8; }
-                        td { padding: 8px; border: 1px solid #e5e7eb; }
-                        tr:nth-child(even) { background-color: #f3f4f6; }
+                        .patient-box { background: #f9fafb; padding: 12px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
+                        .patient-box h2 { margin: 0 0 5px 0; color: #7e22ce; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+                        
+                        .treatment-section { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+                        .treatment-header { background: #f3f4f6; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; }
+                        .treatment-header h3 { margin: 0; color: #1f2937; font-size: 11px; font-weight: 800; }
+                        .treatment-header .cost { color: #7e22ce; font-weight: 900; }
+                        
+                        table { width: 100%; border-collapse: collapse; }
+                        th { background-color: #f9fafb; color: #6b7280; padding: 6px 10px; text-align: left; font-weight: bold; border-bottom: 1px solid #e5e7eb; font-size: 9px; text-transform: uppercase; }
+                        td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
                         .text-right { text-align: right; }
-                        .totals-section { margin-top: 25px; margin-left: auto; width: 300px; padding: 15px; background: #f3f4f6; border-radius: 8px; }
-                        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
-                        .total-final { font-weight: bold; font-size: 14px; border-top: 1px solid #d1d5db; margin-top: 8px; padding-top: 8px; color: ${debtTerminados > 0 ? '#dc2626' : '#16a34a'}; }
-                        .footer { margin-top: 50px; text-align: center; color: #9ca3af; font-size: 9px; }
+                        
+                        .totals-section { margin-top: 30px; margin-left: auto; width: 250px; padding: 12px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px; }
+                        .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; color: #4b5563; }
+                        .total-final { font-weight: 900; font-size: 13px; border-top: 2px solid #7e22ce; margin-top: 8px; padding-top: 8px; color: ${totalDebt > 0 ? '#dc2626' : '#16a34a'}; }
+                        
+                        .footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 8px; }
+                        .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 80px; color: rgba(126, 34, 206, 0.05); font-weight: bold; pointer-events: none; z-index: -1; }
                     </style>
                 </head>
                 <body>
+                    <div class="watermark">${clinicaActual?.nombre?.substring(0, 10).toUpperCase() || 'LENS'}</div>
                     <div class="header">
                         <img src="${clinicaActual?.logo || '/logo-curare.png'}" alt="Logo">
                         <div class="header-info">
-                            <h1 style="margin:0; color:#7e22ce; font-size:22px;">RESUMEN DE PAGOS</h1>
-                            <p style="margin:5px 0 0 0;">Fecha de Emisión: ${formatDate(new Date().toISOString())}</p>
+                            <h1 style="margin:0; color:#7e22ce; font-size:20px;">ESTADO DE CUENTA</h1>
+                            <p style="margin:2px 0 0 0;">Fecha: ${formatDate(new Date().toISOString())}</p>
                         </div>
                     </div>
                     
                     <div class="patient-box">
-                        <h2>DATOS DEL PACIENTE</h2>
-                        <p style="margin:0;"><strong>Nombre:</strong> ${paciente ? `${paciente.paterno} ${paciente.materno} ${paciente.nombre}`.toUpperCase() : 'N/A'} ${paciente?.seguro_medico ? `(${paciente.seguro_medico})` : ''}</p>
+                        <h2>Datos del Paciente</h2>
+                        <p style="margin:0; font-size:12px;"><strong>${paciente ? `${paciente.paterno} ${paciente.materno} ${paciente.nombre}`.toUpperCase() : 'N/A'}</strong></p>
+                        ${paciente?.seguro_medico ? `<p style="margin:3px 0 0 0; color:#6b7280;">Seguro: ${paciente.seguro_medico}</p>` : ''}
                     </div>
 
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Concepto / Tratamiento</th>
-                                <th>Forma Pago</th>
-                                <th>Recibo</th>
-                                <th class="text-right">Monto (Bs.)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${flatTableRows.map(row => `
-                                <tr>
-                                    <td>${formatDate(row.fecha)}</td>
-                                    <td>${row.tratamientoNombre}</td>
-                                    <td>${row.formaPagoRel ? row.formaPagoRel.forma_pago : row.formaPago || '-'}</td>
-                                    <td>${row.recibo || '-'}</td>
-                                    <td class="text-right">${Number(row.pagoMonto).toFixed(2)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                    ${Object.values(treatmentGroups).map(group => `
+                        <div class="treatment-section">
+                            <div class="treatment-header">
+                                <h3>TRATAMIENTO: ${group.nombre.toUpperCase()}</h3>
+                                <span class="cost">Costo: Bs. ${formatNumber(Number(group.costo))}</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%">Fecha</th>
+                                        <th style="width: 35%">Forma de Pago</th>
+                                        <th style="width: 25%">Factura/Recibo</th>
+                                        <th class="text-right" style="width: 25%">Monto Abonado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${group.pagos.length > 0 ? group.pagos.map(p => `
+                                        <tr>
+                                            <td>${formatDate(p.fecha)}</td>
+                                            <td>${p.formaPagoRel ? p.formaPagoRel.forma_pago : p.formaPago || '-'}</td>
+                                            <td>${p.factura ? `F:${p.factura}` : (p.recibo ? `R:${p.recibo}` : '-')}</td>
+                                            <td class="text-right font-bold">Bs. ${formatNumber(Number(p.pagoMonto))}</td>
+                                        </tr>
+                                    `).join('') : `
+                                        <tr>
+                                            <td colspan="4" style="text-align:center; color:#9ca3af; padding: 15px;">Sin abonos registrados</td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
+                        </div>
+                    `).join('')}
+
+                    ${generalPayments.length > 0 ? `
+                        <div class="treatment-section">
+                            <div class="treatment-header">
+                                <h3>PAGOS GENERALES / ANTICIPOS</h3>
+                                <span class="cost">-</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%">Fecha</th>
+                                        <th style="width: 35%">Concepto</th>
+                                        <th style="width: 25%">Factura/Recibo</th>
+                                        <th class="text-right" style="width: 25%">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${generalPayments.map(p => `
+                                        <tr>
+                                            <td>${formatDate(p.fecha)}</td>
+                                            <td>${p.tratamientoNombre}</td>
+                                            <td>${p.factura ? `F:${p.factura}` : (p.recibo ? `R:${p.recibo}` : '-')}</td>
+                                            <td class="text-right font-bold">Bs. ${formatNumber(Number(p.pagoMonto))}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
 
                     <div class="totals-section">
                         <div class="total-row">
                             <span>Total Abonado:</span>
-                            <span>Bs. ${(totalPagadoGlobal || 0).toFixed(2)}</span>
+                            <strong>Bs. ${formatNumber(totalPagadoGlobal || 0)}</strong>
                         </div>
                         <div class="total-row">
-                            <span>Costo Total Tratamientos:</span>
-                            <span>Bs. ${(costoTotalTodos || 0).toFixed(2)}</span>
+                            <span>Total Tratamientos:</span>
+                            <strong>Bs. ${formatNumber(costoTotalTodos || 0)}</strong>
                         </div>
                         <div class="total-row total-final">
                             <span>SALDO PENDIENTE:</span>
-                            <span>Bs. ${(debtTerminados || 0).toFixed(2)}</span>
+                            <span>Bs. ${formatNumber(totalDebt || 0)}</span>
                         </div>
                     </div>
 
                     <div class="footer">
-                        <p>${clinicaActual?.nombre || 'CLÍNICA ODONTOLÓGICA'} - Reporte generado automáticamente</p>
+                        <p>Sistema de Gestión Clínicas Lens - Reporte Oficial</p>
+                        <p>${clinicaActual?.nombre || 'CLÍNICA ODONTOLÓGICA'} ${clinicaActual?.direccion ? ` - ${clinicaActual.direccion}` : ''}</p>
                     </div>
                 </body>
                 </html>
@@ -608,6 +683,21 @@ const PacienteTabPagos: React.FC = () => {
                     )}
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowManual(true)}
+                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center mr-2 flex-shrink-0"
+                        title="Ayuda / Manual"
+                    >
+                        ?
+                    </button>
+                    <button
+                        onClick={() => setIsModalPlannedOpen(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        title="Ver tratamientos presupuestados no iniciados"
+                    >
+                        <FileText size={18} />
+                        <span className="text-sm">Trat. no iniciados</span>
+                    </button>
                     {pagos.length > 0 && (
                         <button
                             onClick={handlePrintSummary}
@@ -622,25 +712,25 @@ const PacienteTabPagos: React.FC = () => {
             </div>
 
             {/* Summary bar */}
-            {pagos.length > 0 && (
+            {(pagos.length > 0 || totalDebt > 0.01) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
                         <div className="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400 mb-1">Total Pagado</div>
-                        <div className="text-xl font-black text-emerald-700 dark:text-emerald-300">Bs. {totalPagado.toFixed(2)}</div>
+                        <div className="text-xl font-black text-emerald-700 dark:text-emerald-300">Bs. {formatNumber(totalPagado)}</div>
                     </div>
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                         <div className="text-xs font-bold uppercase text-blue-600 dark:text-blue-400 mb-1">Nº de Pagos</div>
                         <div className="text-xl font-black text-blue-700 dark:text-blue-300">{pagos.length}</div>
                     </div>
-                    <div className={`rounded-xl p-4 border ${debtTerminados > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'}`}>
-                        <div className="text-xs font-bold uppercase text-red-600 dark:text-red-400 mb-1">Saldo Total Deuda (Terminados)</div>
-                        <div className="text-xl font-black text-red-700 dark:text-red-300">Bs. {debtTerminados.toFixed(2)}</div>
+                    <div className={`rounded-xl p-4 border ${totalDebt > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'}`}>
+                        <div className="text-xs font-bold uppercase text-red-600 dark:text-red-400 mb-1">Saldo Total Deuda Pendiente</div>
+                        <div className="text-xl font-black text-red-700 dark:text-red-300">Bs. {formatNumber(totalDebt)}</div>
                     </div>
                     {anticipoDisponible > 0.01 && (
                         <div className="bg-blue-600 dark:bg-blue-900 rounded-xl p-4 border border-blue-500 shadow-lg shadow-blue-500/20 flex justify-between items-center group overflow-hidden relative">
                             <div className="relative z-10">
                                 <div className="text-xs font-bold uppercase text-blue-100 mb-1">Anticipo / Saldo a Favor</div>
-                                <div className="text-2xl font-black text-white">Bs. {anticipoDisponible.toFixed(2)}</div>
+                                <div className="text-2xl font-black text-white">Bs. {formatNumber(anticipoDisponible)}</div>
                             </div>
                             <button
                                 onClick={() => {
@@ -687,12 +777,16 @@ const PacienteTabPagos: React.FC = () => {
                                             #{deuda.proforma?.numero}
                                             <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white max-w-[200px] truncate" title={deuda.tratamiento.tratamiento}>
-                                            {deuda.tratamiento.tratamiento}
+                                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-white max-w-[200px] truncate" title={deuda.tratamiento.tratamiento}>
+                                            <div className="font-semibold">{deuda.tratamiento.tratamiento}</div>
+                                            {deuda.tratamiento.pieza && (
+                                                <div className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">Pz. {deuda.tratamiento.pieza}</div>
+                                            )}
+                                            <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {deuda.paid.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm font-black text-right text-orange-600 dark:text-orange-400">Bs. {deuda.saldo.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {formatNumber(deuda.netPrice)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {formatNumber(deuda.paid)}</td>
+                                        <td className="px-4 py-2 text-sm font-black text-right text-orange-600 dark:text-orange-400">Bs. {formatNumber(deuda.saldo)}</td>
                                         <td className="px-4 py-2 text-center">
                                             <button 
                                                 onClick={() => {
@@ -748,10 +842,14 @@ const PacienteTabPagos: React.FC = () => {
                                                     {deuda.tratamiento.estadoTratamiento.replace('_', ' ')}
                                                 </span>
                                             </div>
+                                            {deuda.tratamiento.pieza && (
+                                                <div className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">Pz. {deuda.tratamiento.pieza}</div>
+                                            )}
+                                            <div className="text-[10px] text-gray-500">{formatDate(deuda.tratamiento.fecha)}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {deuda.netPrice.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {deuda.paid.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-sm font-black text-right text-sky-600 dark:text-sky-400">Bs. {deuda.saldo.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-gray-300">Bs. {formatNumber(deuda.netPrice)}</td>
+                                        <td className="px-4 py-2 text-sm text-right text-emerald-600 dark:text-emerald-400">Bs. {formatNumber(deuda.paid)}</td>
+                                        <td className="px-4 py-2 text-sm font-black text-right text-sky-600 dark:text-sky-400">Bs. {formatNumber(deuda.saldo)}</td>
                                         <td className="px-4 py-2 text-center">
                                             <button 
                                                 onClick={() => {
@@ -785,17 +883,23 @@ const PacienteTabPagos: React.FC = () => {
                     <p className="text-gray-500 dark:text-gray-400 font-medium">Sin pagos registrados para este paciente</p>
                 </div>
             ) : (
-                <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <>
+                    <div className="flex justify-between items-center mb-3">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                            Mostrando {Math.min(flatTableRows.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(flatTableRows.length, currentPage * itemsPerPage)} de {flatTableRows.length} registros
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                {['Fecha', 'Plan', 'Tratamiento', 'Precio', 'Descuento', 'Total (Abono)', 'Forma Pago', 'Recibo', 'Factura', 'Acciones'].map(h => (
+                                {['Fecha', 'Plan', 'Tratamiento', 'Precio', 'Descuento', 'Total (Abono)', 'Forma Pago', 'Factura/Recibo', 'Observaciones', 'Acciones'].map(h => (
                                     <th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider ${['Precio', 'Descuento', 'Total (Abono)'].includes(h) ? 'text-right' : ''}`}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {flatTableRows.map((row) => (
+                            {paginatedRows.map((row) => (
                                 <tr key={row.rowId} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                     <td className="px-4 py-3 text-sm font-semibold text-gray-800 dark:text-gray-200">{formatDate(row.fecha)}</td>
                                     <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400">{row.proforma ? `#${row.proforma.numero}` : '—'}</td>
@@ -803,17 +907,21 @@ const PacienteTabPagos: React.FC = () => {
                                         {row.tratamientoNombre}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                                        {row.tratamientoPrecio !== '-' ? `Bs. ${Number(row.tratamientoPrecio).toFixed(2)}` : '-'}
+                                        {row.tratamientoPrecio && row.tratamientoPrecio !== '-' ? `Bs. ${formatNumber(Number(row.tratamientoPrecio))}` : '-'}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                                        {row.tratamientoDescuento !== '-' ? `Bs. ${Number(row.tratamientoDescuento).toFixed(2)}` : '-'}
+                                        {Number(row.tratamientoDescuento) > 0 ? `Bs. ${formatNumber(Number(row.tratamientoDescuento))}` : '-'}
                                     </td>
-                                    <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">Bs. {Number(row.pagoMonto).toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">Bs. {formatNumber(Number(row.pagoMonto))}</td>
                                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                                         {row.formaPagoRel ? row.formaPagoRel.forma_pago : row.formaPago}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.recibo || '—'}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.factura || '—'}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                                        {row.factura ? `F: ${row.factura}` : (row.recibo ? `R: ${row.recibo}` : '—')}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic">
+                                        {row.observaciones || '—'}
+                                    </td>
                                     <td className="px-4 py-3 flex gap-2">
                                         <button
                                             onClick={() => generateReciboPDF(row)}
@@ -866,6 +974,49 @@ const PacienteTabPagos: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-2 mt-6">
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className={`p-2 rounded-lg border ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300 shadow-sm'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        
+                        <div className="flex items-center gap-1">
+                            {[...Array(totalPages)].map((_, i) => {
+                                const page = i + 1;
+                                // Simple logic to show current, first, last and neighbors
+                                if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`w-10 h-10 rounded-lg font-bold transition-all ${currentPage === page ? 'bg-blue-600 text-white shadow-md' : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'}`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                } else if (page === currentPage - 2 || page === currentPage + 2) {
+                                    return <span key={page} className="px-1">...</span>;
+                                }
+                                return null;
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            className={`p-2 rounded-lg border ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300 shadow-sm'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+                )}
+                </>
             )}
 
             <PagosForm 
@@ -895,6 +1046,108 @@ const PacienteTabPagos: React.FC = () => {
                     setSelectedTratamientoId(null);
                 }}
             />
+            {/* Manual Modal */}
+            <ManualModal
+                isOpen={showManual}
+                onClose={() => setShowManual(false)}
+                title="Manual de Usuario - Historial de Pagos"
+                sections={manualSections}
+            />
+            {/* Modal: Tratamientos Pendientes por Iniciar */}
+            {isModalPlannedOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900/20">
+                            <div>
+                                <h2 className="text-xl font-bold text-indigo-900 dark:text-indigo-100 flex items-center gap-2">
+                                    <AlertCircle className="w-6 h-6 text-indigo-600" />
+                                    Tratamientos no iniciados
+                                </h2>
+                                <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
+                                    Estos ítems están en el presupuesto pero el doctor aún no ha registrado su inicio en la historia clínica.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto">
+                            {plannedTreatments.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="bg-gray-100 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <FileText className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                    <p className="text-gray-500 dark:text-gray-400">No hay tratamientos pendientes por iniciar.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                            <tr>
+                                                <th className="px-4 py-3">Plan de Trat.</th>
+                                                <th className="px-4 py-3">Tratamiento</th>
+                                                <th className="px-4 py-3">Piezas</th>
+                                                <th className="px-4 py-3 text-center">Cant. Pendiente</th>
+                                                <th className="px-4 py-3 text-right">Precio Unit.</th>
+                                                <th className="px-4 py-3 text-right">Subtotal Pendiente</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {plannedTreatments.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                    <td className="px-4 py-3 font-medium text-gray-500">No. {item.proformaNumero}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="font-bold text-gray-900 dark:text-white uppercase text-[12px]">
+                                                            {item.tratamientoNombreReal || item.arancel?.detalle || 'Tratamiento'}
+                                                        </div>
+                                                        {(item.arancel?.especialidad || item.especialidad) && (
+                                                            <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
+                                                                {item.arancel?.especialidad || item.especialidad}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.piezas && (
+                                                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs font-medium">
+                                                                {item.piezas}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center font-bold text-indigo-600 dark:text-indigo-400">
+                                                        {item.cantidadPendiente}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        Bs. {formatNumber(Number(item.precioUnitario))}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                                                        Bs. {formatNumber(Number(item.precioUnitario) * item.cantidadPendiente)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot className="bg-gray-50 dark:bg-gray-800/50 font-bold">
+                                            <tr>
+                                                <td colSpan={5} className="px-4 py-4 text-right uppercase text-xs tracking-wider text-gray-500">Total Oportunidad de Venta:</td>
+                                                <td className="px-4 py-4 text-right text-lg text-indigo-600 dark:text-indigo-400 font-black">
+                                                    Bs. {formatNumber(plannedTreatments.reduce((sum, item) => sum + (Number(item.precioUnitario) * item.cantidadPendiente), 0))}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                            <button 
+                                onClick={() => setIsModalPlannedOpen(false)}
+                                className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-xl font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm flex items-center gap-2"
+                            >
+                                <X size={18} />
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

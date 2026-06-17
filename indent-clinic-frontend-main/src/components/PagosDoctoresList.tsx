@@ -6,6 +6,7 @@ import api from '../services/api';
 import ManualModal, { type ManualSection } from './ManualModal';
 import Pagination from './Pagination';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import { useClinica } from '../context/ClinicaContext';
 import { Download, UserCheck, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -146,7 +147,7 @@ const PagosDoctoresList = () => {
                 'Doctor': `${p.doctor?.paterno} ${p.doctor?.materno} ${p.doctor?.nombre}`,
                 'Fecha': formatDate(p.fecha),
                 'Forma de Pago': p.formaPago?.forma_pago,
-                'Total': Number(p.total).toFixed(2)
+                'Total': formatNumber(p.total)
             }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
@@ -171,7 +172,7 @@ const PagosDoctoresList = () => {
                 `${p.doctor?.paterno} ${p.doctor?.materno} ${p.doctor?.nombre}`,
                 formatDate(p.fecha),
                 p.formaPago?.forma_pago,
-                Number(p.total).toFixed(2)
+                formatNumber(p.total)
             ]);
             autoTable(doc, {
                 head: [['Doctor', 'Fecha', 'Forma Pago', 'Total']],
@@ -291,20 +292,20 @@ const PagosDoctoresList = () => {
                 let taxableBase = base - ((base * desc) / 100);
                 if (factura) taxableBase = taxableBase * 0.84;
                 const neto = Math.max(0, taxableBase - lab);
-                const impuestoStr = factura ? (taxableBase * 0.16).toFixed(2) : '-';
+                const impuestoStr = factura ? formatNumber(taxableBase * 0.16) : '-';
 
                 return `
                     <tr>
                         <td style="font-size: 9px;">${paciente}</td>
                         <td style="font-size: 9px;">${hc?.tratamiento || '-'}</td>
                         <td style="font-size: 9px; text-align: center;">${hc?.pieza || '-'}</td>
-                        <td style="font-size: 9px; text-align: right;">${base.toFixed(2)}</td>
-                        <td style="font-size: 9px; text-align: right;">${lab > 0 ? lab.toFixed(2) : '-'}</td>
+                        <td style="font-size: 9px; text-align: right;">${formatNumber(base)}</td>
+                        <td style="font-size: 9px; text-align: right;">${lab > 0 ? formatNumber(lab) : '-'}</td>
                         <td style="font-size: 9px; text-align: center;">${factura ? 'SI' : 'NO'}</td>
-                        <td style="font-size: 9px; text-align: right; color: #e74c3c;">${impuestoStr}</td>
-                        <td style="font-size: 9px; text-align: right; color: #2980b9;">${neto.toFixed(2)}</td>
-                        <td style="font-size: 9px; text-align: right;">${com > 0 ? com + '%' : '-'}</td>
-                        <td style="font-size: 9px; text-align: right; font-weight: bold; color: #27ae60;">${Number(d.total).toFixed(2)}</td>
+                        <td style="font-size: 9px; text-align: right; color: #e74c3c;">${factura ? formatNumber(taxableBase * 0.16) : '-'}</td>
+                        <td style="font-size: 9px; text-align: right; color: #2980b9;">${formatNumber(neto)}</td>
+                        <td style="font-size: 9px; text-align: right;">${com > 0 ? (d.tipo_comision === '-' ? 'Resta ' + formatNumber(com) : com + '%') : '-'}</td>
+                        <td style="font-size: 9px; text-align: right; font-weight: bold; color: #27ae60;">${formatNumber(d.total)}</td>
                     </tr>
                 `;
             }).join('') || '';
@@ -508,7 +509,7 @@ const PagosDoctoresList = () => {
                                 <th style="text-align: center;">Fact.</th>
                                 <th style="text-align: right;">Imp. 16%</th>
                                 <th style="text-align: right;">Neto</th>
-                                <th style="text-align: right;">Com%</th>
+                                <th style="text-align: right;">Comisión</th>
                                 <th style="text-align: right;">Pago Doc.</th>
                             </tr>
                         </thead>
@@ -520,17 +521,11 @@ const PagosDoctoresList = () => {
                     <div class="totals-section">
                         <div class="total-row">
                             <span class="total-label">Subtotal:</span>
-                            <span class="total-value">${Number(pago.total).toFixed(2)} ${currencySymbol}</span>
+                            <span class="total-value">${formatNumber(pago.total)} ${currencySymbol}</span>
                         </div>
-                        ${pago.comision > 0 ? `
-                        <div class="total-row">
-                            <span class="total-label">Comisión (${pago.comision}%):</span>
-                            <span class="total-value" style="color: #e74c3c;">-${((pago.total * pago.comision) / 100).toFixed(2)}</span>
-                        </div>
-                        ` : ''}
                         <div class="total-row" style="font-size: 14px; margin-top: 5px;">
                             <span class="total-label">Total Pagado:</span>
-                            <span class="total-value" style="font-weight: bold;">${Number(pago.total).toFixed(2)} ${currencySymbol}</span>
+                            <span class="total-value" style="font-weight: bold;">${formatNumber(pago.total)} ${currencySymbol}</span>
                         </div>
                     </div>
 
@@ -677,7 +672,7 @@ const PagosDoctoresList = () => {
                         <tr>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Doctor</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha Pago</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Forma de Pago</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total</th>
                             <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
@@ -698,7 +693,7 @@ const PagosDoctoresList = () => {
                                         </span>
                                     </td>
                                     <td className="p-4 text-right font-bold text-green-600 dark:text-green-400">
-                                        {['Dólares', '$us', 'Sus', 'USD'].includes(pago.moneda) ? '$us' : 'Bs'} {Number(pago.total).toFixed(2)}
+                                        {formatMoney(pago.total, pago.moneda)}
                                     </td>
                                     <td className="p-4 text-center">
                                         <div className="flex justify-center items-center gap-2">
@@ -856,25 +851,25 @@ const PagosDoctoresList = () => {
                                                             {item.pieza || '-'}
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-right text-xs font-medium">
-                                                            {Number(item.precio).toFixed(2)}
+                                                            {formatNumber(item.precio)}
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-center text-xs">
                                                             {item.factura ? <span className="text-yellow-600 font-bold">SI</span> : <span className="text-gray-400">NO</span>}
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-right text-xs text-red-500">
-                                                            {item.factura ? (Number(item.precio) * 0.16).toFixed(2) : '0.00'}
+                                                            {item.factura ? formatNumber(Number(item.precio) * 0.16) : '0,00'}
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-right text-xs text-gray-600 dark:text-gray-300">
-                                                            {Number(item.costoLaboratorio).toFixed(2)}
+                                                            {formatNumber(item.costoLaboratorio)}
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-right text-xs font-bold text-blue-600">
-                                                            {(Number(item.precio) * (item.factura ? 0.84 : 1) - Number(item.costoLaboratorio)).toFixed(2)}
+                                                            {formatNumber(Number(item.precio) * (item.factura ? 0.84 : 1) - Number(item.costoLaboratorio))}
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-center text-xs">
                                                             {item.comision}%
                                                         </td>
                                                         <td className="px-4 py-4 whitespace-nowrap text-right text-xs font-bold text-green-600">
-                                                            {Number(item.pagoDoctorMonto).toFixed(2)}
+                                                            {formatNumber(item.pagoDoctorMonto)}
                                                         </td>
                                                     </tr>
                                                 ))

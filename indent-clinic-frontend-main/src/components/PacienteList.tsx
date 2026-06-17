@@ -8,11 +8,12 @@ import autoTable from 'jspdf-autotable';
 import Pagination from './Pagination';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { formatDate } from '../utils/dateUtils';
-import PacienteImagenesModal from './PacienteImagenesModal';
 import Swal from 'sweetalert2';
-import { FileText, Download, Printer, Users, DollarSign } from 'lucide-react';
+import { FileText, Download, Printer, Users, CheckCircle } from 'lucide-react';
+import SignatureModal from './SignatureModal';
 import { useClinica } from '../context/ClinicaContext';
 import PacienteViewModal from './PacienteViewModal';
+import SignatureThumbnail from './SignatureThumbnail';
 
 
 const PacienteList: React.FC = () => {
@@ -22,10 +23,10 @@ const PacienteList: React.FC = () => {
     const [totalPages, setTotalPages] = useState(0);
     const [totalRecords, setTotalRecords] = useState(0);
     const [showManual, setShowManual] = useState(false);
-    const [showImagenesModal, setShowImagenesModal] = useState(false);
-    const [selectedPacienteIdForImages, setSelectedPacienteIdForImages] = useState<number | null>(null);
     const [showViewModal, setShowViewModal] = useState(false);
     const [selectedPacienteIdForView, setSelectedPacienteIdForView] = useState<number | null>(null);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [selectedPacienteIdForSignature, setSelectedPacienteIdForSignature] = useState<number | null>(null);
     const limit = 10;
     const navigate = useNavigate();
     const { clinicaSeleccionada } = useClinica();
@@ -40,23 +41,12 @@ const PacienteList: React.FC = () => {
             content: 'Use el botón azul "+ Nuevo Paciente" para registrar una nueva ficha. Es importante completar los datos personales y de contacto.'
         },
         {
-            title: 'Acciones Rápidas',
-            content: (
-                <ul className="list-disc pl-5 mt-2 space-y-1">
-                    <li>💰 <strong>Planes de Tratamiento:</strong> Ver y crear planes de tratamiento para el paciente.</li>
-                    <li>📑 <strong>Propuestas:</strong> Gestionar propuestas de tratamiento.</li>
-                    <li>📋 <strong>Seguimiento Clínico:</strong> Acceder al historial médico completo.</li>
-                    <li>📷 <strong>Imágenes:</strong> Gestionar y visualizar imágenes de tratamientos.</li>
-                </ul>
-            )
-        },
-        {
             title: 'Dar de Baja y Reactivar',
             content: 'Use el botón de lápiz (amarillo) para modificar datos personales. Para pacientes activos, el botón rojo (papelera) cambia el estado a "Inactivo". Para pacientes inactivos, aparece un botón verde (check) que permite reactivarlos a estado "Activo".'
         },
         {
             title: 'Novedades y Atajos',
-            content: '• Atajos de Impresión: Ahora puede exportar directamente la lista filtrada a Excel o PDF para reportes externos.\n• Accesos rápidos en botones de colores en la tabla para Planes de Tratamiento, Trats., Pagos e Imágenes.'
+            content: '• Atajos de Impresión: Ahora puede exportar directamente la lista filtrada a Excel o PDF para reportes externos.'
         }
     ];
 
@@ -81,6 +71,12 @@ const PacienteList: React.FC = () => {
         return celular;
     };
 
+
+    useEffect(() => {
+        // Resetear a la página 1 cuando se cambia la clínica desde el selector global
+        setCurrentPage(1);
+        sessionStorage.setItem('pacientes_page', '1');
+    }, [clinicaSeleccionada]);
 
     useEffect(() => {
         fetchPacientes();
@@ -205,7 +201,7 @@ const PacienteList: React.FC = () => {
             const allPacientes = Array.isArray(response.data.data) ? response.data.data : [];
 
             const dataToExport = allPacientes.map((p: any) => ({
-                Paciente: `${p.paterno} ${p.materno} ${p.nombre}`,
+                Paciente: `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
                 'Fecha de nacimiento': formatDate(p.fecha_nacimiento),
                 Celular: p.celular,
                 Seguro: p.seguro_medico || '-',
@@ -245,7 +241,7 @@ const PacienteList: React.FC = () => {
             doc.text("Lista de Pacientes", 20, 10);
             const tableColumn = ["Paciente", "Fecha de nacimiento", "Celular", "Seguro", "Venc. Seguro", "Dirección", "Correo", "Estado"];
             const tableRows = allPacientes.map((p: any) => [
-                `${p.paterno} ${p.materno} ${p.nombre}`,
+                `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
                 formatDate(p.fecha_nacimiento),
                 p.celular,
                 p.seguro_medico || '-',
@@ -290,6 +286,44 @@ const PacienteList: React.FC = () => {
                 return;
             }
 
+            // Fetch signatures for all signed patients to show in print
+            const signedPacientes = allPacientes.filter((p: any) => p.tieneFirmaFC);
+            const signaturesMap = new Map<number, string>();
+            
+            if (signedPacientes.length > 0) {
+                Swal.fire({
+                    title: 'Preparando firmas...',
+                    text: 'Cargando imágenes de firmas para el reporte',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                await Promise.all(signedPacientes.map(async (p: any) => {
+                    try {
+                        let signData = p.firmaFC;
+                        
+                        // If we have direct firmaFC
+                        if (signData) {
+                            if (!signData.startsWith('data:image')) {
+                                try {
+                                    const proxyRes = await api.get<{ base64: string }>(`/pacientes/${p.id}/firma-base64`);
+                                    signData = proxyRes.data.base64;
+                                } catch (proxyErr) {
+                                    console.error('Error fetching signature via proxy in list:', proxyErr);
+                                    signData = null; // Mark as failed
+                                }
+                            }
+                        }
+
+                        if (signData) {
+                            signaturesMap.set(p.id, signData);
+                        }
+                    } catch (e) {
+                        console.error(`Error loading signature for patient ${p.id}:`, e);
+                    }
+                }));
+                Swal.close();
+            }
 
             const printContent = `
                 <!DOCTYPE html>
@@ -315,11 +349,6 @@ const PacienteList: React.FC = () => {
                             margin-bottom: 20px;
                             padding-bottom: 15px;
                             border-bottom: 2px solid #3498db;
-                        }
-                        
-                        .header img {
-                            height: 60px;
-                            margin-right: 20px;
                         }
                         
                         h1 {
@@ -399,44 +428,45 @@ const PacienteList: React.FC = () => {
                 <body>
                     <div class="header">
                         <div>
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-3">
-                        <Users className="text-blue-600" size={32} />
-                        Lista de Pacientes
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Gestión integral de pacientes y sus historias clínicas</p>
-                </div>
+                            <h1>Lista de Pacientes</h1>
+                            <p style="color: #666; margin-top: 5px;">Gestión integral de pacientes y sus historias clínicas</p>
+                        </div>
                     </div>
                     
                     <table>
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Paciente</th>
-                                <th>Celular</th>
-                                <th>Fecha Nac.</th>
-
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
+                                 <th>#</th>
+                                 <th>Paciente</th>
+                                 <th>Celular</th>
+                                 <th>Fecha Nac.</th>
+                                 <th>Estado</th>
+                                 <th>Firma FC</th>
+                             </tr>
+                         </thead>
                         <tbody>
                             ${allPacientes.map((p: Paciente, index: number) => `
                                 <tr>
                                     <td>${index + 1}</td>
-                                    <td>${p.paterno} ${p.materno} ${p.nombre}</td>
+                                    <td>${p.nombre} ${p.paterno} ${p.materno || ''}</td>
                                     <td>${p.celular}</td>
                                     <td>${formatDate(p.fecha_nacimiento)}</td>
-
                                     <td class="${p.estado === 'activo' ? 'status-active' : 'status-inactive'}">
-                                        ${p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}
+                                         ${p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}
                                     </td>
-                                </tr>
+                                    <td>
+                                         ${signaturesMap.has(p.id) ? `
+                                             <img src="${signaturesMap.get(p.id)}" style="max-height: 40px; max-width: 80px; object-fit: contain;" />
+                                         ` : '<span style="color: #ccc; font-size: 8px;">Sin firma</span>'}
+                                    </td>
+                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
 
                     <div class="footer">
                         <div>Sistema de Gestión</div>
-                        <div>Página 1</div>
+                        <div>Reporte Generado: ${new Date().toLocaleDateString()}</div>
                     </div>
                 </body>
                 </html>
@@ -446,7 +476,13 @@ const PacienteList: React.FC = () => {
             doc.write(printContent);
             doc.close();
 
+            const images = Array.from(doc.querySelectorAll('img'));
+            let loadedCount = 0;
+            let printTriggered = false;
+
             const doPrint = () => {
+                if (printTriggered) return;
+                printTriggered = true;
                 try {
                     iframe.contentWindow?.focus();
                     iframe.contentWindow?.print();
@@ -461,14 +497,24 @@ const PacienteList: React.FC = () => {
                 }
             };
 
-            const logo = doc.querySelector('img');
-            if (logo) {
-                if (logo.complete) {
-                    doPrint();
-                } else {
-                    logo.onload = doPrint;
-                    logo.onerror = doPrint;
-                }
+            if (images.length > 0) {
+                images.forEach(img => {
+                    if (img.complete) {
+                        loadedCount++;
+                        if (loadedCount === images.length) doPrint();
+                    } else {
+                        img.onload = () => {
+                            loadedCount++;
+                            if (loadedCount === images.length) doPrint();
+                        };
+                        img.onerror = () => {
+                            loadedCount++;
+                            if (loadedCount === images.length) doPrint();
+                        };
+                    }
+                });
+                // Fallback timeout for images
+                setTimeout(doPrint, 5000);
             } else {
                 doPrint();
             }
@@ -480,7 +526,6 @@ const PacienteList: React.FC = () => {
 
     const handlePrintPaciente = async (pacientePreview: Paciente) => {
         try {
-            // Show loading alert because we are not opening a window immediately
             Swal.fire({
                 title: 'Generando Ficha...',
                 text: 'Por favor espere',
@@ -490,32 +535,88 @@ const PacienteList: React.FC = () => {
                 }
             });
 
-            // Fetch full patient data
-            const response = await api.get<Paciente>(`/pacientes/${pacientePreview.id}`);
-            const fullPaciente = response.data;
+            const res = await api.get<Paciente>(`/pacientes/${pacientePreview.id}`);
+            const fullPaciente = res.data;
             const ficha = fullPaciente.fichaMedica;
 
-            // Fetch signatures
-            let signatures: any[] = [];
-            try {
-                // We check both 'paciente' (from public registration) and 'historia_clinica' (legacy/internal)
-                const resPaciente = await api.get(`/firmas/documento/paciente/${fullPaciente.id}`);
-                const resHC = await api.get(`/firmas/documento/historia_clinica/${fullPaciente.id}`);
-                
-                signatures = [
-                    ...(Array.isArray(resPaciente.data) ? resPaciente.data : []),
-                    ...(Array.isArray(resHC.data) ? resHC.data : [])
-                ];
-            } catch (error) {
-                console.error('Error fetching signatures for patient print:', error);
+            let finalSignatureData = '';
+            
+            // Try direct firmaFC from patient record
+            if (fullPaciente.firmaFC) {
+                finalSignatureData = fullPaciente.firmaFC;
+                if (!finalSignatureData.startsWith('data:image')) {
+                    try {
+                        const proxyRes = await api.get<{ base64: string }>(`/pacientes/${fullPaciente.id}/firma-base64`);
+                        finalSignatureData = proxyRes.data.base64;
+                    } catch (e) {
+                        console.error('Error loading signature via proxy:', e);
+                        finalSignatureData = '';
+                    }
+                }
+            } 
+
+            // Fallback to legacy signatures table if not found
+            if (!finalSignatureData) {
+                try {
+                    // 1. Try as 'paciente' directly linked to patient ID
+                    let response = await api.get(`/firmas/documento/paciente/${fullPaciente.id}`);
+                    let signatures = Array.isArray(response.data) ? response.data : [];
+                    
+                    // 2. If not found, try searching in their clinical history treatments
+                    if (signatures.length === 0 && fullPaciente.historiaClinica) {
+                        for (const hc of fullPaciente.historiaClinica) {
+                            if (hc.firmaPaciente) {
+                                finalSignatureData = hc.firmaPaciente;
+                                break;
+                            }
+                            // Also check legacy table for each HC entry
+                            const hcSigRes = await api.get(`/firmas/documento/historia_clinica/${hc.id}`);
+                            const hcSigs = Array.isArray(hcSigRes.data) ? hcSigRes.data : [];
+                            const pSig = hcSigs.find(s => s.rolFirmante === 'paciente');
+                            if (pSig && pSig.firmaData) {
+                                finalSignatureData = pSig.firmaData;
+                                if (!finalSignatureData.startsWith('data:image') && pSig.id) {
+                                    try {
+                                        const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
+                                        finalSignatureData = proxyRes.data.base64;
+                                    } catch (e) { console.error(e); }
+                                }
+                                break;
+                            }
+                        }
+                    } else {
+                        const pSig = signatures.find(s => s.rolFirmante === 'paciente');
+                        if (pSig && pSig.firmaData) {
+                            finalSignatureData = pSig.firmaData;
+                            if (!finalSignatureData.startsWith('data:image') && pSig.id) {
+                                try {
+                                    const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
+                                    finalSignatureData = proxyRes.data.base64;
+                                } catch (e) {
+                                    console.error('Error loading legacy signature via proxy:', e);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching legacy signatures:', error);
+                }
             }
 
-            const patientSignature = signatures.filter(s => s.rolFirmante === 'paciente').pop();
+            // Final safety check: if it's still a URL and not base64, try one last proxy call
+            if (finalSignatureData && !finalSignatureData.startsWith('data:image') && !finalSignatureData.startsWith('http')) {
+                 // If it's a relative path or something weird, it might fail. 
+                 // But if it's a full URL, we should have proxied it by now.
+            } else if (finalSignatureData && !finalSignatureData.startsWith('data:image')) {
+                try {
+                    const proxyRes = await api.get<{ base64: string }>(`/pacientes/${fullPaciente.id}/firma-base64`);
+                    finalSignatureData = proxyRes.data.base64;
+                } catch (e) {
+                    console.error('Final proxy attempt failed:', e);
+                    finalSignatureData = ''; // Clear to avoid broken icon
+                }
+            }
 
-
-
-            // Helper for boolean checks
-            const check = (val: boolean | undefined) => val ? 'SÍ' : 'NO';
             const checkIcon = (val: boolean | undefined) => val ? '☒' : '☐';
 
             const calcEdad = (fecha?: string) => {
@@ -527,7 +628,6 @@ const PacienteList: React.FC = () => {
                 return `${edad} años`;
             };
 
-            // Create a hidden iframe
             const iframe = document.createElement('iframe');
             iframe.style.position = 'fixed';
             iframe.style.right = '0';
@@ -538,10 +638,7 @@ const PacienteList: React.FC = () => {
             document.body.appendChild(iframe);
 
             const doc = iframe.contentWindow?.document;
-            if (!doc) {
-                document.body.removeChild(iframe);
-                throw new Error('No se pudo crear el iframe de impresión');
-            }
+            if (!doc) throw new Error('No se pudo crear el iframe');
 
             const printContent = `
                 <!DOCTYPE html>
@@ -550,264 +647,102 @@ const PacienteList: React.FC = () => {
                     <meta charset="UTF-8">
                     <title>Ficha de Paciente - ${fullPaciente.nombre} ${fullPaciente.paterno}</title>
                     <style>
-                        @page {
-                            size: A4;
-                            margin: 0;
-                        }
-                        
-                        body {
-                            font-family: Arial, sans-serif;
-                            margin: 0;
-                            padding: 0;
-                            color: #333;
-                            line-height: 1.4;
-                            font-size: 12px;
-                        }
-
-                        .page-container {
-                            height: 297mm;
-                            width: 210mm;
-                            position: relative;
-                            padding: 2cm 1.5cm;
-                            box-sizing: border-box;
-                            page-break-after: always;
-                            display: flex;
-                            flex-direction: column;
-                        }
-
-                        .page-container:last-child {
-                            page-break-after: auto;
-                        }
-
-                        .content-wrap {
-                            flex: 1;
-                        }
-
-                        .header {
-                            display: flex;
-                            align-items: center;
-                            margin-bottom: 20px;
-                            padding-bottom: 15px;
-                            border-bottom: 2px solid #3498db;
-                        }
-                        
-                        .header img {
-                            height: 60px;
-                            margin-right: 20px;
-                        }
-                        
-                        h1 {
-                            color: #2c3e50;
-                            margin: 0;
-                            font-size: 24px;
-                        }
-
-                        h2 {
-                            color: #2c3e50;
-                            border-bottom: 1px solid #ccc;
-                            padding-bottom: 5px;
-                            margin-top: 20px;
-                            font-size: 16px;
-                            text-transform: uppercase;
-                        }
-
-                        .info-grid {
-                            display: grid;
-                            grid-template-columns: 1fr 1fr;
-                            gap: 15px;
-                        }
-
-                        .field {
-                            margin-bottom: 8px;
-                        }
-                        
-                        .label {
-                            font-weight: bold;
-                            color: #555;
-                            display: block;
-                            font-size: 10px;
-                            text-transform: uppercase;
-                        }
-                        
-                        .value {
-                            font-size: 13px;
-                            color: #000;
-                            border-bottom: 1px dotted #ccc;
-                            padding-bottom: 2px;
-                            min-height: 18px;
-                        }
-
-                        /* Ficha Medica Styles */
-                        .ficha-section {
-                            margin-bottom: 15px;
-                        }
-                        
-                        .checkbox-grid {
-                            display: grid;
-                            grid-template-columns: repeat(3, 1fr);
-                            gap: 10px;
-                        }
-
-                        .checkbox-item {
-                            display: flex;
-                            align-items: center;
-                            gap: 5px;
-                        }
-
-                        .footer {
-                            position: absolute;
-                            bottom: 1.5cm;
-                            left: 1.5cm;
-                            right: 1.5cm;
-                            padding-top: 10px;
-                            border-top: 1px solid #eee;
-                            font-size: 10px;
-                            color: #777;
-                            display: flex;
-                            justify-content: space-between;
-                        }
-
-                        @media print {
-                            .no-print { display: none; }
-                        }
+                        @page { size: A4; margin: 0; }
+                        body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; font-size: 11px; }
+                        .page-container { height: 297mm; width: 210mm; position: relative; padding: 1.5cm 1.5cm; box-sizing: border-box; page-break-after: always; display: flex; flex-direction: column; }
+                        .page-container:last-child { page-break-after: auto; }
+                        .header { border-bottom: 2px solid #3498db; margin-bottom: 15px; padding-bottom: 10px; }
+                        h1 { color: #2c3e50; margin: 0; font-size: 20px; text-transform: uppercase; }
+                        h2 { color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 3px; margin-top: 15px; margin-bottom: 10px; font-size: 13px; text-transform: uppercase; background: #f9f9f9; padding-left: 5px; }
+                        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+                        .field { margin-bottom: 5px; }
+                        .label { font-weight: bold; color: #666; display: block; font-size: 9px; text-transform: uppercase; }
+                        .value { font-size: 11px; border-bottom: 1px dotted #ddd; padding-bottom: 1px; min-height: 14px; }
+                        .checkbox-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+                        .checkbox-item { display: flex; align-items: center; gap: 4px; font-size: 10px; }
+                        .footer { position: absolute; bottom: 1cm; left: 1.5cm; right: 1.5cm; font-size: 9px; color: #999; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 5px; }
                     </style>
                 </head>
                 <body>
-                    <!-- PAGE 1: DATOS PERSONALES -->
                     <div class="page-container">
-                        <div class="content-wrap">
-                            <div class="header">
-                                <div>
-                                    <h1>Ficha de Paciente</h1>
-                                </div>
-                            </div>
-
-                            <h2>Datos Personales</h2>
-                            <div class="info-grid">
-                                <div class="field"><span class="label">Apellido Paterno</span><div class="value">${fullPaciente.paterno}</div></div>
-                                <div class="field"><span class="label">Apellido Materno</span><div class="value">${fullPaciente.materno}</div></div>
-                                <div class="field"><span class="label">Nombres</span><div class="value">${fullPaciente.nombre}</div></div>
-                                <div class="field"><span class="label">Fecha Nacimiento</span><div class="value">${formatDate(fullPaciente.fecha_nacimiento)} (${calcEdad(fullPaciente.fecha_nacimiento)})</div></div>
-                                <div class="field"><span class="label">Sexo</span><div class="value">${fullPaciente.sexo}</div></div>
-                                <div class="field"><span class="label">Estado Civil</span><div class="value">${fullPaciente.estado_civil}</div></div>
-                                <div class="field"><span class="label">Carnet Identidad</span><div class="value">${(fullPaciente as any).ci || '-'}</div></div>
-                                <div class="field"><span class="label">Seguro Médico / Póliza</span><div class="value">${fullPaciente.seguro_medico || '-'} ${fullPaciente.poliza ? `(${fullPaciente.poliza})` : ''}</div></div>
-                                <div class="field"><span class="label">Vencimiento Seguro</span><div class="value">${fullPaciente.fecha_vencimiento ? formatDate(fullPaciente.fecha_vencimiento) : '-'}</div></div>
-                            </div>
-
-                            <h2 style="margin-top: 15px;">Contacto</h2>
-                            <div class="info-grid">
-                                <div class="field"><span class="label">Dirección</span><div class="value">${fullPaciente.direccion}</div></div>
-                                <div class="field"><span class="label">Teléfono</span><div class="value">${fullPaciente.telefono || '-'}</div></div>
-                                <div class="field"><span class="label">Celular</span><div class="value">${fullPaciente.celular}</div></div>
-                                <div class="field"><span class="label">Email</span><div class="value">${fullPaciente.email || '-'}</div></div>
-                                <div class="field"><span class="label">Lugar de Residencia</span><div class="value">${(fullPaciente as any).lugar_residencia || '-'}</div></div>
-                                <div class="field"><span class="label">Profesión</span><div class="value">${fullPaciente.profesion || '-'}</div></div>
-                            </div>
-
-                            <h2 style="margin-top: 15px;">Responsable</h2>
-                            <div class="info-grid">
-                                <div class="field"><span class="label">Nombre Responsable</span><div class="value">${fullPaciente.responsable || '-'}</div></div>
-                                <div class="field"><span class="label">Parentesco</span><div class="value">${fullPaciente.parentesco || '-'}</div></div>
-                                <div class="field"><span class="label">Dirección Responsable</span><div class="value">${fullPaciente.direccion_responsable || '-'}</div></div>
-                                <div class="field"><span class="label">Teléfono Responsable</span><div class="value">${fullPaciente.telefono_responsable || '-'}</div></div>
-                            </div>
-
-                            <h2 style="margin-top: 15px;">Consulta</h2>
-                            <div class="info-grid">
-                                <div class="field" style="grid-column: span 2;"><span class="label">¿Cuándo fue la última vez que visitó al odontólogo, y cuál fue el motivo?</span><div class="value">${ficha?.ultima_visita_odontologo || 'No especificado'} - ${ficha?.motivo_consulta || 'Sin motivo'}</div></div>
-                                <div class="field" style="grid-column: span 2;"><span class="label">Motivo de Consulta</span><div class="value">${fullPaciente.motivo || '-'}</div></div>
-                            </div>
+                        <div class="header"><h1>Ficha de Paciente</h1></div>
+                        <h2>Datos Personales</h2>
+                        <div class="info-grid">
+                            <div class="field"><span class="label">Paterno</span><div class="value">${fullPaciente.paterno}</div></div>
+                            <div class="field"><span class="label">Materno</span><div class="value">${fullPaciente.materno}</div></div>
+                            <div class="field"><span class="label">Nombres</span><div class="value">${fullPaciente.nombre}</div></div>
+                            <div class="field"><span class="label">Nacimiento</span><div class="value">${formatDate(fullPaciente.fecha_nacimiento)} (${calcEdad(fullPaciente.fecha_nacimiento)})</div></div>
+                            <div class="field"><span class="label">Sexo</span><div class="value">${fullPaciente.sexo}</div></div>
+                            <div class="field"><span class="label">C.I.</span><div class="value">${(fullPaciente as any).ci || '-'}</div></div>
+                            <div class="field"><span class="label">Celular</span><div class="value">${fullPaciente.celular}</div></div>
+                            <div class="field"><span class="label">Seguro</span><div class="value">${fullPaciente.seguro_medico || '-'}</div></div>
+                            <div class="field"><span class="label">Vencimiento</span><div class="value">${fullPaciente.fecha_vencimiento ? formatDate(fullPaciente.fecha_vencimiento) : '-'}</div></div>
                         </div>
-
-                        <div class="footer">
-                            <div>Sistema de Gestión</div>
-                            <div>Página 1 de 2</div>
+                        <h2>Contacto y Otros</h2>
+                        <div class="info-grid">
+                            <div class="field" style="grid-column: span 2;"><span class="label">Dirección</span><div class="value">${fullPaciente.direccion}</div></div>
+                            <div class="field"><span class="label">Teléfono</span><div class="value">${fullPaciente.telefono || '-'}</div></div>
+                            <div class="field" style="grid-column: span 2;"><span class="label">Email</span><div class="value">${fullPaciente.email || '-'}</div></div>
+                            <div class="field"><span class="label">Profesión</span><div class="value">${fullPaciente.profesion || '-'}</div></div>
                         </div>
+                        <h2>Responsable</h2>
+                        <div class="info-grid">
+                            <div class="field" style="grid-column: span 2;"><span class="label">Nombre</span><div class="value">${fullPaciente.responsable || '-'}</div></div>
+                            <div class="field"><span class="label">Parentesco</span><div class="value">${fullPaciente.parentesco || '-'}</div></div>
+                        </div>
+                        <h2>Consulta</h2>
+                        <div class="field"><span class="label">Última Visita Odontólogo</span><div class="value">${ficha?.ultima_visita_odontologo || '-'}</div></div>
+                        <div class="field"><span class="label">Motivo de Consulta</span><div class="value">${ficha?.motivo_consulta || fullPaciente.motivo || '-'}</div></div>
+                        <div class="footer"><div>Sistema de Gestión</div><div>Página 1 de 2</div></div>
                     </div>
-
-                    <!-- PAGE 2: FICHA MEDICA -->
                     <div class="page-container">
-                        <div class="content-wrap" style="display: flex; flex-direction: column;">
-                            <div class="header">
-                                <div>
-                                    <h1>Ficha Médica</h1>
-                                </div>
+                        <div class="header"><h1>Ficha Médica</h1></div>
+                        ${ficha ? `
+                            <h2>Antecedentes Patológicos</h2>
+                            <div class="checkbox-grid">
+                                <div class="checkbox-item"><span>${checkIcon(ficha.bruxismo)}</span> Bruxismo</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.alergia_medicamento)}</span> Alergias ${ficha.alergia_medicamento_detalle ? `(${ficha.alergia_medicamento_detalle})` : ''}</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.medicamento_72h)}</span> Med. 72h ${ficha.medicamento_72h_detalle ? `(${ficha.medicamento_72h_detalle})` : ''}</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.tratamiento_medico)}</span> Tratamiento ${ficha.tratamiento_medico_detalle ? `(${ficha.tratamiento_medico_detalle})` : ''}</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.articulaciones)}</span> Articulaciones</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.anestesiado_anteriormente)}</span> Anestesiado Ant.</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.reaccion_anestesia)}</span> Reacción Anest.</div>
                             </div>
-
-                            ${ficha ? `
-                                <div class="ficha-section">
-                                    <h2>Antecedentes Patológicos Personales</h2>
-                                    <div class="checkbox-grid">
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.bruxismo)}</span> Bruxismo</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.alergia_medicamento)}</span> Alergia a Medicamento</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.medicamento_72h)}</span> Medicamento 72h</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.tratamiento_medico)}</span> Tratamiento Médico</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anestesiado_anteriormente)}</span> Anestesiado Antes</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.reaccion_anestesia)}</span> Reacción Anestesia</div>
-                                    </div>
-                                <h2>Enfermedades</h2>
-                                <div class="checkbox-grid">
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_neurologicas)}</span> Neurológicas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_pulmonares)}</span> Pulmonares</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_cardiacas)}</span> Cardíacas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_higado)}</span> Hígado</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_gastricas)}</span> Gástricas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_venereas)}</span> Venéreas</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.enf_renales)}</span> Renales</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.articulaciones)}</span> Articulaciones</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.diabetes)}</span> Diabetes</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anemia)}</span> Hemorragias/Anemia</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.hipertension)}</span> Presión Alta</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.hipotension)}</span> Presión Baja</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.prueba_vih)}</span> Prueba VIH</div>
-                                </div>
-
-                                <h2>Antecedentes Gineco / Obstétricos</h2>
-                                <div class="checkbox-grid" style="margin-top: 10px;">
-                                    ${fullPaciente.sexo === 'Femenino' ? `
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.anticonceptivo_hormonal)}</span> Antic. Hormonal</div>
-                                        <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.posibilidad_embarazo)}</span> Posible Embarazo</div>
-                                    ` : '<div class="checkbox-item">No aplica</div>'}
-                                </div>
-
-                                <h2>Hábitos</h2>
-                                <div class="info-grid">
-                                    <div class="field"><span class="label">Cepillado (Veces)</span><div class="value">${ficha.cepillado_veces || '-'}</div></div>
-                                </div>
-                                <div class="checkbox-grid" style="margin-top: 5px;">
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.usa_hilo_dental)}</span> Hilo Dental</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.usa_enjuague)}</span> Enjuague Bucal</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.fuma)}</span> Fuma</div>
-                                    <div class="checkbox-item"><span style="font-size: 16px;">${checkIcon(ficha.consume_citricos)}</span> Cítricos</div>
-                                </div>
-
-                                <h2>Observaciones</h2>
-                                <div class="info-grid">
-                                    <div class="field" style="grid-column: span 2;"><span class="label">Observaciones Generales</span><div class="value" style="white-space: pre-wrap;">${ficha.observaciones || 'Ninguna observación'}</div></div>
-                                </div>
-
-                            ` : '<p style="text-align: center; margin-top: 50px; font-style: italic;">No se ha registrado ficha médica para este paciente.</p>'}
-
-                            <div class="signature-section" style="margin-top: auto; padding-bottom: 1cm; text-align: center;">
-                                <div style="display: inline-block; text-align: center;">
-                                    ${patientSignature ? `
-                                        <img src="${patientSignature.firmaData}" style="max-width: 250px; max-height: 100px; margin-bottom: 5px;" />
-                                        <div style="font-size: 8px; color: #999; margin-bottom: 5px;">
-                                            FIRMADO DIGITALMENTE
-                                        </div>
-                                    ` : '<div style="height: 105px;"></div>'}
-                                    <div style="border-top: 1px solid #333; width: 300px; margin-bottom: 5px;"></div>
-                                    <div style="font-weight: bold; font-size: 14px;">Firma del Paciente</div>
-                                    <div style="font-size: 12px;">${fullPaciente.nombre} ${fullPaciente.paterno} ${fullPaciente.materno}</div>
-                                </div>
+                            <h2>Enfermedades</h2>
+                            <div class="checkbox-grid">
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_neurologicas)}</span> Neurológicas</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_pulmonares)}</span> Pulmonares</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_cardiacas)}</span> Cardíacas</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_higado)}</span> Hígado</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_gastricas)}</span> Gástricas</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_venereas)}</span> Venéreas</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.enf_renales)}</span> Renales</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.diabetes)}</span> Diabetes</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.anemia)}</span> Anemia</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.hipertension)}</span> Hipertensión</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.hipotension)}</span> Hipotensión</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.prueba_vih)}</span> Prueba VIH ${ficha.prueba_vih_resultado ? `(${ficha.prueba_vih_resultado})` : ''}</div>
                             </div>
+                            <h2>Hábitos</h2>
+                            <div class="checkbox-grid">
+                                <div class="checkbox-item"><span>${checkIcon(ficha.usa_hilo_dental)}</span> Hilo Dental</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.usa_enjuague)}</span> Enjuague</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.fuma)}</span> Fuma ${ficha.fuma_cantidad ? `(${ficha.fuma_cantidad})` : ''}</div>
+                                <div class="checkbox-item"><span>${checkIcon(ficha.consume_citricos)}</span> Cítricos</div>
+                            </div>
+                            <h2>Observaciones Generales</h2>
+                            <div class="value" style="min-height: 40px;">${ficha.observaciones || 'Ninguna observación registrada'}</div>
+                        ` : '<p>No hay ficha médica registrada.</p>'}
+                        <div style="margin-top: auto; text-align: center; padding-bottom: 20px;">
+                            ${finalSignatureData ? `
+                                <img src="${finalSignatureData}" style="max-width: 250px; max-height: 100px; margin-bottom: 5px;" />
+                                <div style="font-size: 8px; color: #999;">FIRMADO DIGITALMENTE</div>
+                            ` : '<div style="height: 100px;"></div>'}
+                            <div style="border-top: 1px solid #333; width: 300px; margin: 10px auto;"></div>
+                            <div style="font-weight: bold; font-size: 14px;">FIRMA PACIENTE</div>
+                            <div style="font-size: 10px; font-weight: bold; margin-top: 5px;">DOCUMENTO EN CALIDAD DE DECLARACIÓN JURADA</div>
                         </div>
-
-                        <div class="footer">
-                            <div>Sistema de Gestión</div>
-                            <div>Página 2 de 2</div>
-                        </div>
+                        <div class="footer"><div>Sistema de Gestión</div><div>Página 2 de 2</div></div>
                     </div>
                 </body>
                 </html>
@@ -817,7 +752,6 @@ const PacienteList: React.FC = () => {
             doc.write(printContent);
             doc.close();
 
-            // Wait for all images to load (logo, signature, etc.)
             const images = Array.from(doc.querySelectorAll('img'));
             let loadedCount = 0;
             let printTriggered = false;
@@ -827,19 +761,17 @@ const PacienteList: React.FC = () => {
                 printTriggered = true;
 
                 if (Swal.isVisible()) Swal.close();
-
+                
                 try {
                     iframe.contentWindow?.focus();
                     iframe.contentWindow?.print();
                 } catch (e) {
-                    console.error('Print error:', e);
+                    console.error('Print trigger error:', e);
                 }
 
-                // Remove iframe after sufficient time
-                setTimeout(() => {
-                    if (document.body.contains(iframe)) {
-                        document.body.removeChild(iframe);
-                    }
+                // Give it time to open the dialog before removing
+                setTimeout(() => { 
+                    if (document.body.contains(iframe)) document.body.removeChild(iframe); 
                 }, 2000);
             };
 
@@ -853,24 +785,24 @@ const PacienteList: React.FC = () => {
                             loadedCount++;
                             if (loadedCount === images.length) doPrint();
                         };
-                        img.onerror = () => {
-                            loadedCount++; // Count even if it fails to not block
+                        img.onerror = (e) => {
+                            console.error('Image load error in print:', img.src, e);
+                            loadedCount++;
                             if (loadedCount === images.length) doPrint();
                         };
                     }
                 });
                 // Fallback timeout
-                setTimeout(doPrint, 3000);
+                setTimeout(doPrint, 3500);
             } else {
                 doPrint();
             }
-
         } catch (error) {
             console.error('Error al imprimir ficha de paciente:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'No se pudo cargar la información del paciente para imprimir.'
+                text: 'No se pudo generar el documento de impresión.'
             });
         }
     };
@@ -974,8 +906,8 @@ const PacienteList: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Seguro</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha Nacimiento</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Estado</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Firma FC</th>
 
-                            <th className="no-print px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Procesos</th>
                             <th className="no-print px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
@@ -993,7 +925,7 @@ const PacienteList: React.FC = () => {
                                             tabIndex={0}
                                             onKeyDown={e => e.key === 'Enter' && navigate(`/pacientes/${paciente.id}`)}
                                         >
-                                            {`${paciente.paterno} ${paciente.materno} ${paciente.nombre}`}
+                                            {`${paciente.nombre} ${paciente.paterno} ${paciente.materno || ''}`.trim()}
                                         </span>
                                         <div className="flex gap-2 mt-1">
                                             {paciente.clasificacion && (
@@ -1035,58 +967,26 @@ const PacienteList: React.FC = () => {
                                         {paciente.estado}
                                     </span>
                                 </td>
-
-                                <td className="no-print p-3">
-                                    <div className="flex gap-2 flex-wrap text-white">
-                                        <button
-                                            onClick={() => navigate(`/pacientes/${paciente.id}/presupuestos`)}
-                                            className="p-2 bg-emerald-500 hover:bg-emerald-600 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 flex items-center justify-center group"
-                                            title="Planes de Tratamiento"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.407 2.75 1.057M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.407-2.75-1.057" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            onClick={() => navigate(`/pacientes/${paciente.id}/pagos`)}
-                                            className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 flex items-center justify-center group"
-                                            title="Gestionar Pagos"
-                                        >
-                                            <DollarSign size={20} />
-                                        </button>
-                                        <button
-                                            onClick={() => navigate(`/pacientes/${paciente.id}/historia-clinica`)}
-                                            className="p-2 bg-slate-700 hover:bg-slate-800 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 flex items-center justify-center group"
-                                            title="Seguimiento Clínico"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                            </svg>
-                                        </button>
+                                <td className="p-3">
+                                    {paciente.tieneFirmaFC ? (
+                                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400 font-semibold text-sm">
+                                            <CheckCircle size={16} />
+                                            <span>Firmado</span>
+                                        </div>
+                                    ) : (
                                         <button
                                             onClick={() => {
-                                                setSelectedPacienteIdForImages(paciente.id);
-                                                setShowImagenesModal(true);
+                                                setSelectedPacienteIdForSignature(paciente.id);
+                                                setShowSignatureModal(true);
                                             }}
-                                            className="p-2 bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 flex items-center justify-center group"
-                                            title="Imágenes"
+                                            className="px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-bold transition-colors border border-blue-200"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                                <circle cx="12" cy="13" r="3" strokeWidth={2} />
-                                            </svg>
+                                            Firmar
                                         </button>
-                                        <button
-                                            onClick={() => navigate(`/pacientes/${paciente.id}/propuestas`)}
-                                            className="p-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 flex items-center justify-center group"
-                                            title="Propuestas"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                        </button>
-                                    </div>
+                                    )}
                                 </td>
+
+
                                 <td className="no-print p-3 flex gap-2">
                                     <button
                                         onClick={() => {
@@ -1147,7 +1047,7 @@ const PacienteList: React.FC = () => {
                         ))}
                         {(!pacientes || pacientes.length === 0) && (
                             <tr>
-                                <td colSpan={8} className="p-5 text-center text-gray-500 dark:text-gray-400">No hay pacientes registrados</td>
+                                <td colSpan={9} className="p-5 text-center text-gray-500 dark:text-gray-400">No hay pacientes registrados</td>
                             </tr>
                         )}
                     </tbody>
@@ -1167,16 +1067,26 @@ const PacienteList: React.FC = () => {
                 title="Manual de Usuario - Pacientes"
                 sections={manualSections}
             />
-            <PacienteImagenesModal
-                isOpen={showImagenesModal}
-                onClose={() => setShowImagenesModal(false)}
-                pacienteId={selectedPacienteIdForImages || 0}
-            />
+
             <PacienteViewModal
                 isOpen={showViewModal}
                 onClose={() => { setShowViewModal(false); setSelectedPacienteIdForView(null); }}
                 pacienteId={selectedPacienteIdForView}
             />
+            {showSignatureModal && (
+                <SignatureModal
+                    isOpen={showSignatureModal}
+                    onClose={() => {
+                        setShowSignatureModal(false);
+                        setSelectedPacienteIdForSignature(null);
+                        fetchPacientes(); // Refresh to show "Firmado"
+                    }}
+                    tipoDocumento="paciente"
+                    documentoId={selectedPacienteIdForSignature || 0}
+                    rolFirmante="paciente"
+                    closeOnSuccess={true}
+                />
+            )}
         </div>
     );
 };

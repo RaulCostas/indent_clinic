@@ -3,6 +3,7 @@ import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { useClinica } from '../context/ClinicaContext';
 import { TrendingUp } from 'lucide-react';
+import { formatNumber, formatMoney as formatMoneyUtil } from '../utils/formatters';
 import { formatDate } from '../utils/dateUtils';
 
 interface DetailItem {
@@ -205,13 +206,10 @@ const Utilidades: React.FC = () => {
                                 }
 
                                 if (ids.length > 0) {
-                                    const match = r.proforma.historiaClinica.filter((h: any) => ids.includes(String(h.id)));
+                                    const uniqueIds = Array.from(new Set(ids));
+                                    const match = r.proforma.historiaClinica.filter((h: any) => uniqueIds.includes(String(h.id)));
                                     if (match.length > 0) return match.map((h: any) => h.tratamiento).join(', ');
                                 }
-
-                                // Fallback a cancelados
-                                const cancelados = r.proforma.historiaClinica.filter((h: any) => Number(h.cancelado) > 0);
-                                if (cancelados.length > 0) return cancelados.map((h: any) => h.tratamiento).join(', ');
                                 
                                 return '-';
                             };
@@ -344,11 +342,9 @@ const Utilidades: React.FC = () => {
         }
     }, [clinicaSeleccionada]);
 
-    const formatMoney = (amount: number, currency: 'Bs' | 'Sus') => {
-        return amount.toLocaleString('es-BO', {
-            style: 'currency',
-            currency: currency === 'Bs' ? 'BOB' : 'USD'
-        });
+    const formatMoney = (amount: number, currency: 'Bs' | 'Sus' | 'Bolivianos' | 'Dólares') => {
+        const mappedCurrency = (currency === 'Bolivianos' || currency === 'Bs') ? 'Bs' : 'Sus';
+        return formatMoneyUtil(amount, mappedCurrency);
     };
 
     const handleOpenDetail = (category: StatCategory | undefined, currency: 'Bolivianos' | 'Dólares') => {
@@ -602,7 +598,7 @@ const Utilidades: React.FC = () => {
                             <div className="col-span-4">TOTAL INGRESOS</div>
                             <div className="col-span-3 text-right">{formatMoney(stats.totalIngresos.bs, 'Bs')}</div>
                             <div className="col-span-1"></div>
-                            <div className="col-span-3 text-right">$us {stats.totalIngresos.sus.toFixed(2)}</div>
+                            <div className="col-span-3 text-right">{formatMoney(stats.totalIngresos.sus, 'Sus')}</div>
                             <div className="col-span-1"></div>
                         </div>
 
@@ -649,7 +645,7 @@ const Utilidades: React.FC = () => {
                             <div className="col-span-4">TOTAL EGRESOS</div>
                             <div className="col-span-3 text-right">{formatMoney(stats.totalEgresos.bs, 'Bs')}</div>
                             <div className="col-span-1"></div>
-                            <div className="col-span-3 text-right">$us {stats.totalEgresos.sus.toFixed(2)}</div>
+                            <div className="col-span-3 text-right">{formatMoney(stats.totalEgresos.sus, 'Sus')}</div>
                             <div className="col-span-1"></div>
                         </div>
 
@@ -684,7 +680,7 @@ const Utilidades: React.FC = () => {
                                         <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                                     </svg>
                                 )}
-                                $us {stats.totalUtilidades.sus.toFixed(2)}
+                                {formatMoney(stats.totalUtilidades.sus, 'Sus')}
                             </div>
 
                             <div className="col-span-1"></div>
@@ -790,7 +786,7 @@ const Utilidades: React.FC = () => {
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.moneda}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right font-bold">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatMoney(item.monto, selectedDetail.currency)}
                                                                         </td>
                                                                     </>
                                                                 ) : selectedDetail.title.includes('Ingresos') ? (
@@ -807,7 +803,7 @@ const Utilidades: React.FC = () => {
                                                                         </td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right font-bold">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 ) : selectedDetail.title.includes('Egresos Diarios') ? (
@@ -816,7 +812,7 @@ const Utilidades: React.FC = () => {
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{item.descripcion}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 ) : selectedDetail.title.includes('Pagos a Laboratorios') ? (
@@ -827,7 +823,7 @@ const Utilidades: React.FC = () => {
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.paciente}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right font-bold">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 ) : selectedDetail.title.includes('Pagos de Pedidos') ? (
@@ -842,7 +838,7 @@ const Utilidades: React.FC = () => {
                                                                         </td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right font-bold">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 ) : selectedDetail.title.includes('Pagos a Doctores') ? (
@@ -851,7 +847,7 @@ const Utilidades: React.FC = () => {
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 font-medium">{item.doctor}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right font-bold">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 ) : selectedDetail.title.includes('Pagos de Gastos') ? (
@@ -860,7 +856,7 @@ const Utilidades: React.FC = () => {
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 font-medium">{item.gasto}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.formaPago}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right font-bold">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 ) : (
@@ -868,7 +864,7 @@ const Utilidades: React.FC = () => {
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.fecha}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{item.descripcion}</td>
                                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 text-right">
-                                                                            {item.monto.toLocaleString('es-BO', { style: 'currency', currency: selectedDetail.currency === 'Bolivianos' ? 'BOB' : 'USD' })}
+                                                                            {formatNumber(item.monto)} {selectedDetail.currency === 'Bolivianos' ? 'Bs.' : '$us'}
                                                                         </td>
                                                                     </>
                                                                 )}

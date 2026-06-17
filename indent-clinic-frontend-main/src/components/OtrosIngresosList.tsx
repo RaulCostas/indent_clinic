@@ -12,6 +12,7 @@ import { formatDate, getLocalDateString } from '../utils/dateUtils';
 import OtrosIngresosForm from './OtrosIngresosForm';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Download, Printer, PlusCircle } from 'lucide-react';
+import { formatNumber, formatMoney } from '../utils/formatters';
 
 interface PaginatedResponse {
     data: OtrosIngresos[];
@@ -387,7 +388,7 @@ const OtrosIngresosList: React.FC = () => {
                                 <tr>
                                     <td>${formatDate(ing.fecha)}</td>
                                     <td>${ing.detalle}</td>
-                                    <td>${ing.monto}</td>
+                                    <td>${formatNumber(ing.monto)}</td>
                                     <td>${ing.moneda}</td>
                                     <td>${ing.formaPago?.forma_pago || 'N/A'}</td>
                                 </tr>
@@ -407,10 +408,10 @@ const OtrosIngresosList: React.FC = () => {
                             key === 'QR' ? '📱 ' : '💰 '} ${key}
                                     </div>
                                     <div class="total-row">
-                                        <span>Bs:</span> <span>${value.bolivianos.toFixed(2)}</span>
+                                        <span>Bs:</span> <span>${formatNumber(value.bolivianos)}</span>
                                     </div>
                                     <div class="total-row">
-                                        <span>$us:</span> <span>${value.dolares.toFixed(2)}</span>
+                                        <span>$us:</span> <span>${formatNumber(value.dolares)}</span>
                                     </div>
                                 </div>
                             `).join('')}
@@ -591,7 +592,7 @@ const OtrosIngresosList: React.FC = () => {
                                                 <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-300 whitespace-nowrap">{formatDate(ing.fecha)}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">{ing.detalle}</td>
                                                 <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white text-right">
-                                                    {ing.monto.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+                                                    {formatNumber(ing.monto)}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{ing.moneda}</td>
                                                 <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
@@ -661,10 +662,10 @@ const OtrosIngresosList: React.FC = () => {
                                 </div>
                                 <div className="space-y-1">
                                     <div className="flex justify-between text-base">
-                                        <span className="text-gray-500">Bs:</span> <span className="font-bold text-gray-900 dark:text-white">{(value.bolivianos || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-gray-500">Bs:</span> <span className="font-bold text-gray-900 dark:text-white">{formatNumber(value.bolivianos || 0)}</span>
                                     </div>
                                     <div className="flex justify-between text-base">
-                                        <span className="text-gray-500">$us:</span> <span className="font-bold text-gray-900 dark:text-white">{(value.dolares || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-gray-500">$us:</span> <span className="font-bold text-gray-900 dark:text-white">{formatNumber(value.dolares || 0)}</span>
                                     </div>
                                 </div>
                             </div>

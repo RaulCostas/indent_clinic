@@ -1,8 +1,16 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateFichaMedicaDto {
-    @IsString() @IsOptional() ultima_visita_odontologo?: string;
-    @IsString() @IsOptional() motivo_consulta?: string;
+    @IsString() 
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+    @IsNotEmpty({ message: 'La última visita al odontólogo es obligatoria' }) 
+    ultima_visita_odontologo: string;
+
+    @IsString() 
+    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+    @IsNotEmpty({ message: 'El motivo de consulta es obligatorio' }) 
+    motivo_consulta: string;
 
     @IsBoolean() @IsOptional() bruxismo?: boolean;
     @IsBoolean() @IsOptional() alergia_medicamento?: boolean;
@@ -53,4 +61,5 @@ export class CreateFichaMedicaDto {
     @IsBoolean() @IsOptional() consume_citricos?: boolean;
 
     @IsString() @IsOptional() observaciones?: string;
+    @IsOptional() @IsNumber() usuarioId?: number;
 }

@@ -36,6 +36,12 @@ export interface GrupoInventario {
     estado: string;
 }
 
+export interface UnidadMedida {
+    id: number;
+    nombre: string;
+    estado: string;
+}
+
 export interface RecordatorioTratamiento {
     id: number;
     historiaClinicaId: number;
@@ -87,8 +93,10 @@ export interface Inventario {
     estado: string; // 'Activo' | 'Inactivo'
     idespecialidad: number;
     idgrupo_inventario: number;
+    idunidad_medida?: number;
     especialidad?: Especialidad;
     grupoInventario?: GrupoInventario;
+    unidadMedida?: UnidadMedida;
     egresosInventario?: EgresoInventario[];
     clinicaId?: number;
     clinica?: Clinica;
@@ -235,15 +243,11 @@ export interface Paciente {
     telefono: string;
     celular: string;
     email: string;
-    casilla: string;
     profesion: string;
     estado_civil: string;
-    direccion_oficina: string;
-    telefono_oficina: string;
     fecha_nacimiento: string;
     sexo: string;
     seguro_medico: string;
-    poliza: string;
     fecha_vencimiento?: string;
     recomendado: string;
     responsable: string;
@@ -260,6 +264,9 @@ export interface Paciente {
     fichaMedica?: FichaMedica;
     clinicaId?: number;
     clinica?: Clinica;
+    tieneFirmaFC?: boolean;
+    firmaFC?: string;
+    historiaClinica?: HistoriaClinica[];
 }
 
 export interface PersonalTipo {
@@ -304,6 +311,7 @@ export interface Proforma {
     clinica?: Clinica;
     createdAt: string;
     updatedAt: string;
+    firma?: string;
 }
 
 export interface HistoriaClinica {
@@ -334,7 +342,10 @@ export interface HistoriaClinica {
     precio?: number;
     descuento?: number;
     precioConDescuento?: number;
+    montoPagado?: number;
+    saldo?: number;
     firmaPaciente?: string;
+    tienePagos?: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -631,9 +642,9 @@ export interface Receta {
     userId: number;
     user?: { id: number; name: string };
     fecha: string;
-    medicamentos: string;
-    indicaciones: string;
+    clinicaId?: number;
     detalles?: RecetaDetalle[];
+    firma?: string;
 }
 
 export interface RecetaDetalle {
@@ -699,6 +710,7 @@ export interface VentaProductoDetalle {
     producto?: ProductoComercial;
     cantidad: number;
     precio_unitario: number;
+    descuento?: number;
     subtotal: number;
 }
 

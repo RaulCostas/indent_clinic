@@ -11,6 +11,7 @@ import autoTable from 'jspdf-autotable';
 import ManualModal, { type ManualSection } from './ManualModal';
 import PrintFilterModal from './PrintFilterModal';
 import { formatDate } from '../utils/dateUtils';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import PagosLaboratoriosForm from './PagosLaboratoriosForm';
 import { useClinica } from '../context/ClinicaContext';
 import { FileText, Download, Printer, Wallet } from 'lucide-react';
@@ -395,7 +396,7 @@ const PagosLaboratoriosList: React.FC = () => {
                 p.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
                 p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
                 p.moneda === 'Bolivianos' ? 'Bs' : '$us',
-                p.monto ? Number(p.monto).toFixed(2) : (p.trabajoLaboratorio ? p.trabajoLaboratorio.total : '0.00'),
+                p.monto ? formatNumber(p.monto) : (p.trabajoLaboratorio ? formatNumber(p.trabajoLaboratorio.total) : '0,00'),
                 p.formaPago ? p.formaPago.forma_pago : '-'
             ]);
 
@@ -601,7 +602,7 @@ const PagosLaboratoriosList: React.FC = () => {
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">{pago.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">
-                                        {pago.monto ? Number(pago.monto).toFixed(2) : (pago.trabajoLaboratorio ? pago.trabajoLaboratorio.total : '0.00')}
+                                        {pago.monto ? formatNumber(pago.monto) : (pago.trabajoLaboratorio ? formatNumber(pago.trabajoLaboratorio.total) : '0,00')}
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">
                                         {pago.formaPago ? pago.formaPago.forma_pago : '-'}

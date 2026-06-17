@@ -29,6 +29,7 @@ import HistoriaClinica from './components/HistoriaClinica';
 import PagosForm from './components/PagosForm';
 import ComisionTarjetaList from './components/ComisionTarjetaList';
 import PagosPedidosList from './components/PagosPedidosList';
+import PagosPedidosForm from './components/PagosPedidosForm';
 import GastosFijosList from './components/GastosFijosList';
 import AgendaView from './components/AgendaView';
 import CorreosList from './components/CorreosList';
@@ -36,6 +37,7 @@ import Configuration from './components/Configuration';
 import ChatbotConfig from './components/ChatbotConfig';
 import FormaPagoList from './components/FormaPagoList';
 import GrupoInventarioList from './components/GrupoInventarioList';
+import UnidadMedidaList from './components/UnidadMedidaList';
 import InventarioList from './components/InventarioList';
 import VacacionesList from './components/VacacionesList';
 import CalificacionList from './components/CalificacionList';
@@ -253,6 +255,8 @@ function App() {
                                 {/* Pagos Config */}
                                 <Route element={<ProtectedRoute moduleId="pagos" />}>
                                     <Route path="/pagos-pedidos" element={<PagosPedidosList />} />
+                                    <Route path="/pagos-pedidos/create" element={<PagosPedidosForm isOpen={true} onClose={() => window.history.back()} onSaveSuccess={() => window.history.back()} />} />
+                                    <Route path="/pagos-pedidos/edit/:id" element={<PagosPedidosForm isOpen={true} onClose={() => window.history.back()} onSaveSuccess={() => window.history.back()} />} />
                                     <Route path="/comision-tarjeta" element={<ComisionTarjetaList />} />
                                     <Route path="/forma-pago" element={<FormaPagoList />} />
                                 </Route>
@@ -260,6 +264,7 @@ function App() {
                                 {/* Inventario */}
                                 <Route element={<ProtectedRoute moduleId="inventario" />}>
                                     <Route path="/grupo-inventario" element={<GrupoInventarioList />} />
+                                    <Route path="/unidad-medida" element={<UnidadMedidaList />} />
                                     <Route path="/inventario" element={<InventarioList />} />
                                     <Route path="/pedidos" element={<PedidosList />} />
                                     <Route path="/pedidos/deudas" element={<DeudasPedidos />} />

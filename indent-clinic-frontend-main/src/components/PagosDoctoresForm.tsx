@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '../services/api';
 import { formatDate, getLocalDateString } from '../utils/dateUtils';
+import { formatNumber, formatMoney } from '../utils/formatters';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { useClinica } from '../context/ClinicaContext';
 import FormaPagoForm from './FormaPagoForm';
@@ -54,7 +55,8 @@ interface HistoriaClinica {
 interface RowDetail {
     costoLaboratorio: string | number;
     descuento: number; // Percentage
-    comision: string | number; // Percentage
+    comision: string | number; // Amount or Percentage
+    tipo_comision: string; // '%' or '-'
 }
 
 const PagosDoctoresForm = () => {
@@ -182,14 +184,16 @@ const PagosDoctoresForm = () => {
                 detailsMap[d.historiaClinica.id] = {
                     costoLaboratorio: Number(d.costo_laboratorio),
                     descuento: Number(d.descuento),
-                    comision: Number(d.comision)
+                    comision: Number(d.comision),
+                    tipo_comision: d.tipo_comision || '%'
                 };
             });
             pendingItems.forEach(p => {
                 detailsMap[p.id] = {
                     costoLaboratorio: p.costoLaboratorioAuto || 0,
                     descuento: p.descuento || p.proformaDetalle?.descuento || 0,
-                    comision: p.comisionDefault || 0
+                    comision: p.comisionDefault || 0,
+                    tipo_comision: '%'
                 };
             });
             setRowDetails(detailsMap);
@@ -261,10 +265,15 @@ const PagosDoctoresForm = () => {
 
     const calculateRowTotal = (item: HistoriaClinica) => {
         const afterLab = calculateRowNeto(item);
-        const details = rowDetails[item.id] || { costoLaboratorio: 0, descuento: 0, comision: 0 };
+        const details = rowDetails[item.id] || { costoLaboratorio: 0, descuento: 0, comision: 0, tipo_comision: '%' };
 
         // 4. Apply Physician Commission
-        const comisionAmount = (afterLab * (Number(details.comision) || 0)) / 100;
+        let comisionAmount = 0;
+        if (details.tipo_comision === '%') {
+            comisionAmount = (afterLab * (Number(details.comision) || 0)) / 100;
+        } else {
+            comisionAmount = Math.max(0, afterLab - (Number(details.comision) || 0));
+        }
 
         return comisionAmount;
     };
@@ -301,7 +310,8 @@ const PagosDoctoresForm = () => {
                         [id]: {
                             costoLaboratorio: item?.costoLaboratorioAuto || 0,
                             descuento: defaultDiscount,
-                            comision: item?.comisionDefault || 0
+                            comision: item?.comisionDefault || 0,
+                            tipo_comision: '%'
                         }
                     }));
                 }
@@ -325,7 +335,7 @@ const PagosDoctoresForm = () => {
                 if (!newDetails[p.id]) {
                     const defaultDiscount = p.descuento || p.proformaDetalle?.descuento || 0;
                     const defaultComision = p.comisionDefault || 0;
-                    newDetails[p.id] = { costoLaboratorio: 0, descuento: defaultDiscount, comision: defaultComision };
+                    newDetails[p.id] = { costoLaboratorio: 0, descuento: defaultDiscount, comision: defaultComision, tipo_comision: '%' };
                 }
             });
             setRowDetails(newDetails);
@@ -366,14 +376,14 @@ const PagosDoctoresForm = () => {
                     forma_pago_paciente: p.ultimoPagoPaciente?.forma_pago || null,
                     factura: p.ultimoPagoPaciente?.factura || null,
                     descuento: Number(rd.descuento) || 0,
-                    comision: Number(rd.comision) || 0
+                    comision: Number(rd.comision) || 0,
+                    tipo_comision: rd.tipo_comision || '%'
                 };
             });
 
         const payload = {
             idDoctor: Number(idDoctor),
             fecha,
-            comision: 0, // No longer using global commission
             total: totalToPay,
             moneda,
             tc: moneda === 'Dólares' ? tc : 0,
@@ -484,7 +494,7 @@ const PagosDoctoresForm = () => {
                                     <th className="p-3 bg-gray-50/50 dark:bg-gray-800/50 text-center">Fact.</th>
                                     <th className="p-3 w-24 bg-blue-50/50 dark:bg-blue-900/20 text-right">Imp. (16%)</th>
                                     <th className="p-3 text-right bg-blue-50/50 dark:bg-blue-900/20 font-bold">Neto Doc.</th>
-                                    <th className="p-3 w-20 bg-blue-50/50 dark:bg-blue-900/20">Com%</th>
+                                    <th className="p-3 w-28 bg-blue-50/50 dark:bg-blue-900/20">Comisión</th>
                                     <th className="p-3 bg-green-50/50 dark:bg-green-900/20 text-right font-bold text-green-700 dark:text-green-400">Pago Doct.</th>
                                 </tr>
                             </thead>
@@ -498,7 +508,7 @@ const PagosDoctoresForm = () => {
                                 ) : (
                                     filteredPendientes.map(p => {
                                         const isSelected = selectedIds.includes(p.id);
-                                        const details = rowDetails[p.id] || { costoLaboratorio: 0, descuento: 0 };
+                                        const details = rowDetails[p.id] || { costoLaboratorio: 0, descuento: 0, comision: 0, tipo_comision: '%' };
                                         const rowTotal = calculateRowTotal(p);
 
                                         return (
@@ -517,14 +527,14 @@ const PagosDoctoresForm = () => {
                                                 <td className="p-3 text-gray-700 dark:text-gray-300">{p.tratamiento}</td>
                                                 <td className="p-3 text-gray-500 dark:text-gray-400">{p.pieza || '-'}</td>
                                                 <td className="p-3 text-center text-gray-500 dark:text-gray-400">{p.cantidad}</td>
-                                                <td className="p-3 text-right font-bold text-gray-800 dark:text-white">Bs. {Number(p.precio).toFixed(2)}</td>
+                                                <td className="p-3 text-right font-bold text-gray-800 dark:text-white">{formatMoney(p.precio, 'Bs')}</td>
                                                 
                                                 <td className="p-3 text-right text-red-600 dark:text-red-400 font-medium">
-                                                    {isSelected && details.descuento > 0 ? `- Bs. ${Number(details.descuento).toFixed(2)}` : '-'}
+                                                    {isSelected && details.descuento > 0 ? `- ${formatMoney(details.descuento, 'Bs')}` : '-'}
                                                 </td>
 
                                                 <td className="p-3 text-right font-medium text-gray-700 dark:text-gray-300">
-                                                    {isSelected ? Number(details.costoLaboratorio).toFixed(2) : '-'}
+                                                    {isSelected ? formatNumber(details.costoLaboratorio) : '-'}
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     {isSelected && p.ultimoPagoPaciente?.factura ? (
@@ -542,34 +552,53 @@ const PagosDoctoresForm = () => {
                                                             const base = Number(p.precio) || 0;
                                                             const discountAmount = Number(details.descuento) || 0;
                                                             const taxableBase = base - discountAmount;
-                                                            return `- Bs. ${(taxableBase * 0.16).toFixed(2)}`;
+                                                            return `- ${formatMoney(taxableBase * 0.16, 'Bs')}`;
                                                         })()
-                                                    ) : isSelected ? '0.00' : '-'}
+                                                    ) : isSelected ? formatNumber(0) : '-'}
                                                 </td>
 
                                                 <td className="p-3 text-right font-bold text-blue-600 dark:text-blue-400">
-                                                    {isSelected ? `Bs. ${calculateRowNeto(p).toFixed(2)}` : '-'}
+                                                    {isSelected ? formatMoney(calculateRowNeto(p), 'Bs') : '-'}
                                                 </td>
 
                                                 <td className="p-2">
                                                     {isSelected && (
-                                                        <input
-                                                            type="text"
-                                                            value={details.comision}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value.replace(',', '.');
-                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                    handleDetailChange(p.id, 'comision', val);
-                                                                }
-                                                            }}
-                                                            className="w-full p-1 border border-blue-300 dark:border-blue-600 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                            placeholder="0%"
-                                                        />
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex text-xs bg-gray-100 dark:bg-gray-800 rounded p-0.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); handleDetailChange(p.id, 'tipo_comision', '%'); }}
+                                                                    className={`flex-1 text-center py-0.5 rounded transition-colors ${details.tipo_comision === '%' ? 'bg-blue-500 text-white shadow-sm font-bold' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                                                >
+                                                                    %
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); handleDetailChange(p.id, 'tipo_comision', '-'); }}
+                                                                    className={`flex-1 text-center py-0.5 rounded transition-colors ${details.tipo_comision === '-' ? 'bg-blue-500 text-white shadow-sm font-bold' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                                                    title="Resta / Descuento Fijo"
+                                                                >
+                                                                    Resta
+                                                                </button>
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                value={details.comision}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        handleDetailChange(p.id, 'comision', val);
+                                                                    }
+                                                                }}
+                                                                className="w-full p-1 border border-blue-300 dark:border-blue-600 rounded text-right focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                placeholder={details.tipo_comision === '%' ? "0%" : "Monto Resta"}
+                                                            />
+                                                        </div>
                                                     )}
                                                 </td>
 
                                                 <td className="p-3 text-right font-bold text-green-700 dark:text-green-400">
-                                                    {isSelected ? rowTotal.toFixed(2) : '-'}
+                                                    {isSelected ? formatNumber(rowTotal) : '-'}
                                                 </td>
                                             </tr>
                                         );
@@ -656,7 +685,7 @@ const PagosDoctoresForm = () => {
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border-2 border-green-500/20 dark:border-green-400/20 text-center min-w-[200px] shadow-sm">
                             <span className="block text-gray-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">Total a Pagar</span>
                             <span className="block text-3xl font-black text-green-600 dark:text-green-400 tracking-tighter">
-                                {totalToPay.toFixed(2)} <span className="text-sm font-normal ml-1">{moneda === 'Dólares' ? '$us' : 'Bs'}</span>
+                                {formatNumber(totalToPay)} <span className="text-sm font-normal ml-1">{moneda === 'Dólares' ? '$us' : 'Bs'}</span>
                             </span>
                         </div>
                     </div>

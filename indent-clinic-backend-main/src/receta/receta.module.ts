@@ -7,12 +7,14 @@ import { RecetaDetalle } from './entities/receta-detalle.entity';
 import { RecetaPdfService } from './receta-pdf.service';
 import { ChatbotModule } from '../chatbot/chatbot.module';
 import { FirmasModule } from '../firmas/firmas.module';
+import { StorageModule } from '../common/storage/storage.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Receta, RecetaDetalle]),
         ChatbotModule,
-        forwardRef(() => FirmasModule)
+        forwardRef(() => FirmasModule),
+        StorageModule
     ],
     controllers: [RecetaController],
     providers: [RecetaService, RecetaPdfService],

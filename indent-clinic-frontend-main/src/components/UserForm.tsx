@@ -3,6 +3,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import type { CreateUserDto } from '../types';
 import ManualModal, { type ManualSection } from './ManualModal';
+import { Eye, EyeOff } from 'lucide-react';
 
 
 interface UserFormProps {
@@ -20,6 +21,7 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, id, onSaveSuccess 
         estado: 'Activo',
     });
     const [showManual, setShowManual] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const manualSections: ManualSection[] = [
         {
@@ -169,14 +171,21 @@ const UserForm: React.FC<UserFormProps> = ({ isOpen, onClose, id, onSaveSuccess 
                                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                                     </svg>
                                     <input
-                                        type="password"
+                                        type={showPassword ? "text" : "password"}
                                         name="password"
                                         value={formData.password}
                                         onChange={handleChange}
                                         required={!id} // Required only for create
                                         placeholder={id ? 'Dejar en blanco para mantener la actual' : ''}
-                                        className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 dark:placeholder-gray-400"
+                                        className="w-full pl-10 pr-10 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 dark:placeholder-gray-400"
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none !bg-transparent !border-none !shadow-none"
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
                             </div>
                             <div className="mb-4">

@@ -101,8 +101,8 @@ const PacienteTabFicha: React.FC = () => {
                         <User size={16} className="text-red-500" /> Consulta
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Field label="¿Cuándo fue la última vez que visitó al odontólogo, y cuál fue el motivo?" value={`${(paciente as any).fichaMedica?.ultima_visita_odontologo || 'No especificado'} - ${(paciente as any).fichaMedica?.motivo_consulta || 'Sin motivo'}`} />
-                        <Field label="Motivo de Consulta" value={paciente.motivo} />
+                        <Field label="¿Cuándo fue su última visita al odontólogo?" value={(paciente as any).fichaMedica?.ultima_visita_odontologo} />
+                        <Field label="Motivo de Consulta" value={(paciente as any).fichaMedica?.motivo_consulta} />
                     </div>
 
 
@@ -181,7 +181,7 @@ const PacienteTabFicha: React.FC = () => {
                                         { label: 'Venéreas', key: 'enf_venereas', detailKey: 'enf_venereas_detalle' },
                                         { label: 'Renales', key: 'enf_renales', detailKey: 'enf_renales_detalle' },
                                         { label: 'Diabetes', key: 'diabetes', detailKey: 'diabetes_detalle' },
-                                        { label: 'Hemorragias / Anemia', key: 'anemia', detailKey: 'anemia_detalle' },
+                                        { label: 'Anemia', key: 'anemia', detailKey: 'anemia_detalle' },
                                     ].map((enf) => (
                                         <div key={enf.key} className="space-y-1">
                                             <CheckBadge label={enf.label} value={ficha[enf.key]} />
@@ -193,14 +193,14 @@ const PacienteTabFicha: React.FC = () => {
                                         </div>
                                     ))}
                                     <div className="space-y-1">
-                                        <CheckBadge label="Presión Alta (Hipertensión)" value={ficha.hipertension} />
+                                        <CheckBadge label="Hipertensión arterial (Presión Arterial Alta)" value={ficha.hipertension} />
                                     </div>
                                     <div className="space-y-1">
-                                        <CheckBadge label="Presión Baja (Hipotensión)" value={ficha.hipotension} />
+                                        <CheckBadge label="Hipotensión arterial (Presión Arterial Baja)" value={ficha.hipotension} />
                                     </div>
                                 </div>
                                 <div className="mt-3">
-                                    <Field label="¿Requirió o requiere Prueba de VIH?" value={ficha.prueba_vih ? `SÍ (${ficha.prueba_vih_resultado || 'Sin especificar'})` : 'NO'} />
+                                    <Field label="¿Alguna vez le hicieron la prueba del VIH?" value={ficha.prueba_vih ? `SÍ (${ficha.prueba_vih_resultado || 'Sin especificar'})` : 'NO'} />
                                 </div>
                             </div>
 

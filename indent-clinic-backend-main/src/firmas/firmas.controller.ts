@@ -21,6 +21,11 @@ export class FirmasController {
      * Get all signatures for a document
      * GET /firmas/documento/:tipo/:id
      */
+    @Get('migrar-base64')
+    migrate() {
+        return this.firmasService.migrateToBase64();
+    }
+
     @Get('documento/:tipo/:id')
     findByDocumento(
         @Param('tipo') tipo: string,
@@ -48,6 +53,15 @@ export class FirmasController {
     }
 
     /**
+     * Get signature image as Base64 (Proxy)
+     * GET /firmas/:id/base64
+     */
+    @Get(':id/base64')
+    getBase64(@Param('id') id: string) {
+        return this.firmasService.getFirmaBase64(+id);
+    }
+
+    /**
      * Get a single signature
      * GET /firmas/:id
      */
@@ -72,5 +86,24 @@ export class FirmasController {
     @Delete(':id')
     remove(@Param('id') id: string) {
         return this.firmasService.remove(+id);
+    }
+
+    /**
+     * Temporary Migration Endpoint
+     * POST /firmas/migrate/run
+     */
+    @Post('migrate/setup-db')
+    async setupDb() {
+        return this.firmasService.setupDb();
+    }
+
+    @Post('migrate/run')
+    async runMigration() {
+        return this.firmasService.runMigration();
+    }
+
+    @Get('migrate/stats')
+    async getMigrationStats() {
+        return this.firmasService.getMigrationStats();
     }
 }

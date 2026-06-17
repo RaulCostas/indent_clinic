@@ -124,7 +124,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
             console.log(`[Chatbot] Found ${savedSessions.length} saved sessions with credentials in database.`);
 
-            let delayMs = 0;
+            let delayMs = 30000; // Esperar 30 segundos antes de iniciar la primera instancia para dejar que NestJS se estabilice
             for (const session of savedSessions) {
                 // Verificar que la clínica asociada exista y esté activa antes de levantarla
                 const clinica = await this.clinicaRepository.findOne({
@@ -137,7 +137,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                             console.error(`[Chatbot] Failed to auto-initialize session for Clinic ${session.clinicId} Instance ${session.instanceNumber}:`, err);
                         });
                     }, delayMs);
-                    delayMs += 10000; // 10 segundos de espera entre la inicialización de cada instancia
+                    delayMs += 20000; // 20 segundos de espera entre la inicialización de cada instancia sucesiva
                 }
             }
 
@@ -244,6 +244,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     retryRequestDelayMs: 250,
                     markOnlineOnConnect: false,
                     syncFullHistory: false,
+                    shouldIgnoreJid: (jid) => jid?.endsWith('@broadcast') || jid?.endsWith('@newsletter'),
                     getMessage: async (key) => {
                         if (key.id && session.pollStore.has(key.id)) {
                             return session.pollStore.get(key.id)!.message;
@@ -306,7 +307,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                         console.log(`[Chatbot] [Clinic ${clinicId}] [Instance ${instance}] Logged out. Manual re-scan required.`);
                     } else if (shouldReconnect && !session.intentionalDisconnect) {
                         // Recoverable error — reconnect with a short delay to avoid hammering
-                        setTimeout(() => this.initialize(clinicId, instance), 5000);
+                        setTimeout(() => this.initialize(clinicId, instance), 15000);
                     }
                 } else if (connection === 'open') {
                     console.log(`[Chatbot] [Clinic ${clinicId}] [Instance ${instance}] Connection opened successfully`);

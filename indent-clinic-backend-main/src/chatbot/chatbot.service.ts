@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Clinica } from '../clinicas/entities/clinica.entity';
 import { Sucursal } from '../clinicas/entities/sucursal.entity';
+import { Especialidad } from '../especialidad/entities/especialidad.entity';
 import { PacientesService } from '../pacientes/pacientes.service';
 import { DoctorsService } from '../doctors/doctors.service';
 import { AgendaService } from '../agenda/agenda.service';
@@ -22,6 +23,7 @@ import { ChatbotIntento } from './entities/chatbot-intento.entity';
 import { WhatsappSession } from './entities/whatsapp-session.entity';
 import { ChatbotPdfService } from './chatbot-pdf.service';
 import { InventarioService } from '../inventario/inventario.service';
+import { getBoliviaFullDate } from '../common/utils/date.utils';
 import pino from 'pino';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -32,6 +34,17 @@ import { decryptPollVote } from '@whiskeysockets/baileys/lib/Utils/process-messa
 import { getKeyAuthor } from '@whiskeysockets/baileys/lib/Utils/generics.js';
 import { jidNormalizedUser } from '@whiskeysockets/baileys';
 
+class BoundedMap<K, V> extends Map<K, V> {
+    constructor(private maxSize: number) { super(); }
+    set(key: K, value: V) {
+        if (this.size >= this.maxSize && !this.has(key)) {
+            const firstKey = this.keys().next().value;
+            if (firstKey !== undefined) this.delete(firstKey);
+        }
+        return super.set(key, value);
+    }
+}
+
 interface SessionState {
     sock: any;
     qrCode: string | null;
@@ -39,8 +52,9 @@ interface SessionState {
     intentionalDisconnect: boolean;
     initializationStartTime: number | null;
     initializationTimeout: NodeJS.Timeout | null;
-    userSessions: Map<string, { type: 'new' | 'registered' | 'waiting_cancellation_reason' | 'waiting_agenda_response' | 'waiting_branch_selection', timestamp: number, citaId?: number, branchAction?: 'DIRECCION' | 'HORARIO' }>;
+    userSessions: Map<string, { type: 'new' | 'registered' | 'menu' | 'waiting_cancellation_reason' | 'waiting_agenda_response' | 'waiting_branch_selection' | 'waiting_urgencia_response' | 'waiting_otra_consulta_response', timestamp: number, citaId?: number, branchAction?: 'DIRECCION' | 'HORARIO' }>;
     pollStore: Map<string, { message: any, citaId: number }>;
+    processedMsgIds: Set<string>;
 }
 
 @Injectable()
@@ -66,6 +80,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         private readonly whatsappSessionRepository: Repository<WhatsappSession>,
         @InjectRepository(Sucursal)
         private readonly sucursalRepository: Repository<Sucursal>,
+        @InjectRepository(Especialidad)
+        private readonly especialidadRepository: Repository<Especialidad>,
     ) { }
 
     private getSessionKey(clinicId: number, instance: number): string {
@@ -82,8 +98,9 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 intentionalDisconnect: false,
                 initializationStartTime: null,
                 initializationTimeout: null,
-                userSessions: new Map(),
-                pollStore: new Map(),
+                userSessions: new BoundedMap(1000),
+                pollStore: new BoundedMap(500),
+                processedMsgIds: new Set(),
             });
         }
         return this.sessions.get(key)!;
@@ -100,19 +117,46 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             // Garantizar que el índice único exista antes de intentar cualquier upsert
             await this.ensureDatabaseIndex();
 
-            const clinicas = await this.clinicaRepository.find({ where: { activo: true } });
-            console.log(`[Chatbot] Found ${clinicas.length} active clinics. Starting initialization for 2 instances per clinic staggeredly...`);
+            // Buscar solo las sesiones que ya tienen credenciales guardadas en la base de datos
+            const savedSessions = await this.whatsappSessionRepository.find({
+                where: { type: 'creds' }
+            });
+
+            console.log(`[Chatbot] Found ${savedSessions.length} saved sessions with credentials in database.`);
+
             let delayMs = 0;
-            for (const clinica of clinicas) {
-                for (const instance of [1, 2]) {
+            for (const session of savedSessions) {
+                // Verificar que la clínica asociada exista y esté activa antes de levantarla
+                const clinica = await this.clinicaRepository.findOne({
+                    where: { id: session.clinicId, activo: true }
+                });
+
+                if (clinica) {
                     setTimeout(() => {
-                        this.initialize(clinica.id, instance).catch(err => {
-                            console.error(`[Chatbot] Failed to initialize session for Clinic ${clinica.id} Instance ${instance}:`, err);
+                        this.initialize(session.clinicId, session.instanceNumber).catch(err => {
+                            console.error(`[Chatbot] Failed to auto-initialize session for Clinic ${session.clinicId} Instance ${session.instanceNumber}:`, err);
                         });
                     }, delayMs);
                     delayMs += 10000; // 10 segundos de espera entre la inicialización de cada instancia
                 }
             }
+
+            // Monitoreo de Memoria Periódico para asegurar estabilidad
+            setInterval(() => {
+                const memory = process.memoryUsage();
+                const heapMb = Math.round(memory.heapUsed / 1024 / 1024);
+                const totalMb = Math.round(memory.heapTotal / 1024 / 1024);
+                const rssMb = Math.round(memory.rss / 1024 / 1024);
+                
+                let totalPolls = 0;
+                let totalSessions = 0;
+                for (const session of this.sessions.values()) {
+                    totalPolls += session.pollStore.size;
+                    totalSessions += session.userSessions.size;
+                }
+                console.log(`[Chatbot Memory Status] RSS: ${rssMb}MB | Heap: ${heapMb}MB / ${totalMb}MB | Total Polls: ${totalPolls} | Total Sessions: ${totalSessions}`);
+            }, 1000 * 60 * 60); // Log cada 1 hora
+
         } catch (error) {
             console.error('[Chatbot] Failed to retrieve clinics for background initialization', error);
         }
@@ -183,27 +227,37 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             const { version, isLatest } = await fetchLatestBaileysVersion();
             console.log(`[Chatbot] [Clinic ${clinicId}] [Instance ${instance}] Initializing (WA version: ${version.join('.')}, isLatest: ${isLatest})...`);
 
-            session.sock = makeWASocket({
-                version,
-                logger: pino({ level: 'error' }) as any,
-                auth: {
-                    creds: state.creds,
-                    keys: state.keys,
-                },
-                generateHighQualityLinkPreview: true,
-                browser: [`Clinica ${clinicId} Chatbot ${instance}`, 'Chrome', '1.0.0'],
-                connectTimeoutMs: 60000,
-                defaultQueryTimeoutMs: 60000,
-                keepAliveIntervalMs: 10000,
-                emitOwnEvents: true,
-                retryRequestDelayMs: 250,
-                getMessage: async (key) => {
-                    if (key.id && session.pollStore.has(key.id)) {
-                        return session.pollStore.get(key.id)!.message;
+            try {
+                session.sock = makeWASocket({
+                    version,
+                    logger: pino({ level: 'error' }) as any,
+                    auth: {
+                        creds: state.creds,
+                        keys: state.keys,
+                    },
+                    generateHighQualityLinkPreview: false,
+                    browser: [`Clinica ${clinicId} Chatbot ${instance}`, 'Chrome', '1.0.0'],
+                    connectTimeoutMs: 60000,
+                    defaultQueryTimeoutMs: 60000,
+                    keepAliveIntervalMs: 10000,
+                    emitOwnEvents: true,
+                    retryRequestDelayMs: 250,
+                    markOnlineOnConnect: false,
+                    syncFullHistory: false,
+                    getMessage: async (key) => {
+                        if (key.id && session.pollStore.has(key.id)) {
+                            return session.pollStore.get(key.id)!.message;
+                        }
+                        return undefined;
                     }
-                    return undefined;
-                }
-            });
+                });
+            } catch (sockError) {
+                console.error(`[Chatbot] [Clinic ${clinicId}] CRITICAL ERROR creating socket:`, sockError);
+                session.status = 'disconnected';
+                // Try to clear corrupted session data if possible
+                await this.whatsappSessionRepository.delete({ clinicId, instanceNumber: instance, type: 'creds' });
+                return;
+            }
 
             console.log(`[Chatbot] [Clinic ${clinicId}] Socket created. Setting up event listeners...`);
 
@@ -230,8 +284,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     // Detect unrecoverable conditions that should NOT trigger auto-reconnect
                     const isLoggedOut = statusCode === DisconnectReason.loggedOut;
                     const isQrExpired = errorMsg.toLowerCase().includes('qr refs attempts') ||
-                                        errorMsg.toLowerCase().includes('qr ref') ||
-                                        (statusCode === 408 && session.status === 'qr'); // Connection Timed Out waiting for QR
+                        errorMsg.toLowerCase().includes('qr ref') ||
+                        (statusCode === 408 && session.status === 'qr'); // Connection Timed Out waiting for QR
 
                     const shouldReconnect = !isLoggedOut && !isQrExpired;
 
@@ -331,6 +385,25 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     }
 
                     if (!msg.key.fromMe) {
+                        // Ignorar mensajes de protocolo (ephemeral sync, etc.)
+                        if (msg.message?.protocolMessage) continue;
+
+                        // Ignorar mensajes sin texto real
+                        const msgText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+                        if (!msgText.trim()) continue;
+
+                        const msgId = msg.key.id || '';
+                        if (msgId && session.processedMsgIds.has(msgId)) {
+                            console.log(`[Chatbot] [Clinic ${clinicId}] Duplicate message ignored: ${msgId}`);
+                            continue;
+                        }
+                        if (msgId) {
+                            session.processedMsgIds.add(msgId);
+                            if (session.processedMsgIds.size > 500) {
+                                const firstKey = session.processedMsgIds.values().next().value;
+                                session.processedMsgIds.delete(firstKey);
+                            }
+                        }
                         console.log(`[Chatbot] [Clinic ${clinicId}] [Instance ${instance}] New message received:`, JSON.stringify(msg, null, 2));
                         await this.handleMessage(msg, clinicId, instance);
                     }
@@ -384,21 +457,29 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             where: { clinicId, instanceNumber: instance, type: 'creds' }
         });
 
-        if (sessionCreds) {
-            creds = JSON.parse(JSON.stringify(sessionCreds.data), BufferJSON.reviver);
+        if (sessionCreds && sessionCreds.data) {
+            try {
+                creds = JSON.parse(JSON.stringify(sessionCreds.data), BufferJSON.reviver);
+                if (!creds) {
+                    console.warn(`[Chatbot] [Clinic ${clinicId}] Credentials found but parsed as null. Initializing new ones.`);
+                    creds = initAuthCreds();
+                }
+            } catch (err) {
+                console.error(`[Chatbot] [Clinic ${clinicId}] Failed to parse credentials from DB:`, err);
+                creds = initAuthCreds();
+            }
         } else {
             creds = initAuthCreds();
         }
 
         const saveCreds = async () => {
-            const existing = await this.whatsappSessionRepository.findOne({
-                where: { clinicId, instanceNumber: instance, type: 'creds' }
-            });
             const serializedCreds = JSON.parse(JSON.stringify(creds, BufferJSON.replacer));
-            if (existing) {
-                existing.data = serializedCreds;
-                await this.whatsappSessionRepository.save(existing);
-            } else {
+            const updateResult = await this.whatsappSessionRepository.update(
+                { clinicId, instanceNumber: instance, type: 'creds' },
+                { data: serializedCreds }
+            );
+            
+            if (updateResult.affected === 0) {
                 const newSession = this.whatsappSessionRepository.create({
                     clinicId,
                     instanceNumber: instance,
@@ -505,6 +586,12 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             const phone = phonePart.split(':')[0];
             const isGroup = remoteJid.endsWith('@g.us');
 
+            // ─── PRIORIDAD 0: Ignorar grupos ──────────────────────────────────────────
+            if (isGroup) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Message from group ${remoteJid} ignored.`);
+                return;
+            }
+
             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
             const normalizedText = text.toLowerCase();
 
@@ -515,6 +602,14 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
             console.log(`[Chatbot] [Clinic ${clinicId}] New message from ${senderJid} in ${remoteJid}: "${text}"`);
 
+            // Ignorar mensajes del propio número de la sesión (evitar que el bot se responda a sí mismo)
+            const sessionPhone = session.sock?.user?.id?.split(':')[0]?.split('@')[0];
+            const senderPhone = phone;
+            if (sessionPhone && senderPhone && sessionPhone === senderPhone) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Ignoring self-message from own session number ${senderPhone}`);
+                return;
+            }
+
             const phoneVariations = [
                 phone,
                 phone.startsWith('591') ? phone.substring(3) : '591' + phone,
@@ -524,6 +619,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
             let actor: any = null;
             let isDoctor = false;
+            let isPersonal = false;
+            let isPaciente = false;
 
             try {
                 // Búsqueda inicial de actor (paciente o personal) con protección de error
@@ -534,17 +631,24 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 if (!actor) {
                     for (const p of phoneVariations) {
                         actor = await this.personalService.findByCelular(p);
-                        if (actor) break;
+                        if (actor) { isPersonal = true; break; }
                     }
                 }
                 if (!actor) {
                     for (const p of phoneVariations) {
                         actor = await this.pacientesService.findByCelular(p);
-                        if (actor) break;
+                        if (actor) { isPaciente = true; break; }
                     }
                 }
             } catch (identError) {
                 console.error(`[Chatbot] [Clinic ${clinicId}] Error identifying user ${senderJid}:`, identError);
+            }
+
+            // Detectar despedidas para ignorar el mensaje sin re-enviar el menú (Silencio solicitado por el usuario)
+            const esDespedida = /^(gracias|chau|adios|adiós|bye|hasta luego|nos vemos|ok gracias|muchas gracias|de nada|perfecto|listo)$/i.test(normalizedText.trim());
+            if (esDespedida) {
+                console.log(`[Chatbot] [Clinic ${clinicId}] Farewell detected from ${remoteJid}. Ignoring message.`);
+                return;
             }
 
             // Detectar si es un saludo o comando de reinicio para limpiar sesiones trabadas
@@ -558,26 +662,26 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
             // ─── PRIORIDAD 1: Sesiones de espera activas (Recuperar estado fresco) ─────
             const freshSession = session.userSessions.get(remoteJid);
-            
+
             if (freshSession && freshSession.type === 'waiting_agenda_response' && freshSession.citaId) {
                 const respuesta = normalizedText.trim();
 
                 // Reconocer letra A / emoji ✅ / palabras de confirmación
-                const esConfirmar = /^(a|✅)$/i.test(respuesta) || 
-                    respuesta.startsWith('a ') || respuesta.startsWith('a\n') ||
+                const esConfirmar = /^(a|✅)[.)\-\s]*$/i.test(respuesta) ||
+                    /^a\s+(confirmar|confirmo|si|sí|ok|dale|bueno|perfecto|cita)/i.test(respuesta) ||
                     /\b(si|sí|confirmo|confirmar|ok|dale|bueno|perfecto)\b/i.test(respuesta) ||
                     respuesta.includes('✅');
 
                 // Reconocer letra B / emoji ❌ / palabras de cancelación
-                const esCancelar = /^(b|❌|🚫)$/i.test(respuesta) || 
-                    respuesta.startsWith('b ') || respuesta.startsWith('b\n') ||
+                const esCancelar = /^(b|❌|🚫)[.)\-\s]*$/i.test(respuesta) ||
+                    /^b\s+(cancelar|cancelo|no|no puedo|no voy|cita)/i.test(respuesta) ||
                     /\b(cancelar|cancelo|cancel)\b/i.test(respuesta) ||
                     respuesta.includes('no puedo') || respuesta.includes('no voy') ||
                     respuesta.includes('❌') || respuesta.includes('🚫');
 
                 // Reconocer letra C / emoji 🔄 / palabras de reprogramación
-                const esReprogramar = /^(c|🔄|📅)$/i.test(respuesta) || 
-                    respuesta.startsWith('c ') || respuesta.startsWith('c\n') ||
+                const esReprogramar = /^(c|🔄|📅)[.)\-\s]*$/i.test(respuesta) ||
+                    /^c\s+(reprogramar|reprogramo|cambiar|cambio|otro|otra)/i.test(respuesta) ||
                     /\b(reprogramar|reprogramo|cambiar|cambio)\b/i.test(respuesta) ||
                     respuesta.includes('otro dia') || respuesta.includes('otra fecha') ||
                     respuesta.includes('🔄') || respuesta.includes('📅');
@@ -600,7 +704,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     return;
                 } else if (esReprogramar) {
                     try {
-                        await this.agendaService.update(freshSession.citaId, { estado: 'cancelado', observacion: 'Paciente pidió reprogramar su cita' } as any);
+                        await this.agendaService.update(freshSession.citaId, { estado: 'cancelado', motivoCancelacion: 'Paciente pidió reprogramar su cita' } as any);
                     } catch (err) {
                         console.error('[Chatbot] Error updating cita to cancelado for reprogramar:', err);
                     }
@@ -616,31 +720,99 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             if (freshSession && freshSession.type === 'waiting_branch_selection') {
                 console.log(`[Chatbot] [Clinic ${clinicId}] Processing branch selection for ${remoteJid}. Action: ${freshSession.branchAction}`);
                 const sucursales = await this.sucursalRepository.find({ where: { clinicaId: clinicId } });
-                const choice = normalizedText.trim();
-                const index = parseInt(choice) - 1;
+                const choice = normalizedText.trim().toUpperCase();
+                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                const index = letters.indexOf(choice);
+                const clinica = await this.clinicaRepository.findOne({ where: { id: clinicId } });
+                const clinicaNombre = clinica?.nombre || 'la Clínica';
 
-                if (!isNaN(index) && index >= 0 && index < sucursales.length) {
+                if (index >= 0 && index < sucursales.length) {
                     const s = sucursales[index];
                     const action = freshSession.branchAction;
                     if (action === 'DIRECCION') {
-                        await this.sendMessage(remoteJid, `Nuestra sucursal *${s.nombre}* se encuentra en:\n📍 ${s.direccion}`, clinicId, instance);
+                        // 1. Enviar foto si existe
+                        if (s.foto) {
+                            try {
+                                const base64Data = s.foto.includes(',') ? s.foto.split(',')[1] : s.foto;
+                                const buffer = Buffer.from(base64Data, 'base64');
+                                const sessionObj = this.getSession(clinicId, instance);
+                                if (sessionObj.sock && sessionObj.status === 'connected') {
+                                    await sessionObj.sock.sendMessage(remoteJid, { image: buffer, caption: `📍 ${s.nombre}` });
+                                }
+                            } catch (e) {
+                                console.error('[Chatbot] Error sending branch photo:', e);
+                            }
+                        }
+                        // 2. Enviar texto con dirección
+                        await this.sendMessage(remoteJid, `🦷 Clínica ${clinicaNombre} 🦷\n\n📍 Dirección:\n${s.direccion}`, clinicId, instance);
+                        // 3. Enviar ubicación GPS
                         if (s.latitud && s.longitud) {
                             await this.sendLocation(remoteJid, Number(s.latitud), Number(s.longitud), s.nombre, s.direccion, clinicId, instance);
                         }
                     } else {
                         await this.sendMessage(remoteJid, `El horario de atención de nuestra sucursal *${s.nombre}* es:\n⏰ ${s.horario}`, clinicId, instance);
                     }
-                    session.userSessions.delete(remoteJid);
+
+                    // Mantener sesión activa por si quiere consultar otra sucursal
+                    if (sucursales.length > 1) {
+                        let otrasLetras = '';
+                        sucursales.forEach((suc, i) => {
+                            if (i !== index) otrasLetras += `*${letters[i]}* ${suc.nombre}\n`;
+                        });
+                        await this.sendMessage(remoteJid,
+                            `También puedes consultar:\n${otrasLetras.trim()}\n\nEscribe la letra o *hola* para volver al menú.`,
+                            clinicId, instance
+                        );
+                        // Refrescar sesión para que pueda elegir otra sucursal
+                        session.userSessions.set(remoteJid, { type: 'waiting_branch_selection', timestamp: Date.now(), branchAction: freshSession.branchAction });
+                    } else {
+                        session.userSessions.delete(remoteJid);
+                    }
                 } else {
-                    await this.sendMessage(remoteJid, "Opción no válida. Por favor responde con el número de la sucursal.", clinicId, instance);
+                    await this.sendMessage(remoteJid, "Opción no válida. Por favor responde con la letra de la sucursal (A, B...).", clinicId, instance);
                 }
                 return;
             }
 
-            // ─── PRIORIDAD 2: Detener si es un grupo ──────────────────────────────────
-            if (isGroup) return;
+            if (freshSession && freshSession.type === 'waiting_urgencia_response') {
+                // El paciente respondió con su descripción de urgencia
+                const sucursalPrincipal = await this.sucursalRepository.findOne({
+                    where: { clinicaId: clinicId, es_principal: true }
+                });
 
-            // ─── PRIORIDAD 3: Intents y lógica regular ────────────────────────────────
+                let respuestaUrgencia = `👩🏻💻Gracias por su respuesta, nuestra recepcionista se contactará a la brevedad posible.`;
+                if (sucursalPrincipal?.telefono) {
+                    respuestaUrgencia += `\n\nTambién puede comunicarse al otro número corporativo si no obtiene una pronta respuesta.\n\n📲 *${sucursalPrincipal.telefono}*`;
+                }
+                await this.sendMessage(remoteJid, respuestaUrgencia, clinicId, instance);
+                session.userSessions.delete(remoteJid);
+                return;
+            }
+
+            if (freshSession && freshSession.type === 'waiting_otra_consulta_response') {
+                await this.sendMessage(remoteJid,
+                    `📲Una de nuestras recepcionistas se contactará con usted a la brevedad posible.\n\n👩🏻💻Aguarde por favor...`,
+                    clinicId, instance
+                );
+                session.userSessions.delete(remoteJid);
+                return;
+            }
+
+            // ─── PRIORIDAD 3: Si el mensaje es un número del menú (1-8) dentro de sesión activa ──
+            const menuOptions = ['1', '2', '3', '4', '5', '6', '7', '8'];
+            if (menuOptions.includes(normalizedText.trim())) {
+                const menuSession = session.userSessions.get(remoteJid);
+                const menuIsActive = menuSession?.type === 'menu' && Date.now() - menuSession.timestamp < 5 * 60 * 1000;
+                if (menuIsActive) {
+                    await this.handleMenuOption(remoteJid, normalizedText.trim(), actor, 'menu', clinicId, instance);
+                } else {
+                    // Número enviado fuera de contexto del menú: ignorar silenciosamente
+                    console.log(`[Chatbot] [Clinic ${clinicId}] Number "${normalizedText.trim()}" received outside menu context — ignored.`);
+                }
+                return;
+            }
+
+            // ─── PRIORIDAD 4: Intents y lógica regular ────────────────────────────────
             const intents = await this.intentosService.findAllActive();
             let matchedIntent: ChatbotIntento | null = null;
 
@@ -660,22 +832,10 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 }
             }
 
-            if (matchedIntent?.target === 'USUARIO' && !isDoctor && !actor) {
-                await this.sendMessage(remoteJid, 'Lo siento, esta función está reservada para el personal de la clínica.', clinicId, instance);
+            if (matchedIntent?.target === 'USUARIO' && !isDoctor && !isPersonal) {
+                // Silencio total para pacientes que usen palabras clave de staff (citas, stock, inventario, etc.)
+                // Tal como solicitó el usuario, no enviamos el mensaje de "función reservada".
                 return;
-            }
-
-            const options = ['a', 'b', 'c', '1', '2', '3'];
-            const isOption = options.includes(normalizedText);
-            const menuType = freshSession?.type;
-
-            if (isOption && freshSession && (menuType === 'new' || menuType === 'registered')) {
-                if (Date.now() - freshSession.timestamp < 300000) {
-                    await this.handleMenuOption(remoteJid, normalizedText, actor, menuType as 'new' | 'registered', clinicId, instance);
-                    return;
-                } else {
-                    session.userSessions.delete(remoteJid);
-                }
             }
 
             if (matchedIntent) {
@@ -684,27 +844,14 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                         case 'MENU_PRINCIPAL' as any:
                             await this.sendMenu(remoteJid, actor, clinicId, instance);
                             break;
-                        case 'CONSULTAR_SALDO':
-                            if (!isDoctor) {
-                                if (!actor) {
-                                    break;
-                                } else {
-                                    await this.executeConsultarSaldo(actor, remoteJid, clinicId, instance);
-                                }
-                            }
-                            break;
-                        case 'CONSULTAR_CITA':
-                            if (!actor) {
-                                break;
-                            }
-                            if (isDoctor) {
+                        case 'CONSULTAR_CITA' as any:
+                            // Para doctores o personal administrativo
+                            if (isDoctor || isPersonal) {
                                 await this.checkDoctorAppointments(actor, remoteJid, clinicId, instance);
-                            } else {
-                                await this.checkAppointments(actor, remoteJid, clinicId, instance);
                             }
                             break;
-                        case 'CONSULTAR_CITA_HOY':
-                            if (isDoctor && actor) {
+                        case 'CONSULTAR_CITA_HOY' as any:
+                            if (isDoctor || isPersonal) {
                                 await this.checkDoctorAppointmentsToday(actor, remoteJid, clinicId, instance);
                             }
                             break;
@@ -712,21 +859,6 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                             if (matchedIntent.replyTemplate) {
                                 await this.sendMessage(remoteJid, matchedIntent.replyTemplate, clinicId, instance);
                             }
-                            break;
-                        case 'CONSULTAR_PRESUPUESTO':
-                            if (!isDoctor) {
-                                if (!actor) {
-                                    break;
-                                } else {
-                                    await this.executeConsultarPresupuesto(actor, remoteJid, clinicId, instance);
-                                }
-                            }
-                            break;
-                        case 'CONSULTAR_DIRECCION':
-                            await this.handleBranchInfoRequest(remoteJid, 'DIRECCION', clinicId, instance);
-                            break;
-                        case 'CONSULTAR_HORARIO':
-                            await this.handleBranchInfoRequest(remoteJid, 'HORARIO', clinicId, instance);
                             break;
                         case 'CONSULTAR_INVENTARIO' as any:
                             await this.handleConsultarInventario(remoteJid, normalizedText, clinicId, instance);
@@ -736,9 +868,14 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     console.error(`[Chatbot] Error processing intent "${matchedIntent.action}" for ${remoteJid}:`, error?.message || error);
                 }
             } else {
-                if (actor && !isDoctor && (normalizedText.includes('cita') || normalizedText.includes('cuando') || normalizedText.includes('agend'))) {
-                    await this.checkAppointments(actor, remoteJid, clinicId, instance);
+                // Si hay una sesión activa en progreso, NO interrumpir
+                const currentSession = session.userSessions.get(remoteJid);
+                if (currentSession) {
+                    console.log(`[Chatbot] [Clinic ${clinicId}] Ignoring unrecognized message while in session state: ${currentSession.type}`);
+                    return;
                 }
+                // Mensaje no reconocido sin sesión activa: silencio total
+                console.log(`[Chatbot] [Clinic ${clinicId}] Unrecognized message from ${remoteJid}: "${normalizedText}" — silent.`);
             }
         } catch (globalError) {
             console.error(`[Chatbot] [Clinic ${clinicId}] CRITICAL ERROR in handleMessage:`, globalError);
@@ -752,69 +889,116 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
 
     async sendMenu(remoteJid: string, actor: any, clinicId: number, instance: number = 1) {
         const session = this.getSession(clinicId, instance);
-        let menuType: 'new' | 'registered' = actor ? 'registered' : 'new';
-        let message = '';
 
-        const clinica = await this.clinicaRepository.findOne({ where: { id: clinicId } });
-        const clinicaNombre = clinica?.nombre || 'Dental';
-
-        if (menuType === 'new') {
-            message = `¡Hola! Bienvenido a nuestra Clínica ${clinicaNombre}. ¿En qué podemos ayudarte?\n\n` +
-                `*Menu:*\n` +
-                `*A* ¿Donde queda la Clínica?\n` +
-                `*B* ¿Cual es el horario de atención?\n\n` +
-                `Por favor, responde con la letra de la opción que desees.`;
-        } else {
-            message = `¡Hola ${this.fullName(actor)}! Bienvenido de nuevo. ¿En qué podemos ayudarte hoy?\n\n` +
-                `*Menu Principal:*\n` +
-                `*1* Consultar Citas\n` +
-                `*2* Consultar Planes de Tratamientos\n` +
-                `*3* Consultar mi Saldo\n\n` +
-                `Por favor, responde con el número de la opción que desees.`;
+        // Debounce: evitar enviar el menú dos veces en menos de 3 segundos
+        const existing = session.userSessions.get(remoteJid);
+        if (existing?.type === 'menu' && Date.now() - existing.timestamp < 3000) {
+            console.log(`[Chatbot] [Clinic ${clinicId}] Menú ya enviado recientemente a ${remoteJid}, ignorando duplicado.`);
+            return;
         }
 
-        session.userSessions.set(remoteJid, { type: menuType, timestamp: Date.now() });
+        const clinica = await this.clinicaRepository.findOne({ where: { id: clinicId } });
+        const clinicaNombre = clinica?.nombre || 'la clínica';
+
+        const message = `👩🏻💻¡Hola!\n\n` +
+            `🦷Bienvenido(a) a ${clinicaNombre}, será un gusto ayudarle.\n\n` +
+            `Responda con el NÚMERO de la opción de su consulta.\n\n` +
+            `MENÚ:\n` +
+            `1. Quiero agendar cita\n` +
+            `2. Ubicación de la clínica \n` +
+            `3. Horarios de atención\n` +
+            `4. Atención de urgencia\n` +
+            `5. Mis próximas citas agendadas\n` +
+            `6. Deudas pendientes \n` +
+            `7. Con qué especialidades cuenta la clínica\n` +
+            `8. Requiero otro tipo de consulta\n\n` +
+            `📌 Por favor guarda nuestro número para recibir tus recordatorios.`;
+
+        session.userSessions.set(remoteJid, { type: 'menu', timestamp: Date.now() });
         await this.sendMessage(remoteJid, message, clinicId, instance);
     }
 
-    async handleMenuOption(remoteJid: string, option: string, actor: any, type: 'new' | 'registered', clinicId: number, instance: number = 1) {
+    async handleMenuOption(remoteJid: string, option: string, actor: any, type: string, clinicId: number, instance: number = 1) {
         const session = this.getSession(clinicId, instance);
-        const opt = option.toUpperCase();
+        const opt = option.trim();
 
         switch (opt) {
-            case 'A':
+            case '1': // Agendar cita
+                const agendarMsg = `👩🏻💻 DATOS PARA AGENDAR CITA\n\n` +
+                    `👤Nombres y Apellidos (COMPLETO):\n\n` +
+                    `🪪Carnet de Identidad:\n\n` +
+                    `📇Edad del/la paciente: \n\n` +
+                    `📋Motivo de la consulta:\n\n` +
+                    `🕙¿A partir de qué horario?:\n\n` +
+                    `📍 Sucursal:\n\n` +
+                    `🏥 ¿Cuenta con seguro o es de forma privada?:`;
+                await this.sendMessage(remoteJid, agendarMsg, clinicId, instance);
+                break;
+            case '2': // Ubicación
                 await this.handleBranchInfoRequest(remoteJid, 'DIRECCION', clinicId, instance);
-                return;
-            case 'B':
-                await this.handleBranchInfoRequest(remoteJid, 'HORARIO', clinicId, instance);
-                return;
-            case '1':
-                if (type === 'registered') {
+                break;
+            case '3': { // Horarios
+                const sucursalesHorario = await this.sucursalRepository.find({ where: { clinicaId: clinicId } });
+                if (sucursalesHorario.length === 0) {
+                    await this.sendMessage(remoteJid, 'Por el momento no tenemos horarios registrados. Por favor, contáctenos directamente.', clinicId, instance);
+                } else {
+                    let horarioMsg = `⏰ Horarios de atención:\n\n`;
+                    sucursalesHorario.forEach(s => {
+                        horarioMsg += `📍 ${s.nombre}\n${s.horario || 'Horario no disponible'}\n\n`;
+                    });
+                    await this.sendMessage(remoteJid, horarioMsg.trim(), clinicId, instance);
+                }
+                break;
+            }
+            case '4': { // Urgencia
+                const urgenciaMsg = `🚨Por favor, responda en un sólo párrafo:\n\n` +
+                    `- Describa su urgencia\n` +
+                    `- ¿Del 1 al 10 cuánto dolor siente?\n` +
+                    `- ¿Tomó algún medicamento las últimas 24 horas? (Indique cuál)`;
+                await this.sendMessage(remoteJid, urgenciaMsg, clinicId, instance);
+                session.userSessions.set(remoteJid, { type: 'waiting_urgencia_response', timestamp: Date.now() });
+                break;
+            }
+            case '5': // Próximas citas
+                if (actor) {
                     await this.checkAppointments(actor, remoteJid, clinicId, instance);
                 } else {
-                    await this.sendMessage(remoteJid, "Esta opción es solo para pacientes registrados.", clinicId, instance);
+                    await this.sendMessage(remoteJid, "Para consultar sus citas, debe estar registrado en el Sistema. Por favor, indíquenos su nombre completo para buscarlo.", clinicId, instance);
                 }
                 break;
-            case '2':
-                if (type === 'registered') {
-                    await this.executeConsultarPresupuesto(actor, remoteJid, clinicId, instance);
-                } else {
-                    await this.sendMessage(remoteJid, "Esta opción es solo para pacientes registrados.", clinicId, instance);
-                }
-                break;
-            case '3':
-                if (type === 'registered') {
+            case '6': // Deudas pendientes
+                if (actor) {
                     await this.executeConsultarSaldo(actor, remoteJid, clinicId, instance);
                 } else {
-                    await this.sendMessage(remoteJid, "Esta opción es solo para pacientes registrados.", clinicId, instance);
+                    await this.sendMessage(remoteJid, "Para consultar sus deudas, debe estar registrado en el Sistema. Por favor, indíquenos su nombre completo para buscarlo.", clinicId, instance);
                 }
                 break;
+            case '7': { // Especialidades
+                const especialidades = await this.especialidadRepository.find({ where: { estado: 'activo' } });
+                if (especialidades.length === 0) {
+                    await this.sendMessage(remoteJid, '🏥 Por el momento no tenemos especialidades registradas.', clinicId, instance);
+                } else {
+                    let espMsg = `🏥Contamos con las siguientes especialidades:\n\n`;
+                    especialidades.forEach(e => {
+                        espMsg += `• ${e.especialidad}\n`;
+                    });
+                    await this.sendMessage(remoteJid, espMsg.trim(), clinicId, instance);
+                }
+                break;
+            }
+            case '8': { // Otro
+                const otraConsultaMsg = `(Por favor, escriba en un sólo párrafo)\n📋¿Cuál es su consulta?`;
+                await this.sendMessage(remoteJid, otraConsultaMsg, clinicId, instance);
+                session.userSessions.set(remoteJid, { type: 'waiting_otra_consulta_response', timestamp: Date.now() });
+                break;
+            }
             default:
-                await this.sendMessage(remoteJid, "Opción no válida. Por favor, selecciona una de las opciones del menú.", clinicId, instance);
+                await this.sendMessage(remoteJid, "Opción no válida. Por favor, responda con el NÚMERO de la opción deseada (1-8).", clinicId, instance);
                 break;
         }
 
-        session.userSessions.set(remoteJid, { type, timestamp: Date.now() });
+        // Nota: las opciones 2, 4 y 8 setean su propio estado de espera (waiting_*).
+        // Las demás opciones (1, 3, 5, 6, 7) son respuestas finales sin flujo adicional.
     }
 
     async executeConsultarSaldo(actor: any, remoteJid: string, clinicId: number, instance: number = 1) {
@@ -831,7 +1015,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     async executeConsultarPresupuesto(actor: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const proformas = await this.proformasService.findAllByPaciente(actor.id);
         const clinica = await this.clinicaRepository.findOne({ where: { id: clinicId } });
-        
+
         if (proformas.length > 0) {
             try {
                 const pdfBuffer = await this.pdfService.generateProformasPdf(actor, proformas, clinica);
@@ -842,66 +1026,68 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     caption: `Hola ${this.fullName(actor)}, aquí tiene sus Planes de Tratamiento en PDF.`
                 }, clinicId, instance);
             } catch (error) {
-                await this.sendMessage(remoteJid, 'Hubo un error al generar su archivo de Plan de Tratamiento.', clinicId, instance);
+                await this.sendMessage(remoteJid, 'Hubo un error al generar su archivo de Plan de Tratamiento. Por favor, intente nuevamente.', clinicId, instance);
             }
         } else {
             await this.sendMessage(remoteJid, `Hola ${this.fullName(actor)}, no encontré Planes de Tratamiento registrados.`, clinicId, instance);
         }
     }
 
-    async calculateDetailedSaldo(pacienteId: number, clinicId: number): Promise<string> {
-        const proformas = await this.proformasService.findAllByPaciente(pacienteId);
+    async calculateDetailedSaldo(pacienteId: number, clinicId: number, historiaClinicaId?: number): Promise<string> {
         const historia = await this.historiaClinicaService.findAllByPaciente(pacienteId);
-        const pagos = await this.pagosService.findAllByPaciente(pacienteId);
-
-        const report = new Map<number, { ejecutado: number, pagado: number, numero: number }>();
-
-        proformas.forEach(p => {
-            report.set(p.id, { ejecutado: 0, pagado: 0, numero: p.numero });
-        });
-
-        historia.forEach(h => {
-            if (h.estadoTratamiento === 'terminado' && h.proformaId) {
-                const current = report.get(h.proformaId);
-                if (current) {
-                    current.ejecutado += Number(h.precio);
-                }
+        
+        // Group historia by treatment group (Detalle ID + Pieza)
+        const groups = new Map<string, any>();
+        
+        historia.forEach((h: any) => {
+            const key = h.proformaDetalleId ? `DET-${h.proformaDetalleId}-${h.pieza || ''}` : `HC-${h.id}`;
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    ids: [],
+                    tratamiento: h.tratamiento,
+                    saldo: 0,
+                    montoPagado: 0,
+                    precio: 0,
+                    cantidad: 0
+                });
             }
+            const g = groups.get(key);
+            g.ids.push(h.id);
+            g.saldo += Number(h.saldo || 0);
+            g.montoPagado += Number(h.montoPagado || 0);
+            g.precio += Number(h.precio || 0);
+            g.cantidad += Number(h.cantidad || 1);
         });
 
-        pagos.forEach(p => {
-            if (p.proformaId) {
-                const current = report.get(p.proformaId);
-                if (current) {
-                    current.pagado += Number(p.monto);
-                }
-            }
-        });
+        const lines: string[] = [];
+        let totalNeto = 0;
 
-        let messageParts: string[] = [];
-
-        report.forEach((data, proformaId) => {
-            const saldo = data.ejecutado - data.pagado;
-            const saldoFavor = saldo < 0 ? Math.abs(saldo) : 0;
-            const saldoContra = saldo > 0 ? saldo : 0;
-
-            messageParts.push(`Plan de Tratamiento #${data.numero}
-- Total Plan: ${data.ejecutado}
-- Total Pagado: ${data.pagado}
-- Saldo a Favor: ${saldoFavor}
-- Saldo en contra: ${saldoContra}`);
-        });
-
-        if (messageParts.length === 0) {
-            return "No tiene presupuestos registrados en el sistema.";
+        // If we are filtering by a specific treatment (from the report button)
+        let filteredGroups = Array.from(groups.values());
+        if (historiaClinicaId) {
+            filteredGroups = filteredGroups.filter(g => g.ids.includes(Number(historiaClinicaId)));
         }
 
-        return messageParts.join('\n\n');
+        filteredGroups.forEach(g => {
+            if (g.saldo > 0.01) {
+                totalNeto += g.saldo;
+                const qtyText = g.cantidad > 1 ? ` (Cant: ${g.cantidad})` : '';
+                lines.push(`🦷 *${g.tratamiento || 'Tratamiento'}*${qtyText}\n• Saldo: *Bs. ${g.saldo.toFixed(2)}*`);
+            }
+        });
+
+        if (lines.length === 0) {
+            if (historiaClinicaId) return "Este tratamiento ya se encuentra totalmente cancelado.";
+            return "¡Felicidades! Actualmente no tienes ningún saldo pendiente con la clínica.";
+        }
+
+        const breakdown = lines.join('\n\n');
+        return historiaClinicaId ? breakdown : (breakdown + `\n\n💰 *Total pendiente: Bs. ${totalNeto.toFixed(2)}*`);
     }
 
     async checkAppointments(paciente: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const appointments = await this.agendaService.findAllByPaciente(paciente.id);
-        const today = new Date();
+        const today = getBoliviaFullDate();
         today.setHours(0, 0, 0, 0);
 
         const futureAppointments = appointments.filter(a => {
@@ -919,10 +1105,12 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 // Format time to HH:mm (remove seconds)
                 const timeParts = app.hora.split(':');
                 const timeFormatted = timeParts.length >= 2 ? `${timeParts[0]}:${timeParts[1]}` : app.hora;
-                return `- ${app.fecha} a las ${timeFormatted}`;
+                const [y, m, d] = app.fecha.toString().split('-');
+                const fechaFormateada = `${d}/${m}/${y}`;
+                return `- ${fechaFormateada} a las ${timeFormatted}`;
             });
 
-            const reply = `Hola ${this.fullName(paciente)}, tienes las siguientes citas programadas:\n${replies.join('\n')}`;
+            const reply = `Hola ${this.fullName(paciente)}, tienes las siguientes citas programadas:\n\n${replies.join('\n')}`;
             await this.sendMessage(remoteJid, reply, clinicId, instance);
         } else {
             const reply = `Hola ${this.fullName(paciente)}, no encontré citas futuras agendadas.`;
@@ -933,7 +1121,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     async checkDoctorAppointments(doctor: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const appointments = await this.agendaService.findAllByDoctor(doctor.id);
 
-        const today = new Date();
+        const today = getBoliviaFullDate();
         today.setHours(0, 0, 0, 0);
 
         const nextWeek = new Date(today);
@@ -965,7 +1153,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     async checkDoctorAppointmentsToday(doctor: any, remoteJid: string, clinicId: number, instance: number = 1) {
         const appointments = await this.agendaService.findAllByDoctor(doctor.id);
 
-        const today = new Date();
+        const today = getBoliviaFullDate();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
@@ -1229,7 +1417,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    async enviarSaldoDeudor(pacienteId: number, clinicId: number, instance: number = 1): Promise<{ success: boolean; message: string }> {
+    async enviarSaldoDeudor(pacienteId: number, clinicId: number, instance: number = 1, historiaClinicaId?: number): Promise<{ success: boolean; message: string }> {
         const paciente = await this.pacientesService.findOne(pacienteId);
         if (!paciente) throw new Error('Paciente no encontrado');
 
@@ -1242,66 +1430,18 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         const nomClinica = clinica?.nombre || 'la Clínica';
         const nombrePaciente = `${paciente.nombre || ''} ${paciente.paterno || ''} ${paciente.materno || ''}`.trim();
 
-        // Get all proformas, historia and pagos for this patient
-        const proformas = await this.proformasService.findAllByPaciente(pacienteId);
-        const historia = await this.historiaClinicaService.findAllByPaciente(pacienteId);
-        const pagos = await this.pagosService.findAllByPaciente(pacienteId);
+        const messageText = await this.calculateDetailedSaldo(pacienteId, clinicId, historiaClinicaId);
 
-        // Build pagos map per proforma
-        const pagosMap = new Map<number, number>();
-        let generalPool = 0;
-        pagos.forEach(p => {
-            const monto = Number(p.monto || 0);
-            if (p.proformaId) {
-                pagosMap.set(p.proformaId, (pagosMap.get(p.proformaId) || 0) + monto);
-            } else {
-                generalPool += monto;
-            }
-        });
+        // If the return was the "Felicidades" message, we don't throw error but send it
+        const finalMessage = `Hola *${nombrePaciente}*, le informamos sobre su estado de cuenta en *${nomClinica}*:\n\n${messageText}\n\nPor favor, comuníquese con la clínica para cualquier duda u observación.`;
 
-        // Build lines per proforma with pending debt
-        const lines: string[] = [];
-        let totalPendiente = 0;
+        await this.sendMessage(jid, finalMessage, clinicId, instance);
 
-        for (const proforma of proformas) {
-            const pHistory = historia.filter((h: any) => h.proformaId === proforma.id && h.estadoTratamiento === 'terminado');
-            if (pHistory.length === 0) continue;
-
-            const totalEjecutado = pHistory.reduce((sum: number, h: any) => sum + (Number(h.precio || 0) - Number(h.descuento || 0)), 0);
-            const totalPagadoProforma = pagosMap.get(proforma.id) || 0;
-            let saldo = Math.max(0, totalEjecutado - totalPagadoProforma);
-
-            // Apply general advances (FIFO)
-            if (generalPool > 0 && saldo > 0) {
-                const applied = Math.min(generalPool, saldo);
-                saldo -= applied;
-                generalPool -= applied;
-            }
-
-            if (saldo <= 0.01) continue;
-            totalPendiente += saldo;
-
-            // Get latest treatment info for display
-            const latest = [...pHistory].sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0] as any;
-            const especialidad = latest.especialidad?.especialidad || '-';
-            const tratamiento = latest.tratamiento || '-';
-
-            lines.push(`📋 *Plan #${String(proforma.numero || proforma.id).padStart(2, '0')}*\n• Especialidad: ${especialidad}\n• Tratamiento: ${tratamiento}\n• Saldo: *Bs. ${saldo.toFixed(2)}*`);
-        }
-
-        if (lines.length === 0) throw new Error('¡Felicidades! Actualmente no tienes ningún saldo pendiente con la clínica.');
-
-        const mensaje = `Hola *${nombrePaciente}*, le informamos sobre su saldo pendiente en *${nomClinica}*:\n\n${lines.join('\n\n')}\n\n💰 *Total pendiente: Bs. ${totalPendiente.toFixed(2)}*\n\nPor favor, comuníquese con la clínica para cualquier duda u observación.`;
-
-        await this.sendMessage(jid, mensaje, clinicId, instance);
-
-        // Send QR if available
-        if (clinica?.qr_pago) {
+        // Send QR if available and there is actual debt (and not a "Felicidades" message)
+        if (clinica?.qr_pago && !messageText.includes('Felicidades') && !messageText.includes('cancelado')) {
             try {
-                // Ensure socket is available to send media
                 const session = this.getSession(clinicId, instance);
                 if (session.sock && session.status === 'connected') {
-                    // Extract base64 data
                     const base64Data = clinica.qr_pago.split(',')[1];
                     if (base64Data) {
                         const buffer = Buffer.from(base64Data, 'base64');
@@ -1313,7 +1453,6 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                 }
             } catch (error) {
                 console.error('Error al enviar QR de pago:', error);
-                // No lanzamos error para no afectar el flujo principal, el texto ya se envió
             }
         }
 
@@ -1323,20 +1462,30 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     private async handleBranchInfoRequest(remoteJid: string, action: 'DIRECCION' | 'HORARIO', clinicId: number, instance: number = 1) {
         const session = this.getSession(clinicId, instance);
         const sucursales = await this.sucursalRepository.find({ where: { clinicaId: clinicId } });
+        const clinica = await this.clinicaRepository.findOne({ where: { id: clinicId } });
+        const clinicaNombre = clinica?.nombre || 'la Clínica';
 
         if (sucursales.length === 0) {
-            if (action === 'DIRECCION') {
-                await this.sendMessage(remoteJid, `Por el momento no tenemos sucursales registradas.`, clinicId, instance);
-            } else {
-                await this.sendMessage(remoteJid, `Consulte nuestro horario directamente con nuestro personal.`, clinicId, instance);
-            }
+            await this.sendMessage(remoteJid, `Por el momento no tenemos sucursales registradas.`, clinicId, instance);
             return;
         }
 
         if (sucursales.length === 1) {
             const s = sucursales[0];
             if (action === 'DIRECCION') {
-                await this.sendMessage(remoteJid, `Nuestra sucursal *${s.nombre}* se encuentra en:\n📍 ${s.direccion}`, clinicId, instance);
+                if (s.foto) {
+                    try {
+                        const base64Data = s.foto.includes(',') ? s.foto.split(',')[1] : s.foto;
+                        const buffer = Buffer.from(base64Data, 'base64');
+                        const sessionObj = this.getSession(clinicId, instance);
+                        if (sessionObj.sock && sessionObj.status === 'connected') {
+                            await sessionObj.sock.sendMessage(remoteJid, { image: buffer, caption: `📍 ${s.nombre}` });
+                        }
+                    } catch (e) {
+                        console.error('[Chatbot] Error sending branch photo:', e);
+                    }
+                }
+                await this.sendMessage(remoteJid, `🦷 Clínica ${clinicaNombre} 🦷\n\n📍 Dirección:\n${s.direccion}`, clinicId, instance);
                 if (s.latitud && s.longitud) {
                     await this.sendLocation(remoteJid, Number(s.latitud), Number(s.longitud), s.nombre, s.direccion, clinicId, instance);
                 }
@@ -1346,18 +1495,33 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             return;
         }
 
-        let menu = `Contamos con ${sucursales.length} sucursales. ¿De cuál deseas consultar la *${action === 'DIRECCION' ? 'dirección' : 'horario'}*?\n\n`;
+        // Múltiples sucursales: menú con letras A, B, C...
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const label = action === 'DIRECCION' ? 'dirección' : 'horario';
+        let menu = `📍 *Sucursales*\nResponda con una LETRA:\n\n`;
         sucursales.forEach((s, i) => {
-            menu += `*${i + 1}* ${s.nombre}\n`;
+            menu += `*${letters[i]}* ${s.nombre}\n`;
         });
-        menu += `\nResponde con el número de la sucursal.`;
 
-        console.log(`[Chatbot] [Clinic ${clinicId}] Setting waiting_branch_selection for ${remoteJid}`);
         session.userSessions.set(remoteJid, {
             type: 'waiting_branch_selection',
             timestamp: Date.now(),
             branchAction: action
         });
         await this.sendMessage(remoteJid, menu, clinicId, instance);
+    }
+
+    async sendPdf(jid: string, buffer: Buffer, fileName: string, clinicId: number, instance: number = 1) {
+        const session = this.getSession(clinicId, instance);
+        if (session.sock && session.status === 'connected') {
+            await session.sock.sendMessage(jid, {
+                document: buffer,
+                mimetype: 'application/pdf',
+                fileName: fileName
+            });
+            return { success: true };
+        } else {
+            throw new Error('Chatbot no conectado o no inicializado');
+        }
     }
 }

@@ -13,6 +13,7 @@ interface InstanceState {
     loading: boolean;
     connectingStartTime: number | null;
     showTimeoutWarning: boolean;
+    phoneNumber: string | null;
 }
 
 const ChatbotConfig: React.FC = () => {
@@ -20,8 +21,8 @@ const ChatbotConfig: React.FC = () => {
     const { clinicaActual } = useClinica();
 
     const [instances, setInstances] = useState<{ [key: number]: InstanceState }>({
-        1: { status: 'disconnected', qr: null, loading: false, connectingStartTime: null, showTimeoutWarning: false },
-        2: { status: 'disconnected', qr: null, loading: false, connectingStartTime: null, showTimeoutWarning: false }
+        1: { status: 'disconnected', qr: null, loading: false, connectingStartTime: null, showTimeoutWarning: false, phoneNumber: null },
+        2: { status: 'disconnected', qr: null, loading: false, connectingStartTime: null, showTimeoutWarning: false, phoneNumber: null }
     });
 
     const [activeTab, setActiveTab] = useState<'status' | 'intents'>('status');
@@ -54,7 +55,7 @@ const ChatbotConfig: React.FC = () => {
 
         try {
             const response = await api.get(`/chatbot/${clinicaActual.id}/status?instance=${instance}&t=${Date.now()}`);
-            const { status, qr } = response.data;
+            const { status, qr, phoneNumber } = response.data;
 
             const current = instances[instance];
             let newStartTime = current.connectingStartTime;
@@ -75,7 +76,8 @@ const ChatbotConfig: React.FC = () => {
                 status,
                 qr,
                 connectingStartTime: newStartTime,
-                showTimeoutWarning: showWarning
+                showTimeoutWarning: showWarning,
+                phoneNumber
             });
         } catch (error) {
             console.error(`Error fetching status for instance ${instance}:`, error);
@@ -192,7 +194,12 @@ const ChatbotConfig: React.FC = () => {
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 mx-auto mb-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <h4 className="text-lg font-bold text-green-600 dark:text-green-400 mb-6">¡Conexión Activa!</h4>
+                            <h4 className="text-lg font-bold text-green-600 dark:text-green-400 mb-2">¡Conexión Activa!</h4>
+                            {data.phoneNumber && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 font-mono font-semibold">
+                                    +{data.phoneNumber}
+                                </p>
+                            )}
                             <button
                                 onClick={() => handleDisconnect(instance, false)}
                                 disabled={data.loading}

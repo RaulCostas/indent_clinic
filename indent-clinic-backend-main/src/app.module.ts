@@ -210,7 +210,7 @@ import { VentaProductoDetalleLote } from './ventas_productos/entities/venta-prod
 
       ],
       migrations: [__dirname + '/db/migrations/*{.ts,.js}'],
-      migrationsRun: true,
+      migrationsRun: process.env.RUN_MIGRATIONS === 'true',
     }),
     UsersModule,
     AuthModule,

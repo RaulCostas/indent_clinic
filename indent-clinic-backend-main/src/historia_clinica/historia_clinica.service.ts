@@ -439,20 +439,21 @@ export class HistoriaClinicaService {
 
             const pId = hc.pacienteId;
             const detId = hc.proformaDetalleId;
-            const pieza = hc.pieza;
 
             let siblingsIds = [id];
             let targetPrice = Number(hc.precio || 0);
 
-            // 1. Si está vinculado a un detalle de proforma, buscamos todos los registros "hermanos" (misma pieza y detalle)
+            // 1. Si está vinculado a un detalle de proforma, buscamos todos los registros "hermanos" (mismo detalle)
+            // Nota: NO filtramos por pieza porque sesiones múltiples del mismo tratamiento pueden
+            // registrarse en piezas diferentes (ej: barniz fluorado en distintas sesiones).
             if (detId) {
                 const siblings = await this.dataSource.query(
                     `SELECT id, precio FROM historia_clinica 
-                     WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
-                    [pId, detId, pieza]
+                     WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2`,
+                    [pId, detId]
                 );
                 siblingsIds = siblings.map(s => s.id);
-                // El precio objetivo es el precio del tratamiento (no la suma, ya que son sesiones del mismo tratamiento en la misma pieza)
+                // El precio objetivo es el precio unitario del tratamiento (el máximo entre hermanos)
                 targetPrice = siblings.length > 0 ? Math.max(...siblings.map(s => Number(s.precio || 0))) : Number(hc.precio || 0);
             }
 

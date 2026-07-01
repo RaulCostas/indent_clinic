@@ -471,6 +471,17 @@ const PresupuestoList: React.FC = () => {
         // Totals Row
         let finalY = (doc as any).lastAutoTable.finalY + 5;
 
+        const checkPageBreak = (neededHeight: number) => {
+            if (finalY + neededHeight > 270) {
+                doc.addPage();
+                finalY = 20; // reset to top of page
+                return true;
+            }
+            return false;
+        };
+
+        checkPageBreak(15);
+
         // Fallback static positioning if capture failed
         if (lastColWidth === 0) {
             lastColWidth = 30; lastColX = 165;
@@ -492,6 +503,7 @@ const PresupuestoList: React.FC = () => {
         finalY += 10;
 
         // 5. Amount in Words
+        checkPageBreak(15);
         doc.setFont('helvetica', 'normal');
         const decimalPart = (Number(proforma.total) % 1).toFixed(2).substring(2);
         const words = numberToWords(Number(proforma.total));
@@ -501,31 +513,30 @@ const PresupuestoList: React.FC = () => {
 
         // 7. Payment System (Moved up)
         if (includePaymentInfo) {
+            checkPageBreak(20);
             doc.setFontSize(10);
             doc.setFont('helvetica', 'bold');
-            // doc.rect(14, finalY, 40, 5); // Removed box
             doc.text('SISTEMA DE PAGO', 14, finalY + 3.5);
 
             doc.setFont('helvetica', 'normal');
-            // doc.rect(14, finalY + 6, 180, 5); // Removed box
             doc.text('- Cancelación del 50% al inicio. 30% durante el tratamiento. 20% antes de finalizado el mismo.', 14, finalY + 9.5, { align: 'justify', maxWidth: 180 });
 
             finalY += 15;
         } else {
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-
-            // Phase A
-            // doc.rect(14, finalY, 60, 5); // Removed box
-            doc.text('Fase A Quirurgica: Implante.', 14, finalY + 3.5);
-
-            // Phase B
-            const phaseBY = finalY + 7;
             const textPhaseB = 'Fase B Rehabilitación: Transcurridos 4 a 6 meses de la cirugía se realizará la rehabilitación, es decir muñones y coronas sobre implantes.';
             const splitPhaseB = doc.splitTextToSize(textPhaseB, 180);
             const heightPhaseB = splitPhaseB.length * 5;
 
-            // doc.rect(14, phaseBY, 180, heightPhaseB + 2); // Removed box
+            checkPageBreak(17 + heightPhaseB);
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+
+            // Phase A
+            doc.text('Fase A Quirurgica: Implante.', 14, finalY + 3.5);
+
+            // Phase B
+            const phaseBY = finalY + 7;
             doc.text(splitPhaseB, 14, phaseBY + 4.5, { align: 'justify', maxWidth: 180 });
 
             finalY = phaseBY + heightPhaseB + 10;
@@ -533,32 +544,39 @@ const PresupuestoList: React.FC = () => {
 
         // 5.1 Proforma Note (User Note)
         if (proforma.nota) {
+            const splitNote = doc.splitTextToSize(proforma.nota, 180);
+            const noteHeight = (splitNote.length * 5) + 15;
+            checkPageBreak(noteHeight);
+
             doc.setFont('helvetica', 'bold');
             doc.text('NOTA:', 14, finalY);
 
             doc.setFont('helvetica', 'normal');
-            const splitNote = doc.splitTextToSize(proforma.nota, 180);
             doc.text(proforma.nota, 14, finalY + 5, { align: 'justify', maxWidth: 180 });
 
             finalY += (splitNote.length * 5) + 15;
         }
 
         // 8. Note (Static Disclaimer)
+        checkPageBreak(20);
         doc.setFont('helvetica', 'bold');
-        // doc.rect(14, finalY, 180, 8); // Removed box
         doc.text('NOTA: Se garantiza los trabajos realizados si el paciente sigue las recomendaciones indicadas y asiste a sus controles periódicos de manera puntual.', 14, finalY + 3.5, { align: 'justify', maxWidth: 180 });
 
         finalY += 12;
 
         // 9. Footer Text
+        checkPageBreak(30);
         const footerY = finalY;
         doc.setFont('helvetica', 'normal');
         doc.text('El presente plan de tratamiento podría tener modificaciones en el transcurso del tratamiento; el mismo será notificado oportunamente a su persona.', 14, footerY, { align: 'justify', maxWidth: 180 });
         doc.text('Plan de tratamiento válido por 15 días.', 14, footerY + 10);
         doc.text('En conformidad y aceptando el presente plan de tratamiento, firmo.', 14, footerY + 15);
 
+        finalY = footerY + 15;
+
         // 10. Signatures
-        const sigY = footerY + 60;
+        checkPageBreak(55);
+        const sigY = finalY + 35;
 
         // Left Signature (Clinic/System)
         if (clinicSignature) {

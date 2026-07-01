@@ -342,6 +342,17 @@ const PropuestasList: React.FC = () => {
         // Totals Row
         let finalY = (doc as any).lastAutoTable.finalY;
 
+        const checkPageBreak = (neededHeight: number) => {
+            if (finalY + neededHeight > 270) {
+                doc.addPage();
+                finalY = 20; // reset to top of page
+                return true;
+            }
+            return false;
+        };
+
+        checkPageBreak(15);
+
         // Fallback static positioning if capture failed
         if (lastColWidth === 0) {
             lastColWidth = 30; lastColX = 165;
@@ -367,6 +378,7 @@ const PropuestasList: React.FC = () => {
         finalY += 15;
 
         // 5. Amount in Words
+        checkPageBreak(15);
         doc.setFont('helvetica', 'normal');
         const decimalPart = (totalAmount % 1).toFixed(2).substring(2);
         const words = numberToWords(totalAmount);
@@ -376,48 +388,52 @@ const PropuestasList: React.FC = () => {
 
         // 5.1 Propuesta Note
         if (propuesta.nota) {
+            const splitNote = doc.splitTextToSize(propuesta.nota, 165);
+            const noteHeight = (splitNote.length * 5) + 5;
+            checkPageBreak(noteHeight);
+
             doc.setFont('helvetica', 'bold');
             doc.text('NOTA:', 14, finalY);
 
             doc.setFont('helvetica', 'normal');
-            const splitNote = doc.splitTextToSize(propuesta.nota, 165);
             doc.text(splitNote, 30, finalY);
 
             finalY += (splitNote.length * 5) + 5;
         }
 
-
-
         finalY += 5;
 
         // 7. Payment System
+        checkPageBreak(20);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        // doc.rect(14, finalY, 40, 5); // Removed box
         doc.text('SISTEMA DE PAGO', 14, finalY + 3.5);
 
         doc.setFont('helvetica', 'normal');
-        // doc.rect(14, finalY + 6, 180, 5); // Removed box
         doc.text('- Cancelación del 50% al inicio. 30% durante el tratamiento. 20% antes de finalizado el mismo.', 14, finalY + 9.5, { align: 'justify', maxWidth: 180 });
 
         finalY += 15;
 
         // 8. Note
+        checkPageBreak(15);
         doc.setFont('helvetica', 'bold');
-        // doc.rect(14, finalY, 180, 8); // Removed box
         doc.text('NOTA: Se garantiza los trabajos realizados si el paciente sigue las recomendaciones indicadas y asiste a sus controles periódicos de manera puntual.', 14, finalY + 3.5, { align: 'justify', maxWidth: 180 });
 
         finalY += 12;
 
         // 9. Footer Text
+        checkPageBreak(30);
         const footerY = finalY;
         doc.setFont('helvetica', 'normal');
         doc.text('El presente plan de tratamiento podría tener modificaciones en el transcurso del tratamiento; el mismo será notificado oportunamente a su persona.', 14, footerY, { align: 'justify', maxWidth: 180 });
         doc.text('Plan de Tratamiento válido por 15 días.', 14, footerY + 10);
         doc.text('En conformidad y aceptando el presente plan de tratamiento, firmo.', 14, footerY + 15);
 
+        finalY = footerY + 15;
+
         // 10. Signatures
-        const sigY = footerY + 60;
+        checkPageBreak(50);
+        const sigY = finalY + 30;
 
         // Left Signature (Clinic/System)
         doc.line(20, sigY + 7, 90, sigY + 7);

@@ -444,17 +444,34 @@ export class HistoriaClinicaService {
             let targetPrice = Number(hc.precio || 0);
 
             // 1. Si está vinculado a un detalle de proforma, buscamos todos los registros "hermanos" (mismo detalle)
-            // Nota: NO filtramos por pieza porque sesiones múltiples del mismo tratamiento pueden
-            // registrarse en piezas diferentes (ej: barniz fluorado en distintas sesiones).
             if (detId) {
-                const siblings = await this.dataSource.query(
-                    `SELECT id, precio FROM historia_clinica 
-                     WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2`,
-                    [pId, detId]
+                // Consultar la cantidad del detalle en la proforma
+                const detResult = await this.dataSource.query(
+                    `SELECT cantidad FROM proforma_detalle WHERE id = $1`,
+                    [detId]
                 );
-                siblingsIds = siblings.map(s => s.id);
-                // El precio objetivo es el precio unitario del tratamiento (el máximo entre hermanos)
-                targetPrice = siblings.length > 0 ? Math.max(...siblings.map(s => Number(s.precio || 0))) : Number(hc.precio || 0);
+                const cantidad = detResult[0] ? Number(detResult[0].cantidad) : 1;
+
+                if (cantidad > 1) {
+                    // Si la cantidad es > 1, agrupamos por proformaDetalleId Y pieza (tratamientos independientes)
+                    const pieza = hc.pieza;
+                    const siblings = await this.dataSource.query(
+                        `SELECT id, precio FROM historia_clinica 
+                         WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                        [pId, detId, pieza]
+                    );
+                    siblingsIds = siblings.map(s => s.id);
+                    targetPrice = siblings.length > 0 ? Math.max(...siblings.map(s => Number(s.precio || 0))) : Number(hc.precio || 0);
+                } else {
+                    // Si es un ítem único (cantidad <= 1), agrupamos todo por proformaDetalleId sin importar la pieza (sesiones del mismo tratamiento)
+                    const siblings = await this.dataSource.query(
+                        `SELECT id, precio FROM historia_clinica 
+                         WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2`,
+                        [pId, detId]
+                    );
+                    siblingsIds = siblings.map(s => s.id);
+                    targetPrice = siblings.length > 0 ? Math.max(...siblings.map(s => Number(s.precio || 0))) : Number(hc.precio || 0);
+                }
             }
 
             // 2. Sumar todos los pagos y DESCUENTOS vinculados a cualquiera de estos registros

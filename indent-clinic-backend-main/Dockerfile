@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Instalar herramientas de compilación necesarias para paquetes nativos (bcrypt, sharp, etc.)
+RUN apk add --no-cache python3 make g++
+
 # Copiar package files
 COPY package*.json ./
 
@@ -15,18 +18,17 @@ COPY . .
 # Build de producción
 RUN npm run build
 
+# Eliminar dependencias de desarrollo para producción
+RUN npm prune --production
+
 # Etapa de producción
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Copiar package files
+# Copiar package files y directorios necesarios
 COPY package*.json ./
-
-# Instalar solo dependencias de producción
-RUN npm ci --only=production
-
-# Copiar build desde etapa anterior
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
 # Exponer puerto

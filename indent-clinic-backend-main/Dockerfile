@@ -1,5 +1,5 @@
 # Dockerfile para Backend NestJS
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ RUN npm run build
 RUN npm prune --production
 
 # Etapa de producción
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 

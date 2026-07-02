@@ -274,10 +274,10 @@ const PresupuestoList: React.FC = () => {
         const doc = new jsPDF();
 
         // Fetch signatures before generating PDF
-        let finalClinicSignature: any = null;
+        let finalPatientSignature: any = null;
         let pdfSignatures: any[] = [];
         
-        // 1. Try to load direct signature
+        // 1. Try to load direct signature (which in proformas represents the patient's signature)
         if (proforma.firma) {
             let base64Data = proforma.firma;
             if (!base64Data.startsWith('data:image')) {
@@ -288,14 +288,13 @@ const PresupuestoList: React.FC = () => {
                     console.error('Error loading direct proforma signature via proxy:', e);
                 }
             }
-            finalClinicSignature = {
+            finalPatientSignature = {
                 firmaData: base64Data,
-                usuario: proforma.usuario || { name: 'Doctor' },
-                rolFirmante: 'doctor'
+                rolFirmante: 'paciente'
             };
         }
 
-        // 2. Fetch from legacy table for patient signature or fallback clinic signature
+        // 2. Fetch from database table for budget digital signatures
         try {
             const response = await api.get(`/firmas/documento/presupuesto/${proforma.id}`);
             pdfSignatures = response.data;
@@ -303,7 +302,8 @@ const PresupuestoList: React.FC = () => {
             console.error('Error fetching signatures for PDF:', error);
         }
 
-        let patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente');
+        // Find patient signature from database table or fallback to the direct proforma signature, or general patient consent
+        let patientSignature = pdfSignatures.find(s => s.rolFirmante === 'paciente') || finalPatientSignature;
         
         // Fallback: If no budget signature, use patient's general consent signature (firmaFC)
         if (!patientSignature && paciente && paciente.firmaFC) {
@@ -314,7 +314,6 @@ const PresupuestoList: React.FC = () => {
         }
 
         if (patientSignature && patientSignature.firmaData && !patientSignature.firmaData.startsWith('data:image')) {
-            // Use proxy based on whether it's a legacy signature with ID or a direct patient signature
             try {
                 if (patientSignature.id) {
                     const proxyRes = await api.get<{ base64: string }>(`/firmas/${patientSignature.id}/base64`);
@@ -328,11 +327,10 @@ const PresupuestoList: React.FC = () => {
             }
         }
         
-        // Use legacy clinic signature only if direct one was not found
-        const legacyClinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
-        const clinicSignature = finalClinicSignature || legacyClinicSignature;
+        // Dentist signature is only loaded from the digital signatures table with role doctor, personal or administrator
+        const clinicSignature = pdfSignatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
 
-        if (!finalClinicSignature && clinicSignature && clinicSignature.firmaData && !clinicSignature.firmaData.startsWith('data:image') && clinicSignature.id) {
+        if (clinicSignature && clinicSignature.firmaData && !clinicSignature.firmaData.startsWith('data:image') && clinicSignature.id) {
              try {
                 const proxyRes = await api.get<{ base64: string }>(`/firmas/${clinicSignature.id}/base64`);
                 clinicSignature.firmaData = proxyRes.data.base64;
@@ -601,7 +599,11 @@ const PresupuestoList: React.FC = () => {
         doc.line(20, sigY + 7, 90, sigY + 7);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        const clinicName = clinicSignature ? `${clinicSignature.usuario.nombre} ${clinicSignature.usuario.apellido}` : (clinicaActual?.nombre || 'CLINICAS LENS');
+        const clinicName = clinicSignature 
+            ? (clinicSignature.usuario 
+                ? (clinicSignature.usuario.name || `${clinicSignature.usuario.nombre || ''} ${clinicSignature.usuario.apellido || ''}`.trim()) 
+                : 'ODONTÓLOGO') 
+            : (proforma.usuario?.name || clinicaActual?.nombre || 'CLINICAS LENS');
         doc.text(clinicName, 55, sigY + 11, { align: 'center' });
         doc.setFont('helvetica', 'normal');
         doc.text(clinicSignature ? (clinicSignature.rolFirmante === 'doctor' ? 'ODONTÓLOGO' : 'PERSONAL') : 'FIRMA AUTORIZADA', 55, sigY + 15, { align: 'center' });

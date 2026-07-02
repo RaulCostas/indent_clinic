@@ -455,7 +455,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         let creds: any;
 
         const sessionCreds = await this.whatsappSessionRepository.findOne({
-            where: { clinicId, instanceNumber: instance, type: 'creds' }
+            where: { clinicId, instanceNumber: instance, type: 'creds', keyId: 'creds' }
         });
 
         if (sessionCreds && sessionCreds.data) {
@@ -476,7 +476,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         const saveCreds = async () => {
             const serializedCreds = JSON.parse(JSON.stringify(creds, BufferJSON.replacer));
             const updateResult = await this.whatsappSessionRepository.update(
-                { clinicId, instanceNumber: instance, type: 'creds' },
+                { clinicId, instanceNumber: instance, type: 'creds', keyId: 'creds' },
                 { data: serializedCreds }
             );
             
@@ -485,6 +485,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
                     clinicId,
                     instanceNumber: instance,
                     type: 'creds',
+                    keyId: 'creds',
                     data: serializedCreds
                 });
                 await this.whatsappSessionRepository.save(newSession);

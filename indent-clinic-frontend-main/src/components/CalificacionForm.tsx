@@ -92,7 +92,7 @@ const CalificacionForm: React.FC<CalificacionFormProps> = ({ isOpen, onClose, id
 
     const fetchPacientes = async () => {
         try {
-            const response = await api.get('/pacientes?limit=1000');
+            const response = await api.get('/pacientes?limit=10000&estado=activo&minimal=true');
             setPacientes(response.data.data || []);
         } catch (error) {
             console.error('Error fetching pacientes:', error);

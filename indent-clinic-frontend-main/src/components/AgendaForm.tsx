@@ -241,8 +241,8 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
         try {
             const currentClinicaId = targetClinicaId || formData.clinicaId || clinicaSeleccionada;
             const patientsUrl = currentClinicaId 
-                ? `/pacientes?limit=1000&clinicaId=${currentClinicaId}&estado=activo` 
-                : '/pacientes?limit=1000&estado=activo';
+                ? `/pacientes?limit=10000&clinicaId=${currentClinicaId}&estado=activo&minimal=true` 
+                : '/pacientes?limit=10000&estado=activo&minimal=true';
             
             const [doctorsRes, pacientesRes, sucursalesRes] = await Promise.all([
                 api.get('/doctors?limit=1000'),

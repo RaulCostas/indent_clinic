@@ -242,8 +242,8 @@ const AgendaView: React.FC = () => {
     const fetchPatients = async () => {
         try {
             const url = globalClinicaId 
-                ? `/pacientes?limit=2000&clinicaId=${globalClinicaId}&estado=activo&minimal=true` 
-                : '/pacientes?limit=2000&estado=activo&minimal=true';
+                ? `/pacientes?limit=10000&clinicaId=${globalClinicaId}&estado=activo&minimal=true` 
+                : '/pacientes?limit=10000&estado=activo&minimal=true';
             const response = await api.get(url);
             setPacientes(Array.isArray(response.data.data) ? response.data.data : response.data);
         } catch (error) {

@@ -1,0 +1,5 @@
+DB_HOST=qsc7d8rbks4w4ukedjm86pu2
+DB_DATABASE=indent_clinic
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=boquenze654

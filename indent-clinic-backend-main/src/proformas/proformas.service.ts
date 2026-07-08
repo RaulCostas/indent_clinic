@@ -169,7 +169,7 @@ export class ProformasService {
         'proforma.id', 'proforma.pacienteId', 'proforma.numero', 'proforma.fecha', 
         'proforma.total', 'proforma.nota', 'proforma.usuarioId', 'proforma.clinicaId',
         'proforma.createdAt', 'proforma.updatedAt',
-        'paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno',
+        'paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.celular',
         'usuario.id', 'usuario.name',
         'detalles.id', 'detalles.arancelId', 'detalles.precioUnitario', 'detalles.piezas', 'detalles.cantidad', 'detalles.total', 'detalles.posible', 'detalles.tipoPrecio',
         'arancel.id', 'arancel.detalle',

@@ -101,20 +101,49 @@ const PacienteTabPagos: React.FC = () => {
     };
 
     const historiasConsolidadas = useMemo(() => {
+        // Ordenar cronológicamente para agrupar sesiones correctamente
+        const sortedHistorias = [...historias].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
+        
         const map = new Map<string, any>();
         
-        historias.forEach(h => {
+        // Rastrear los grupos por (proformaDetalleId, normPz)
+        // Key: "(proformaDetalleId)_(normPz)" -> array de { groupKey: string, hasTerminado: boolean }
+        const groupTracker = new Map<string, Array<{ groupKey: string, hasTerminado: boolean }>>();
+
+        sortedHistorias.forEach(h => {
             const pf = proformas.find(p => p.id === h.proformaId);
             const det = pf?.detalles?.find((d: any) => d.id === h.proformaDetalleId);
             const isSingleItem = det && Number(det.cantidad) <= 1;
             
-            // REGLA DE CONSOLIDACIÓN:
-            // 1. Si es un ítem único (cantidad 1), agrupamos todo por proformaDetalleId (caso Virginia).
-            // 2. Si tiene cantidad > 1, agrupamos por proformaDetalleId + Pieza (caso Tartrectomía/Múltiples piezas).
             const normPz = normalizePiezas(h.pieza || '');
-            const key = h.proformaDetalleId
-                ? (isSingleItem ? `det_${h.proformaDetalleId}` : `det_${h.proformaDetalleId}_pz_${normPz}`)
-                : `gen_${h.id}`;
+            let key = `gen_${h.id}`;
+
+            if (h.proformaDetalleId) {
+                if (isSingleItem) {
+                    key = `det_${h.proformaDetalleId}`;
+                } else {
+                    // Agrupación para cantidad > 1
+                    const trackerKey = `${h.proformaDetalleId}_${normPz}`;
+                    let groups = groupTracker.get(trackerKey) || [];
+                    
+                    // Buscar un grupo activo que no tenga una entrada terminada aún
+                    let group = groups.find(g => !g.hasTerminado);
+                    
+                    if (!group) {
+                        // Crear un nuevo grupo
+                        const groupIndex = groups.length;
+                        const groupKey = `det_${h.proformaDetalleId}_pz_${normPz}_g_${groupIndex}`;
+                        group = { groupKey, hasTerminado: false };
+                        groups.push(group);
+                        groupTracker.set(trackerKey, groups);
+                    }
+                    
+                    if ((h.estadoTratamiento || '').trim().toLowerCase() === 'terminado') {
+                        group.hasTerminado = true;
+                    }
+                    key = group.groupKey;
+                }
+            }
                 
             if (!map.has(key)) {
                 map.set(key, { ...h, allIds: [h.id] });

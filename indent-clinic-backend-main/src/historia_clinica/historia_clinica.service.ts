@@ -454,14 +454,39 @@ export class HistoriaClinicaService {
 
                 if (cantidad > 1) {
                     // Si la cantidad es > 1, agrupamos por proformaDetalleId Y pieza (tratamientos independientes)
+                    // NUEVO: Agrupamos cronológicamente para separar múltiples unidades completadas (ej: Fluor Clinpro o mesial/distal)
                     const pieza = hc.pieza;
                     const siblings = await this.dataSource.query(
-                        `SELECT id, precio FROM historia_clinica 
-                         WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')`,
+                        `SELECT id, precio, "estadoTratamiento" FROM historia_clinica 
+                         WHERE "pacienteId" = $1 AND "proformaDetalleId" = $2 AND COALESCE(pieza, '') = COALESCE($3, '')
+                         ORDER BY fecha ASC, id ASC`,
                         [pId, detId, pieza]
                     );
-                    siblingsIds = siblings.map(s => s.id);
-                    targetPrice = siblings.length > 0 ? Math.max(...siblings.map(s => Number(s.precio || 0))) : Number(hc.precio || 0);
+
+                    // Agrupación cronológica secuencial
+                    const groups: Array<{ ids: number[], prices: number[], hasTerminado: boolean }> = [];
+                    for (const s of siblings) {
+                        let group = groups.find(g => !g.hasTerminado);
+                        if (!group) {
+                            group = { ids: [], prices: [], hasTerminado: false };
+                            groups.push(group);
+                        }
+                        group.ids.push(s.id);
+                        group.prices.push(Number(s.precio || 0));
+                        if ((s.estadoTratamiento || '').trim().toLowerCase() === 'terminado') {
+                            group.hasTerminado = true;
+                        }
+                    }
+
+                    // Identificar a qué grupo pertenece la entrada actual
+                    const targetGroup = groups.find(g => g.ids.includes(id));
+                    if (targetGroup) {
+                        siblingsIds = targetGroup.ids;
+                        targetPrice = targetGroup.prices.length > 0 ? Math.max(...targetGroup.prices) : Number(hc.precio || 0);
+                    } else {
+                        siblingsIds = [id];
+                        targetPrice = Number(hc.precio || 0);
+                    }
                 } else {
                     // Si es un ítem único (cantidad <= 1), agrupamos todo por proformaDetalleId sin importar la pieza (sesiones del mismo tratamiento)
                     const siblings = await this.dataSource.query(

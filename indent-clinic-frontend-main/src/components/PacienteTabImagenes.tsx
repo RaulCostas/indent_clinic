@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { formatDate } from '../utils/dateUtils';
 import { Image as ImageIcon, ArrowLeft, Upload, Plus, ChevronLeft, ChevronRight, X, HelpCircle } from 'lucide-react';
 import ManualModal, { type ManualSection } from './ManualModal';
+import { getImageUrl } from '../utils/formatters';
 
 interface ProformaSlim { id: number; numero: number; fecha: string; total: number }
 interface ImgData { id: number; nombre_archivo: string; ruta: string; fecha_creacion: string; descripcion?: string }
@@ -201,7 +202,7 @@ const PacienteTabImagenes: React.FC = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {images.map(img => (
                             <div key={img.id} className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all">
-                                <img src={img.ruta} alt={img.nombre_archivo}
+                                <img src={getImageUrl(img.ruta)} alt={img.nombre_archivo}
                                     className="w-full h-40 object-cover cursor-pointer transition-transform duration-300 group-hover:scale-105"
                                     onClick={() => setLightboxIndex(images.findIndex(i => i.id === img.id))} />
                                 {img.descripcion && (
@@ -249,7 +250,7 @@ const PacienteTabImagenes: React.FC = () => {
 
                         {/* Main Image */}
                         <img 
-                            src={images[lightboxIndex].ruta} 
+                            src={getImageUrl(images[lightboxIndex].ruta)} 
                             alt={images[lightboxIndex].nombre_archivo} 
                             className="max-w-full max-h-[85vh] object-contain rounded-sm shadow-2xl"
                             onClick={(e) => e.stopPropagation()} 

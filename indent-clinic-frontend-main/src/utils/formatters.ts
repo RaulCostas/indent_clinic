@@ -119,3 +119,34 @@ export const getLogoUrl = (logo: string | undefined | null): string => {
     
     return `${baseUrl}${logoPath}`;
 };
+
+/**
+ * Retorna la URL de una imagen de proforma/paciente manejando casos de URLs absolutas antiguas (Render, localhost)
+ * y convirtiéndolas dinámicamente a la URL de producción actual.
+ */
+export const getImageUrl = (ruta: string | undefined | null): string => {
+    if (!ruta) return '';
+    
+    // Si ya es Base64, retornarla tal cual
+    if (ruta.startsWith('data:image')) {
+        return ruta;
+    }
+
+    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    
+    // Si la ruta contiene 'uploads/', extraemos la parte relativa
+    if (ruta.includes('uploads/')) {
+        const relativePath = ruta.substring(ruta.indexOf('uploads/'));
+        return `${baseUrl}/${relativePath}`;
+    }
+
+    // Si es una URL absoluta externa (ej: Supabase), retornarla tal cual
+    if (ruta.startsWith('http')) {
+        return ruta;
+    }
+
+    // Si es una ruta relativa pura
+    const cleanPath = ruta.startsWith('/') ? ruta : `/${ruta}`;
+    return `${baseUrl}${cleanPath}`;
+};
+

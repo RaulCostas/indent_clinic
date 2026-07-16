@@ -3,6 +3,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import { formatDate } from '../utils/dateUtils';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { getImageUrl } from '../utils/formatters';
 
 interface PacienteImagenesModalProps {
     isOpen: boolean;
@@ -405,7 +406,7 @@ const PacienteImagenesModal: React.FC<PacienteImagenesModalProps> = ({ isOpen, o
                                     <div key={img.id} className="relative group bg-white dark:bg-gray-700 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-md transition-all hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-500 flex flex-col">
                                         <div className="aspect-w-4 aspect-h-3 bg-gray-100 dark:bg-gray-800 cursor-pointer overflow-hidden flex-1" onClick={() => setLightboxIndex(images.findIndex(i => i.id === img.id))}>
                                             <img
-                                                src={img.ruta}
+                                                src={getImageUrl(img.ruta)}
                                                 alt={img.nombre_archivo}
                                                 className="object-cover w-full h-48 transition-transform duration-500 group-hover:scale-110"
                                             />
@@ -476,7 +477,7 @@ const PacienteImagenesModal: React.FC<PacienteImagenesModalProps> = ({ isOpen, o
 
                     {/* Main Image */}
                     <img 
-                        src={images[lightboxIndex].ruta} 
+                        src={getImageUrl(images[lightboxIndex].ruta)} 
                         alt={images[lightboxIndex].nombre_archivo} 
                         className="max-w-full max-h-[85vh] object-contain rounded-sm shadow-2xl"
                         onClick={(e) => e.stopPropagation()} 

@@ -89,6 +89,19 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
         return proforma ? proforma.detalles.filter((d: any) => !d.posible) : [];
     }, [formData.proformaId, proformas]);
 
+    const selectedDetail = useMemo(() => {
+        if (!formData.proformaDetalleId || !currentProformaDetails) return null;
+        return currentProformaDetails.find(d => d.id === formData.proformaDetalleId) || null;
+    }, [formData.proformaDetalleId, currentProformaDetails]);
+
+    const plannedPieces = useMemo(() => {
+        if (!selectedDetail || !selectedDetail.piezas) return [];
+        return selectedDetail.piezas
+            .split(/[-/,\s]+/)
+            .map((p: string) => p.trim())
+            .filter((p: string) => p.length > 0);
+    }, [selectedDetail]);
+
     // Update formData when selectedProformaId (from parent props) changes
     useEffect(() => {
         if (!historiaToEdit) { // Only update if not editing, to avoid overwriting edit data
@@ -283,6 +296,52 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                 [name]: type === 'checkbox' ? checked : (name.includes('Id') && name !== 'proformaId' ? Number(value) : (name === 'cantidad' || name === 'precio' ? Number(value) : value))
             }));
         }
+    };
+
+    const handlePieceCheckboxChange = (piece: string, checked: boolean) => {
+        let currentPieces = formData.pieza
+            .split(/[-/,\s]+/)
+            .map(x => x.trim())
+            .filter(x => x.length > 0);
+        
+        if (checked) {
+            if (!currentPieces.includes(piece)) {
+                currentPieces.push(piece);
+            }
+        } else {
+            currentPieces = currentPieces.filter(x => x !== piece);
+        }
+        
+        const newQuantity = Math.max(1, currentPieces.length);
+        let newPrice = formData.precio;
+
+        if (formData.proformaId && currentProformaDetails.length > 0) {
+            const detail = currentProformaDetails.find(d =>
+                (formData.proformaDetalleId && d.id === formData.proformaDetalleId) ||
+                (d.arancel?.detalle === formData.tratamiento)
+            );
+
+            if (detail) {
+                const proforma = proformas.find(p => p.id === formData.proformaId);
+                let discountFactor = 1;
+                if (proforma && Number(proforma.sub_total) > 0) {
+                    discountFactor = Number(proforma.total) / Number(proforma.sub_total);
+                }
+                newPrice = (Number(detail.precioUnitario) * newQuantity) * discountFactor;
+            }
+        } else if (allTreatments.length > 0) {
+            const arancel = allTreatments.find(a => a.detalle === formData.tratamiento);
+            if (arancel) {
+                newPrice = Number(arancel.precio) * newQuantity;
+            }
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            pieza: currentPieces.join(', '),
+            cantidad: newQuantity,
+            precio: newPrice
+        }));
     };
 
     const resetForm = () => {
@@ -586,19 +645,55 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                     {/* Pieza */}
                     <div>
                         <label className="block mb-1 font-medium text-gray-700 dark:text-gray-300">Pieza(s)</label>
-                        <div className="relative">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                            </svg>
-                            <input
-                                type="text"
-                                name="pieza"
-                                value={formData.pieza}
-                                onChange={handleChange}
-                                placeholder="Ej. 11, 12..."
-                                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
-                            />
-                        </div>
+                        {formData.proformaId && formData.proformaDetalleId ? (
+                            plannedPieces.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg min-h-[38px] items-center">
+                                    {plannedPieces.map(p => {
+                                        const isChecked = formData.pieza
+                                            .split(/[-/,\s]+/)
+                                            .map(x => x.trim())
+                                            .includes(p);
+                                        return (
+                                            <label key={p} className="flex items-center gap-1.5 px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md cursor-pointer text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/80 transition-colors shadow-sm select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={(e) => handlePieceCheckboxChange(p, e.target.checked)}
+                                                    className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+                                                />
+                                                <span>Pz. {p}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    </svg>
+                                    <input
+                                        type="text"
+                                        value="Toda la boca (General)"
+                                        disabled
+                                        className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-sm rounded-lg cursor-not-allowed font-medium block"
+                                    />
+                                </div>
+                            )
+                        ) : (
+                            <div className="relative">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                </svg>
+                                <input
+                                    type="text"
+                                    name="pieza"
+                                    value={formData.pieza}
+                                    onChange={handleChange}
+                                    placeholder="Ej. 11, 12..."
+                                    className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 block dark:placeholder-gray-400"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Cantidad */}

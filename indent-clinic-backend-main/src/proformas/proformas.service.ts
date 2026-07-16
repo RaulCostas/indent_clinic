@@ -12,6 +12,7 @@ import { ChatbotService } from '../chatbot/chatbot.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { HistoriaClinica } from '../historia_clinica/entities/historia_clinica.entity';
+import { HistoriaClinicaService } from '../historia_clinica/historia_clinica.service';
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 import { LocalStorageService } from '../common/storage/local-storage.service';
 import { getBoliviaDate } from '../common/utils/date.utils';
@@ -32,6 +33,7 @@ export class ProformasService {
     private readonly localStorageService: LocalStorageService,
     @Inject(forwardRef(() => ChatbotService))
     private readonly chatbotService: ChatbotService,
+    private readonly historiaClinicaService: HistoriaClinicaService,
   ) { }
 
   async create(createProformaDto: CreateProformaDto) {
@@ -278,6 +280,18 @@ export class ProformasService {
 
       await queryRunner.manager.save(proforma);
       await queryRunner.commitTransaction();
+
+      // Sincronizar de forma robusta los estados financieros de las historias clínicas asociadas
+      try {
+        const hcRecords = await this.dataSource.getRepository(HistoriaClinica).find({
+          where: { proformaId: proforma.id },
+        });
+        for (const hc of hcRecords) {
+          await this.historiaClinicaService.syncTreatmentStatus(hc.id);
+        }
+      } catch (syncErr) {
+        console.error('[ProformasService] Error al sincronizar estados financieros tras actualizar proforma:', syncErr);
+      }
 
       return this.findOne(id);
     } catch (err) {

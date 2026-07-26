@@ -6,6 +6,8 @@ import { Sucursal } from './entities/sucursal.entity';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
 import { UpdateClinicaDto } from './dto/update-clinica.dto';
 import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const normalizeString = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -27,13 +29,43 @@ export class ClinicasService {
     ) { }
     
     async onModuleInit() {
-        this.logger.log('Checking for clinics without slugs...');
+        this.logger.log('Checking clinics for slugs and missing logos...');
         const clinicas = await this.clinicasRepository.find();
+
+        const uploadDir = (fs.existsSync('/data') && process.platform !== 'win32')
+            ? '/data/clinica-media'
+            : path.join(process.cwd(), 'uploads', 'clinica-media');
+
+        let mediaFiles: string[] = [];
+        if (fs.existsSync(uploadDir)) {
+            try {
+                mediaFiles = fs.readdirSync(uploadDir);
+            } catch (e) {
+                this.logger.error(`Error reading clinica-media dir: ${e.message}`);
+            }
+        }
+
         for (const clinica of clinicas) {
+            let updated = false;
+
             if (!clinica.slug) {
                 clinica.slug = generateSlug(clinica.nombre);
-                await this.clinicasRepository.save(clinica);
+                updated = true;
                 this.logger.log(`Generated slug for clinic: ${clinica.nombre} -> ${clinica.slug}`);
+            }
+
+            // Auto-vincular logo si es nulo o apunta a URL antigua de Supabase/Render
+            if (!clinica.logo || clinica.logo.includes('supabase') || clinica.logo.includes('render.com')) {
+                const foundLogo = mediaFiles.find(f => f.startsWith(`logo-clinica-${clinica.id}-`));
+                if (foundLogo) {
+                    clinica.logo = `/uploads/clinica-media/${foundLogo}`;
+                    updated = true;
+                    this.logger.log(`Auto-linked logo for clinic ID ${clinica.id}: ${clinica.logo}`);
+                }
+            }
+
+            if (updated) {
+                await this.clinicasRepository.save(clinica);
             }
         }
     }
@@ -69,10 +101,29 @@ export class ClinicasService {
         return this.clinicasRepository.save(clinica);
     }
 
-    findAll(): Promise<Clinica[]> {
-        return this.clinicasRepository.find({ 
+    async findAll(): Promise<Clinica[]> {
+        const clinicas = await this.clinicasRepository.find({ 
             order: { nombre: 'ASC' },
             relations: ['sucursales']
+        });
+
+        const uploadDir = (fs.existsSync('/data') && process.platform !== 'win32')
+            ? '/data/clinica-media'
+            : path.join(process.cwd(), 'uploads', 'clinica-media');
+
+        let mediaFiles: string[] = [];
+        if (fs.existsSync(uploadDir)) {
+            try { mediaFiles = fs.readdirSync(uploadDir); } catch (e) {}
+        }
+
+        return clinicas.map(c => {
+            if (!c.logo || c.logo.includes('supabase') || c.logo.includes('render.com')) {
+                const found = mediaFiles.find(f => f.startsWith(`logo-clinica-${c.id}-`));
+                if (found) {
+                    c.logo = `/uploads/clinica-media/${found}`;
+                }
+            }
+            return c;
         });
     }
 

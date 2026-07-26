@@ -31,6 +31,7 @@ COPY package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/scratch ./scratch
+COPY --from=builder /app/uploads ./uploads
 
 # Exponer puerto
 EXPOSE 3000

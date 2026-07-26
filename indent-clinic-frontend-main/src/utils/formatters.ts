@@ -102,26 +102,44 @@ export const numberToWords = (amount: number): string => {
 };
 
 /**
- * Retorna la URL del logo manejando casos de Base64, URLs absolutas (Supabase) 
- * y rutas relativas (backend local).
+ * Retorna la URL del logo manejando casos de Base64, URLs absolutas (Supabase, Render)
+ * y nombres de archivos o rutas relativas.
  */
 export const getLogoUrl = (logo: string | undefined | null): string => {
     if (!logo) return '';
     
-    // Si ya es Base64 o una URL absoluta (http/https), retornarla tal cual
-    if (logo.startsWith('data:image') || logo.startsWith('http')) {
+    // Si ya es Base64, retornarla tal cual
+    if (logo.startsWith('data:image')) {
         return logo;
     }
 
-    // Si es una ruta relativa, anteponer el base URL de la API
     const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
-    const logoPath = logo.startsWith('/') ? logo : `/${logo}`;
-    
-    return `${baseUrl}${logoPath}`;
+
+    // Si la ruta contiene 'uploads/', extraemos la parte relativa
+    if (logo.includes('uploads/')) {
+        const relativePath = logo.substring(logo.indexOf('uploads/'));
+        return `${baseUrl}/${relativePath}`;
+    }
+
+    // Si la ruta contiene 'clinica-media/' (ej: de Supabase)
+    if (logo.includes('clinica-media/')) {
+        const relativePath = logo.substring(logo.indexOf('clinica-media/'));
+        return `${baseUrl}/uploads/${relativePath}`;
+    }
+
+    // Si es solo un nombre de archivo (ej: logo-clinica-1-1774974118590.jpeg) o ruta que incluye logo-clinica
+    const fileName = logo.split('/').pop();
+    if (fileName && (fileName.startsWith('logo-') || fileName.startsWith('qr-') || fileName.includes('.'))) {
+        return `${baseUrl}/uploads/clinica-media/${fileName}`;
+    }
+
+    // Fallback para rutas relativas puras
+    const cleanPath = logo.startsWith('/') ? logo : `/${logo}`;
+    return `${baseUrl}${cleanPath}`;
 };
 
 /**
- * Retorna la URL de una imagen de proforma/paciente manejando casos de URLs absolutas antiguas (Render, localhost)
+ * Retorna la URL de una imagen de proforma/paciente/firma manejando casos de URLs absolutas antiguas (Render, Supabase)
  * y convirtiéndolas dinámicamente a la URL de producción actual.
  */
 export const getImageUrl = (ruta: string | undefined | null): string => {
@@ -140,8 +158,18 @@ export const getImageUrl = (ruta: string | undefined | null): string => {
         return `${baseUrl}/${relativePath}`;
     }
 
-    // Si es una URL absoluta externa (ej: Supabase), retornarla tal cual
+    // Si la ruta contiene 'clinica-media/' (ej: URLs antiguas de Supabase)
+    if (ruta.includes('clinica-media/')) {
+        const relativePath = ruta.substring(ruta.indexOf('clinica-media/'));
+        return `${baseUrl}/uploads/${relativePath}`;
+    }
+
+    // Si es una URL absoluta externa distinta o nombre de archivo directo
     if (ruta.startsWith('http')) {
+        const fileName = ruta.split('/').pop();
+        if (fileName && fileName.includes('.')) {
+            return `${baseUrl}/uploads/clinica-media/${fileName}`;
+        }
         return ruta;
     }
 

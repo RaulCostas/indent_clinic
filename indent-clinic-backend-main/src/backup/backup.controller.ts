@@ -12,6 +12,11 @@ export class BackupController {
         return await this.backupService.createBackup(createBackupDto);
     }
 
+    @Post('create-full')
+    async createFullBackup(@Body() createBackupDto: CreateBackupDto) {
+        return await this.backupService.createFullBackup(createBackupDto);
+    }
+
     @Get('list')
     async listBackups() {
         return await this.backupService.listBackups();

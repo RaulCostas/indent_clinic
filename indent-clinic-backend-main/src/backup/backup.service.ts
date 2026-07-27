@@ -129,6 +129,72 @@ export class BackupService {
         }
     }
 
+    async createFullBackup(createBackupDto?: CreateBackupDto): Promise<BackupInfo> {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const targetDir = createBackupDto?.customPath || this.backupDir;
+        
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+
+        const tempSqlFile = path.join(targetDir, `temp_dump_${timestamp}.sql`);
+        const zipFilename = `clinicas_lens_backup_COMPLETO_${timestamp}.zip`;
+        const zipPath = path.join(targetDir, zipFilename);
+
+        try {
+            // 1. Create SQL Dump
+            const env = { ...process.env, PGPASSWORD: this.dbPassword };
+            const dumpCommand = `"${this.pgDumpPath}" -h ${this.dbHost} -p ${this.dbPort} -U ${this.dbUser} -d ${this.dbName} -F p -f "${tempSqlFile}"`;
+            console.log('[FullBackup] Creating database dump...');
+            await execAsync(dumpCommand, { env });
+
+            // 2. Identify Uploads directory
+            const uploadDir = (fs.existsSync('/data') && process.platform !== 'win32')
+                ? '/data'
+                : path.join(process.cwd(), 'uploads');
+
+            // 3. Compress SQL dump and uploads directory into ZIP
+            console.log('[FullBackup] Compressing database dump and uploads folder...');
+            const isWindows = process.platform === 'win32';
+            if (isWindows) {
+                const psCommand = `powershell -Command "Compress-Archive -Path '${tempSqlFile}', '${uploadDir}' -DestinationPath '${zipPath}' -Force"`;
+                await execAsync(psCommand);
+            } else {
+                try {
+                    // Try zip command
+                    const zipCmd = `zip -r "${zipPath}" "${tempSqlFile}" "${uploadDir}"`;
+                    await execAsync(zipCmd);
+                } catch (e) {
+                    // Fallback to tar
+                    const tarPath = zipPath.replace(/\.zip$/, '.tar.gz');
+                    await execAsync(`tar -czf "${tarPath}" "${tempSqlFile}" "${uploadDir}"`);
+                }
+            }
+
+            // 4. Remove temp SQL file if ZIP/TAR was created
+            if (fs.existsSync(tempSqlFile)) {
+                try { fs.unlinkSync(tempSqlFile); } catch (e) {}
+            }
+
+            const finalPath = fs.existsSync(zipPath) ? zipPath : zipPath.replace(/\.zip$/, '.tar.gz');
+            const finalFilename = path.basename(finalPath);
+            const stats = fs.statSync(finalPath);
+
+            return {
+                filename: finalFilename,
+                size: stats.size,
+                createdAt: stats.birthtime.toISOString(),
+                path: finalPath,
+            };
+        } catch (error) {
+            if (fs.existsSync(tempSqlFile)) {
+                try { fs.unlinkSync(tempSqlFile); } catch (e) {}
+            }
+            console.error('Error creating full backup:', error);
+            throw new InternalServerErrorException(`Failed to create full backup: ${error.message}`);
+        }
+    }
+
     async listBackups(): Promise<BackupInfo[]> {
         try {
             if (!fs.existsSync(this.backupDir)) {
@@ -139,7 +205,7 @@ export class BackupService {
             const backups: BackupInfo[] = [];
 
             for (const file of files) {
-                if (file.endsWith('.sql')) {
+                if (file.endsWith('.sql') || file.endsWith('.zip') || file.endsWith('.tar.gz')) {
                     const filePath = path.join(this.backupDir, file);
                     const stats = fs.statSync(filePath);
 

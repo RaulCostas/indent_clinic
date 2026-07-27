@@ -39,12 +39,12 @@ const BackupManager: React.FC = () => {
     const handleCreateBackup = async () => {
         const result = await Swal.fire({
             title: '¿Crear backup de la base de datos?',
-            text: 'Se creará un archivo de respaldo con todos los datos actuales',
+            text: 'Se creará un archivo .sql con la base de datos y firmas digitales',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#16a34a',
             cancelButtonColor: '#6b7280',
-            confirmButtonText: 'Sí, crear backup',
+            confirmButtonText: 'Sí, crear backup BD',
             cancelButtonText: 'Cancelar'
         });
 
@@ -72,6 +72,48 @@ const BackupManager: React.FC = () => {
                     icon: 'error',
                     title: 'Error',
                     text: error.response?.data?.message || 'No se pudo crear el backup. Verifica que PostgreSQL esté instalado y configurado.'
+                });
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const handleCreateFullBackup = async () => {
+        const result = await Swal.fire({
+            title: '📦 ¿Crear Respaldo COMPLETO?',
+            html: '<p class="text-sm mb-2">Se empaquetará un archivo comprimido (.zip) con:</p><ul class="text-left text-xs bg-gray-100 dark:bg-gray-700 p-3 rounded-lg space-y-1"><li>✅ Base de Datos SQL completa</li><li>✅ Firmas digitales de pacientes y proformas</li><li>✅ Fotos de tratamientos, adjuntos y logotipos de clínicas</li></ul>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#2563eb',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sí, crear respaldo completo',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (result.isConfirmed) {
+            setLoading(true);
+            try {
+                const data = customPath ? { customPath } : {};
+                const response = await api.post<BackupInfo>('/backup/create-full', data);
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: '¡Respaldo Completo Creado!',
+                    html: `<p><strong>Archivo:</strong> ${response.data.filename}</p>
+                           <p><strong>Ubicación:</strong> ${response.data.path}</p>
+                           <p><strong>Tamaño:</strong> ${formatFileSize(response.data.size)}</p>`,
+                    confirmButtonText: 'OK'
+                });
+
+                setCustomPath('');
+                fetchBackups();
+            } catch (error: any) {
+                console.error('Error creating full backup:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.response?.data?.message || 'No se pudo crear el respaldo completo.'
                 });
             } finally {
                 setLoading(false);
@@ -262,16 +304,29 @@ const BackupManager: React.FC = () => {
                         </p>
                     </div>
 
-                    <button
-                        onClick={handleCreateBackup}
-                        disabled={loading}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 transform hover:-translate-y-0.5 transition-all shadow-md"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        {loading ? 'Creando backup...' : 'Crear Backup Ahora'}
-                    </button>
+                    <div className="flex flex-wrap gap-4">
+                        <button
+                            onClick={handleCreateFullBackup}
+                            disabled={loading}
+                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 transform hover:-translate-y-0.5 transition-all shadow-md"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                            {loading ? 'Generando...' : '📦 Respaldo Completo (.zip BD + Fotos + Logos)'}
+                        </button>
+
+                        <button
+                            onClick={handleCreateBackup}
+                            disabled={loading}
+                            className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 transform hover:-translate-y-0.5 transition-all shadow-md"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                            {loading ? 'Generando...' : '💾 Solo Base de Datos (.sql)'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Backups List */}

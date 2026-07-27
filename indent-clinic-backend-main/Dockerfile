@@ -24,6 +24,9 @@ RUN npm prune --production
 # Etapa de producción
 FROM node:20-alpine
 
+# Instalar utilidades de postgresql (pg_dump, psql) para backups
+RUN apk add --no-cache postgresql-client
+
 WORKDIR /app
 
 # Copiar package files y directorios necesarios

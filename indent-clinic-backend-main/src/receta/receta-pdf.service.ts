@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { FirmasService } from '../firmas/firmas.service';
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PdfPrinter = require('pdfmake');
 
@@ -11,7 +11,7 @@ export class RecetaPdfService {
     constructor(
         @Inject(forwardRef(() => FirmasService))
         private readonly firmasService: FirmasService,
-        private readonly storageService: SupabaseStorageService
+        private readonly storageService: LocalStorageService
     ) {
         const fonts = {
             Helvetica: {

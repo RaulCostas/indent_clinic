@@ -5,7 +5,7 @@ import { Clinica } from './entities/clinica.entity';
 import { Sucursal } from './entities/sucursal.entity';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
 import { UpdateClinicaDto } from './dto/update-clinica.dto';
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -25,7 +25,7 @@ export class ClinicasService {
         private clinicasRepository: Repository<Clinica>,
         @InjectRepository(Sucursal)
         private sucursalRepository: Repository<Sucursal>,
-        private readonly storageService: SupabaseStorageService,
+        private readonly storageService: LocalStorageService,
     ) { }
     
     async onModuleInit() {

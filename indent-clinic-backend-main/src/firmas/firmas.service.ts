@@ -5,7 +5,7 @@ import { FirmaDigital } from './entities/firma-digital.entity';
 import { CreateFirmaDto } from './dto/create-firma.dto';
 import { VerifyFirmaDto } from './dto/verify-firma.dto';
 import * as crypto from 'crypto';
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 
 import { Paciente } from '../pacientes/entities/paciente.entity';
 import { Proforma } from '../proformas/entities/proforma.entity';
@@ -25,7 +25,7 @@ export class FirmasService {
         private recetaRepository: Repository<Receta>,
         @InjectRepository(HistoriaClinica)
         private hcRepository: Repository<HistoriaClinica>,
-        private readonly storageService: SupabaseStorageService,
+        private readonly storageService: LocalStorageService,
     ) { }
 
     /**

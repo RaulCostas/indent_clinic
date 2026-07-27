@@ -54,8 +54,10 @@ export class SupabaseStorageService {
     this.logger.log(`[SupabaseStorageService] Uploading to ${bucket}/${cleanPath} (Key Type: ${keyType})...`);
     
     if (!this.supabase) {
-      this.logger.error('[SupabaseStorageService] Supabase client is not initialized!');
-      throw new Error('Supabase client not initialized. Check SUPABASE_URL and SUPABASE_KEY.');
+      this.logger.warn('[SupabaseStorageService] Supabase client is not initialized, falling back to local storage!');
+      const { LocalStorageService } = require('./local-storage.service');
+      const localStorage = new LocalStorageService();
+      return localStorage.uploadFile(bucket, cleanPath, targetBuffer, targetContentType);
     }
 
     const { data, error } = await this.supabase.storage

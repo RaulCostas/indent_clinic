@@ -8,7 +8,6 @@ import { UpdatePacienteDto } from './dto/update-paciente.dto';
 
 import { getBoliviaDate } from '../common/utils/date.utils';
 
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 import { LocalStorageService } from '../common/storage/local-storage.service';
 
 @Injectable()
@@ -16,7 +15,7 @@ export class PacientesService {
     constructor(
         @InjectRepository(Paciente)
         private pacientesRepository: Repository<Paciente>,
-        private readonly storageService: SupabaseStorageService,
+        private readonly storageService: LocalStorageService,
         private readonly localStorageService: LocalStorageService,
     ) { }
     

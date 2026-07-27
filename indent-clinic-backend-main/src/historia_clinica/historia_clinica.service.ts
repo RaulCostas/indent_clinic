@@ -8,7 +8,7 @@ import { Paciente } from '../pacientes/entities/paciente.entity';
 import { CreateHistoriaClinicaDto } from './dto/create-historia_clinica.dto';
 import { UpdateHistoriaClinicaDto } from './dto/update-historia_clinica.dto';
 import { TrabajoLaboratorio } from '../trabajos_laboratorios/entities/trabajo_laboratorio.entity';
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 import { PagosDetalleDoctores } from '../pagos_doctores/entities/pagos-detalle-doctores.entity';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class HistoriaClinicaService {
         @InjectRepository(PagosDetalleDoctores)
         private readonly pagosDetalleDoctoresRepository: Repository<PagosDetalleDoctores>,
         private readonly dataSource: DataSource,
-        private readonly storageService: SupabaseStorageService,
+        private readonly storageService: LocalStorageService,
     ) { }
 
     async getFirmaBase64(id: number): Promise<{ base64: string }> {

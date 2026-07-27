@@ -4,7 +4,6 @@ import { Repository } from 'typeorm';
 import { Receta } from './entities/receta.entity';
 import { RecetaDetalle } from './entities/receta-detalle.entity';
 
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 import { LocalStorageService } from '../common/storage/local-storage.service';
 
 @Injectable()
@@ -14,7 +13,7 @@ export class RecetaService {
         private recetaRepository: Repository<Receta>,
         @InjectRepository(RecetaDetalle)
         private detalleRepository: Repository<RecetaDetalle>,
-        private readonly storageService: SupabaseStorageService,
+        private readonly storageService: LocalStorageService,
         private readonly localStorageService: LocalStorageService,
     ) { }
 

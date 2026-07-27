@@ -5,7 +5,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
+import { LocalStorageService } from '../common/storage/local-storage.service';
 
 @Injectable()
 export class UsersService {
@@ -13,7 +13,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    private readonly storageService: SupabaseStorageService,
+    private readonly storageService: LocalStorageService,
   ) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {

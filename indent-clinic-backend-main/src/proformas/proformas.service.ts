@@ -13,7 +13,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { HistoriaClinica } from '../historia_clinica/entities/historia_clinica.entity';
 import { HistoriaClinicaService } from '../historia_clinica/historia_clinica.service';
-import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 import { LocalStorageService } from '../common/storage/local-storage.service';
 import { getBoliviaDate } from '../common/utils/date.utils';
 import { Paciente } from '../pacientes/entities/paciente.entity';
@@ -29,7 +28,7 @@ export class ProformasService {
     private readonly imagenRepository: Repository<ProformaImagen>,
     private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
-    private readonly storageService: SupabaseStorageService,
+    private readonly storageService: LocalStorageService,
     private readonly localStorageService: LocalStorageService,
     @Inject(forwardRef(() => ChatbotService))
     private readonly chatbotService: ChatbotService,

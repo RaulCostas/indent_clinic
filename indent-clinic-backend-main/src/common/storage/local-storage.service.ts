@@ -9,7 +9,7 @@ export class LocalStorageService {
   private readonly uploadDir: string;
 
   constructor() {
-    // Priority: /data (Render Persistent Disk) -> uploads (local)
+    // Priority: /data (Hostinger/Render Persistent Disk) -> uploads (local)
     if (fs.existsSync('/data') && process.platform !== 'win32') {
       this.uploadDir = '/data';
       this.logger.log(`[LocalStorageService] Using persistent disk at ${this.uploadDir}`);
@@ -23,26 +23,30 @@ export class LocalStorageService {
     }
   }
 
+  isConfigured(): boolean {
+    return true;
+  }
+
   private sanitizePath(filePath: string): string {
     return filePath
       .replace(/\\/g, '/') // Normalizar separadores
       .split('/')
-      .map(part => part.replace(/[^a-z0-9\-\.\_]/gi, '_')) // Reemplazar caracteres especiales con guion bajo
+      .map(part => part.replace(/[^a-z0-9\-\.\_]/gi, '_')) // Reemplazar caracteres especiales
       .join('/');
   }
 
-  async uploadFile(bucket: string, fullPath: string, fileBuffer: Buffer): Promise<string> {
+  async uploadFile(bucket: string, fullPath: string, fileBuffer: Buffer, contentType?: string): Promise<string> {
     let cleanPath = this.sanitizePath(fullPath);
     let targetBuffer = fileBuffer;
 
     // Compress image to webp
-    if (/\\.(png|jpe?g|webp)$/i.test(cleanPath)) {
+    if (/\.(png|jpe?g|webp)$/i.test(cleanPath) || (contentType && /^image\/(png|jpeg|jpg|webp)$/i.test(contentType))) {
       try {
         targetBuffer = await sharp(fileBuffer)
           .webp({ quality: 80 })
           .toBuffer();
         
-        cleanPath = cleanPath.replace(/\\.(png|jpe?g)$/i, '.webp');
+        cleanPath = cleanPath.replace(/\.(png|jpe?g)$/i, '.webp');
       } catch (error) {
         this.logger.error(`Error compressing image: ${error.message}`);
       }
@@ -57,16 +61,19 @@ export class LocalStorageService {
 
     fs.writeFileSync(targetPath, targetBuffer);
 
-    // Return the relative URL to be served by the backend
-    const port = process.env.PORT || 3000;
-    const baseUrl = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-    return `${baseUrl}/uploads/${bucket}/${cleanPath}`;
+    if (process.env.BASE_URL) {
+      const baseUrl = process.env.BASE_URL.replace(/\/+$/, '');
+      return `${baseUrl}/uploads/${bucket}/${cleanPath}`;
+    }
+
+    return `/uploads/${bucket}/${cleanPath}`;
   }
 
   async deleteFile(bucket: string, fileUrl: string): Promise<void> {
     try {
-      const urlPart = `/uploads/${bucket}/`;
-      const relativePath = fileUrl.split(urlPart).pop();
+      if (!fileUrl) return;
+      const urlPart = `uploads/${bucket}/`;
+      const relativePath = fileUrl.includes(urlPart) ? fileUrl.split(urlPart).pop() : fileUrl;
       if (!relativePath) return;
 
       const targetPath = path.join(this.uploadDir, bucket, relativePath);
@@ -81,29 +88,33 @@ export class LocalStorageService {
   async uploadBase64(bucket: string, fullPath: string, base64String: string): Promise<string> {
     const match = base64String.match(/^data:image\/(\w+);base64,(.+)$/);
     if (!match) {
-      if (base64String.startsWith('http')) return base64String;
+      if (base64String.startsWith('http') || base64String.startsWith('/uploads')) return base64String;
       throw new Error('Invalid Base64 string format');
     }
 
     const extension = match[1];
     const buffer = Buffer.from(match[2], 'base64');
+    const contentType = `image/${extension}`;
     
     let fileName = fullPath;
     if (!fileName.endsWith(`.${extension}`)) {
       fileName = `${fullPath}-${Date.now()}.${extension}`;
     }
 
-    return this.uploadFile(bucket, fileName, buffer);
+    return this.uploadFile(bucket, fileName, buffer, contentType);
   }
 
   async downloadAsBase64(bucket: string, fileUrl: string): Promise<string> {
     try {
-      const urlPart = `/uploads/${bucket}/`;
-      const relativePath = fileUrl.split(urlPart).pop();
-      if (!relativePath) throw new Error('Invalid local file URL');
+      if (!fileUrl) throw new Error('Invalid local file URL');
+      if (fileUrl.startsWith('data:image')) return fileUrl;
+
+      const urlPart = `uploads/${bucket}/`;
+      const relativePath = fileUrl.includes(urlPart) ? fileUrl.split(urlPart).pop() : fileUrl;
+      if (!relativePath) throw new Error('Invalid relative path');
 
       const targetPath = path.join(this.uploadDir, bucket, relativePath);
-      if (!fs.existsSync(targetPath)) throw new Error('File not found');
+      if (!fs.existsSync(targetPath)) throw new Error(`File not found: ${targetPath}`);
 
       const buffer = fs.readFileSync(targetPath);
       const extension = path.extname(targetPath).substring(1) || 'png';

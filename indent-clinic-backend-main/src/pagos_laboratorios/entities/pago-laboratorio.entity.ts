@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { TrabajoLaboratorio } from '../../trabajos_laboratorios/entities/trabajo_laboratorio.entity';
 import { FormaPago } from '../../forma_pago/entities/forma_pago.entity';
 import { Clinica } from '../../clinicas/entities/clinica.entity';
@@ -14,7 +14,7 @@ export class PagoLaboratorio {
     @Column()
     idTrabajos_Laboratorios: number;
 
-    @OneToOne(() => TrabajoLaboratorio)
+    @ManyToOne(() => TrabajoLaboratorio)
     @JoinColumn({ name: 'idTrabajos_Laboratorios' })
     trabajoLaboratorio: TrabajoLaboratorio;
 

@@ -162,7 +162,7 @@ export class PropuestasService {
 
     async findAll() {
         return this.propuestaRepository.find({
-            relations: ['paciente', 'usuario', 'detalles', 'detalles.arancel'],
+            relations: ['paciente', 'usuario', 'detalles', 'detalles.arancel', 'clinica'],
             order: { fecha: 'DESC' }
         });
     }
@@ -170,7 +170,7 @@ export class PropuestasService {
     async findAllByPaciente(pacienteId: number) {
         return this.propuestaRepository.find({
             where: { pacienteId },
-            relations: ['usuario', 'detalles', 'detalles.arancel'],
+            relations: ['usuario', 'detalles', 'detalles.arancel', 'clinica'],
             order: { numero: 'DESC' }
         });
     }
@@ -178,7 +178,7 @@ export class PropuestasService {
     async findOne(id: number) {
         const propuesta = await this.propuestaRepository.findOne({
             where: { id },
-            relations: ['paciente', 'usuario', 'detalles', 'detalles.arancel'],
+            relations: ['paciente', 'usuario', 'detalles', 'detalles.arancel', 'clinica'],
         });
         if (!propuesta) throw new NotFoundException(`Propuesta #${id} not found`);
         return propuesta;

@@ -31,6 +31,11 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
     const [tc, setTc] = useState<number | string>(6.96);
     const [idFormaPago, setIdFormaPago] = useState<number | ''>('');
     const [clinicaId, setClinicaId] = useState<number>(0);
+    // Manual monto input for partial payments
+    const [montoInput, setMontoInput] = useState<string>('');
+    const [montoError, setMontoError] = useState<string>('');
+    // Existing payments for the selected work (to show dates)
+    const [pagosExistentes, setPagosExistentes] = useState<any[]>([]);
 
     // Cascading Select States
     const [selectedLabId, setSelectedLabId] = useState<number | ''>('');
@@ -67,12 +72,16 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
             content: 'Registre pagos a laboratorios externos por trabajos realizados. Seleccione el laboratorio, paciente y trabajo específico para registrar el pago.'
         },
         {
+            title: 'Pago a Cuenta (Abono Parcial)',
+            content: 'Puede registrar un pago parcial ingresando un monto menor al saldo pendiente. El trabajo permanecerá en "Deudas" hasta que se cubra el total. El campo "Monto a Abonar" se pre-carga con el saldo pendiente, pero puede reducirlo.'
+        },
+        {
             title: 'Moneda y Tipo de Cambio',
             content: 'Seleccione la moneda del pago (Bolivianos o Dólares). El tipo de cambio se usa para conversiones y reportes.'
         },
         {
             title: 'Forma de Pago',
-            content: 'Seleccione el método de pago utilizado. El sistema actualiza automáticamente el estado del trabajo a "Pagado".'
+            content: 'Seleccione el método de pago utilizado. El sistema actualiza automáticamente el estado del trabajo a "Pagado" solo cuando se cubra el total.'
         }];
 
     useEffect(() => {
@@ -130,6 +139,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
 
                         setMoneda(normalizedMoneda);
                         setTc(Number(pago.tc) || 6.96);
+                        setMontoInput(String(pago.monto || ''));
 
                         if (pago.idforma_pago) setIdFormaPago(pago.idforma_pago);
                         setClinicaId(pago.clinicaId || 0);
@@ -157,7 +167,22 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                         setSelectedPatientId(targetWork.idPaciente);
                         setIdTrabajosLaboratorios(targetWork.id);
                         currentPaymentWorkId = targetWork.id;
+
+                        // Pre-fill monto with the pending balance
+                        const saldo = Number(targetWork.total) - Number(targetWork.monto_pagado || 0);
+                        setMontoInput(saldo.toFixed(2));
+
+                        // Fetch existing payments to show dates in Resumen de Pagos
+                        try {
+                            const pagosRes = await api.get(`/pagos-laboratorios?idTrabajos_Laboratorios=${targetWork.id}`);
+                            const pagos = Array.isArray(pagosRes.data) ? pagosRes.data : (pagosRes.data.data || []);
+                            setPagosExistentes(pagos);
+                        } catch {
+                            setPagosExistentes([]);
+                        }
                     }
+                } else {
+                    setMontoInput('');
                 }
             }
 
@@ -169,7 +194,6 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
 
             setAllUnpaidWorks(worksToShow);
 
-            //formasPago is already filtered and set on line 72
         } catch (error) {
             console.error('Error fetching initial data:', error);
             Swal.fire('Error', 'No se pudieron cargar los datos iniciales', 'error');
@@ -193,7 +217,6 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
         if (!selectedLabId) return [];
         const patientsMap = new Map();
         allUnpaidWorks.forEach(work => {
-            // Check if work belongs to selected Lab
             if (work.laboratorio && work.laboratorio.id === selectedLabId && work.paciente) {
                 patientsMap.set(work.paciente.id, `${work.paciente.nombre} ${work.paciente.paterno}`);
             }
@@ -209,18 +232,59 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
         );
     }, [allUnpaidWorks, selectedLabId, selectedPatientId]);
 
+    // Derived financial values for the selected work
+    const selectedWork = availableWorks.find(w => w.id === idTrabajosLaboratorios);
+    const totalTrabajoBs = selectedWork ? Number(selectedWork.total) : 0;
+    const montoPagadoBs = selectedWork ? Number(selectedWork.monto_pagado || 0) : 0;
+    const saldoPendienteBs = totalTrabajoBs - montoPagadoBs;
+    const montoIngresadoBs = Number(montoInput) || 0;
+    const montoFinalDisplay = moneda === 'Dólares' && Number(tc) > 0
+        ? montoIngresadoBs / Number(tc)
+        : montoIngresadoBs;
+
+    // When a work is selected, pre-fill monto with saldo pendiente and load existing payments
+    const handleWorkChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const workId = Number(e.target.value);
+        setIdTrabajosLaboratorios(workId || '');
+        setMontoError('');
+        if (workId) {
+            const work = availableWorks.find(w => w.id === workId);
+            if (work) {
+                const saldo = Number(work.total) - Number(work.monto_pagado || 0);
+                setMontoInput(saldo.toFixed(2));
+            }
+            // Fetch existing payments to show dates
+            try {
+                const res = await api.get(`/pagos-laboratorios?idTrabajos_Laboratorios=${workId}`);
+                const pagos = Array.isArray(res.data) ? res.data : (res.data.data || []);
+                setPagosExistentes(pagos);
+            } catch {
+                setPagosExistentes([]);
+            }
+        } else {
+            setMontoInput('');
+            setPagosExistentes([]);
+        }
+    };
+
     // Handlers
     const handleLabChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const val = Number(e.target.value);
         setSelectedLabId(val || '');
-        setSelectedPatientId(''); // Reset subsequent selects
+        setSelectedPatientId('');
         setIdTrabajosLaboratorios('');
+        setMontoInput('');
+        setMontoError('');
+        setPagosExistentes([]);
     };
 
     const handlePatientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const val = Number(e.target.value);
         setSelectedPatientId(val || '');
-        setIdTrabajosLaboratorios(''); // Reset work select
+        setIdTrabajosLaboratorios('');
+        setMontoInput('');
+        setMontoError('');
+        setPagosExistentes([]);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -231,15 +295,28 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
             return;
         }
 
-        // Calculate monto (Total a Pagar)
-        const selectedWork = availableWorks.find(w => w.id === Number(idTrabajosLaboratorios));
-        const amountInBs = selectedWork ? Number(selectedWork.total) : 0;
-        const finalMonto = moneda === 'Dólares' && Number(tc) > 0 ? Number((amountInBs / Number(tc)).toFixed(2)) : amountInBs;
+        if (!montoInput || Number(montoInput) <= 0) {
+            Swal.fire('Error', 'Ingrese un monto a abonar mayor a 0', 'error');
+            return;
+        }
+
+        // For display: convert to Bs base if Dólares
+        const montoAbonoEnMonedaOriginal = Number(montoInput);
+        // The backend stores in the currency selected; monto_pagado is tracked in the work's original Bs
+        const montoAbonoParaServidor = moneda === 'Dólares' && Number(tc) > 0
+            ? Number((montoAbonoEnMonedaOriginal * Number(tc)).toFixed(2)) // convert $us → Bs for balance tracking
+            : montoAbonoEnMonedaOriginal;
+
+        // Validate against pending balance (in Bs)
+        if (montoAbonoParaServidor > saldoPendienteBs + 0.01) {
+            Swal.fire('Error', `El monto (Bs ${montoAbonoParaServidor.toFixed(2)}) supera el saldo pendiente (Bs ${saldoPendienteBs.toFixed(2)})`, 'error');
+            return;
+        }
 
         const payload = {
             fecha,
             idTrabajos_Laboratorios: Number(idTrabajosLaboratorios),
-            monto: Number(finalMonto),
+            monto: moneda === 'Dólares' ? montoAbonoParaServidor : montoAbonoEnMonedaOriginal,
             moneda,
             tc: moneda === 'Dólares' ? Number(tc) : 0,
             idforma_pago: Number(idFormaPago),
@@ -258,11 +335,14 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                 });
             } else {
                 await api.post('/pagos-laboratorios', payload);
+                const esSaldado = montoAbonoParaServidor >= saldoPendienteBs - 0.01;
                 Swal.fire({
                     icon: 'success',
-                    title: 'Pago Registrado',
-                    text: 'El pago se ha guardado correctamente',
-                    timer: 1500,
+                    title: esSaldado ? '✅ Pago Completo' : '🟡 Abono Registrado',
+                    text: esSaldado
+                        ? 'El trabajo quedó completamente saldado.'
+                        : `Abono de Bs ${montoAbonoParaServidor.toFixed(2)} registrado. Saldo restante: Bs ${(saldoPendienteBs - montoAbonoParaServidor).toFixed(2)}`,
+                    timer: 2500,
                     showConfirmButton: false
                 });
             }
@@ -275,11 +355,6 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
             Swal.fire('Error al guardar', `Detalles: ${detailMsg}. Por favor intente nuevamente.`, 'error');
         }
     };
-
-    // Calculate details for display
-    const selectedWork = availableWorks.find(w => w.id === idTrabajosLaboratorios);
-    const amountInBs = selectedWork ? Number(selectedWork.total) : 0;
-    const amountToPay = moneda === 'Dólares' && Number(tc) > 0 ? amountInBs / Number(tc) : amountInBs;
 
     if (!isOpen) return null;
 
@@ -310,7 +385,6 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-
 
                             {/* Fecha */}
                             <div>
@@ -355,7 +429,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                 </div>
                             </div>
 
-                            {/* 2. Select Paciente (Dependent on Lab) */}
+                            {/* 2. Select Paciente */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Paciente</label>
                                 <div className="relative">
@@ -379,7 +453,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                 </div>
                             </div>
 
-                            {/* 3. Select Trabajo (Dependent on Patient) */}
+                            {/* 3. Select Trabajo */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Trabajo de Laboratorio</label>
                                 <div className="relative">
@@ -390,7 +464,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     </div>
                                     <select
                                         value={idTrabajosLaboratorios}
-                                        onChange={(e) => setIdTrabajosLaboratorios(Number(e.target.value))}
+                                        onChange={handleWorkChange}
                                         className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required={!!selectedPatientId}
                                         disabled={!selectedPatientId || isEdit}
@@ -398,7 +472,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         <option value="">Seleccione el Trabajo...</option>
                                         {availableWorks.map((t) => (
                                             <option key={t.id} value={t.id}>
-                                                {t.precioLaboratorio?.detalle || 'Trabajo'} - {t.fecha ? formatDate(t.fecha) : ''} - {formatNumber(t.total)} Bs.
+                                                {t.precioLaboratorio?.detalle || 'Trabajo'} - {t.fecha ? formatDate(t.fecha) : ''} - Total: {formatNumber(t.total)} Bs.
                                             </option>
                                         ))}
                                     </select>
@@ -407,6 +481,124 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <p className="text-xs text-yellow-600 mt-1">Este paciente no tiene trabajos pendientes en este laboratorio.</p>
                                 )}
                             </div>
+
+                            {/* Financial Summary Card */}
+                            {selectedWork && (
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-750 border border-blue-200 dark:border-gray-600 rounded-xl p-4 space-y-2">
+                                    <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M15 11h.01M12 11h.01M12 7h.01M3 7h1m8 8h.01M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        Resumen de Pagos
+                                    </h3>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600 dark:text-gray-400">Costo Total:</span>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">Bs. {formatNumber(totalTrabajoBs)}</span>
+                                    </div>
+                                    {pagosExistentes.length > 0 && (
+                                        <div className="space-y-1 border-t border-blue-100 dark:border-gray-600 pt-2 mt-1">
+                                            {pagosExistentes.map((p: any, i: number) => {
+                                                const fechaStr = p.fecha
+                                                    ? (typeof p.fecha === 'string' ? p.fecha.split('T')[0] : new Date(p.fecha).toISOString().split('T')[0])
+                                                    : '';
+                                                const [y, m, d] = fechaStr.split('-');
+                                                const fechaFmt = fechaStr ? `${d}/${m}/${y}` : '-';
+                                                return (
+                                                    <div key={p.id ?? i} className="flex justify-between text-sm">
+                                                        <span className="text-gray-500 dark:text-gray-400">
+                                                            Abono {i + 1}
+                                                            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">({fechaFmt})</span>
+                                                        </span>
+                                                        <span className="font-medium text-amber-600 dark:text-amber-400">Bs. {formatNumber(Number(p.monto))}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {montoPagadoBs > 0 && pagosExistentes.length === 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600 dark:text-gray-400">Ya Abonado:</span>
+                                            <span className="font-medium text-amber-600 dark:text-amber-400">Bs. {formatNumber(montoPagadoBs)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between text-sm border-t border-blue-200 dark:border-gray-600 pt-2 mt-2">
+                                        <span className="font-semibold text-gray-700 dark:text-gray-300">Saldo Pendiente:</span>
+                                        <span className="font-bold text-red-600 dark:text-red-400">Bs. {formatNumber(saldoPendienteBs)}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Monto a Abonar (Manual Input) */}
+                            {selectedWork && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Monto a Abonar
+                                        <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                                            (máx. Bs. {formatNumber(saldoPendienteBs)})
+                                        </span>
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span className="text-gray-400 font-bold text-sm">Bs.</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0.01"
+                                            max={saldoPendienteBs}
+                                            value={montoInput}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setMontoInput(val);
+                                                const num = Number(val);
+                                                if (num > saldoPendienteBs + 0.001) {
+                                                    setMontoError(`El monto no puede superar el saldo pendiente (Bs. ${formatNumber(saldoPendienteBs)})`);
+                                                } else if (num <= 0 && val !== '') {
+                                                    setMontoError('El monto debe ser mayor a 0');
+                                                } else {
+                                                    setMontoError('');
+                                                }
+                                            }}
+                                            onBlur={(e) => {
+                                                const num = Number(e.target.value);
+                                                if (num > saldoPendienteBs) {
+                                                    setMontoInput(saldoPendienteBs.toFixed(2));
+                                                    setMontoError('');
+                                                }
+                                            }}
+                                            placeholder={`Ej: ${saldoPendienteBs.toFixed(2)}`}
+                                            className={`w-full pl-10 px-3 py-2 border rounded text-sm focus:ring-2 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold transition-colors ${
+                                                montoError
+                                                    ? 'border-red-400 dark:border-red-500 focus:ring-red-400'
+                                                    : 'border-gray-300 dark:border-gray-600 focus:ring-green-500'
+                                            }`}
+                                            required
+                                        />
+                                    </div>
+                                    {montoError ? (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {montoError}
+                                        </p>
+                                    ) : montoIngresadoBs > 0 && montoIngresadoBs < saldoPendienteBs - 0.01 ? (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Pago parcial — quedará un saldo de Bs. {formatNumber(saldoPendienteBs - montoIngresadoBs)}
+                                        </p>
+                                    ) : montoIngresadoBs >= saldoPendienteBs - 0.01 && montoIngresadoBs > 0 ? (
+                                        <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Pago completo — el trabajo quedará saldado
+                                        </p>
+                                    ) : null}
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Moneda */}
@@ -443,6 +635,16 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     </div>
                                 )}
                             </div>
+
+                            {/* Total a Pagar en moneda seleccionada */}
+                            {selectedWork && montoIngresadoBs > 0 && moneda === 'Dólares' && Number(tc) > 0 && (
+                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 text-right">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Total a Pagar:</span>
+                                    <span className="text-xl font-bold text-green-600 dark:text-green-400">
+                                        $us. {formatNumber(montoFinalDisplay)}
+                                    </span>
+                                </div>
+                            )}
 
                             {/* Forma de Pago */}
                             <div>
@@ -484,31 +686,22 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                 </div>
                             </div>
 
-                            {/* Summary / Total Display */}
-                            {selectedWork && (
-                                <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-4 text-right">
-                                    <span className="text-sm text-gray-600 dark:text-gray-300 mr-2">Monto del Trabajo (Base):</span>
-                                    <span className="font-medium text-gray-900 dark:text-white">Bs. {formatNumber(amountInBs)}</span>
-
-                                    <div className="mt-2 text-xl font-bold text-gray-800 dark:text-white">
-                                        Total a Pagar: <span className="text-green-600 dark:text-green-400">
-                                            {moneda === 'Dólares' ? '$us ' : 'Bs. '} {formatNumber(amountToPay)}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
                             <div className="flex justify-start gap-4 mt-8 p-5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl -mx-6 -mb-6">
                                 <button
                                     type="submit"
-                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transform hover:-translate-y-0.5 transition-all shadow-md"
+                                    disabled={!!montoError}
+                                    className={`font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition-all shadow-md ${
+                                        montoError
+                                            ? 'bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed opacity-60'
+                                            : 'bg-green-600 hover:bg-green-700 text-white transform hover:-translate-y-0.5'
+                                    }`}
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                                         <polyline points="7 3 7 8 15 8"></polyline>
                                     </svg>
-                                    {isEdit ? 'Actualizar' : 'Guardar'}
+                                    {isEdit ? 'Actualizar' : 'Registrar Pago'}
                                 </button>
                                 <button
                                     type="button"

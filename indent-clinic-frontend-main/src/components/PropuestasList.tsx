@@ -439,7 +439,7 @@ const PropuestasList: React.FC = () => {
         doc.line(20, sigY + 7, 90, sigY + 7);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        const clinicName = clinicaActual?.nombre || 'CLINICAS LENS';
+        const clinicName = propuesta.clinica?.nombre || paciente?.clinica?.nombre || clinicaActual?.nombre || 'CLINICAS LENS';
         doc.text(clinicName.toUpperCase(), 55, sigY + 11, { align: 'center' });
         doc.setFont('helvetica', 'normal');
         doc.text('FIRMA AUTORIZADA', 55, sigY + 15, { align: 'center' });

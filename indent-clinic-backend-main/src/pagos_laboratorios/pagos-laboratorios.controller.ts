@@ -17,9 +17,14 @@ export class PagosLaboratoriosController {
         @Query('fecha') fecha?: string,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
-        @Query('clinicaId') clinicaId?: string
+        @Query('clinicaId') clinicaId?: string,
+        @Query('idTrabajos_Laboratorios') idTrabajosLaboratorios?: string
     ) {
-        return this.pagosLaboratoriosService.findAll(fecha, startDate, endDate, clinicaId ? +clinicaId : undefined);
+        return this.pagosLaboratoriosService.findAll(
+            fecha, startDate, endDate,
+            clinicaId ? +clinicaId : undefined,
+            idTrabajosLaboratorios ? +idTrabajosLaboratorios : undefined
+        );
     }
 
     @Get(':id')

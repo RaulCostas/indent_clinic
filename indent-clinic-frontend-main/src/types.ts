@@ -577,6 +577,7 @@ export interface TrabajoLaboratorio {
     observacion: string;
     fecha_terminado?: string;
     pagado: string;
+    monto_pagado: number;
     precio_unitario: number;
     total: number;
     resaltar: string;
@@ -609,6 +610,8 @@ export interface Propuesta {
     id: number;
     pacienteId: number;
     paciente?: Paciente;
+    clinicaId?: number;
+    clinica?: Clinica;
     numero: number;
     letra?: string;
     fecha: string;

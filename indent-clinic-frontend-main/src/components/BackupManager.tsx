@@ -37,6 +37,7 @@ const BackupManager: React.FC = () => {
     };
 
     const handleCreateBackup = async () => {
+        const isDark = document.documentElement.classList.contains('dark');
         const result = await Swal.fire({
             title: '¿Crear backup de la base de datos?',
             text: 'Se creará un archivo .sql con la base de datos y firmas digitales',
@@ -45,7 +46,9 @@ const BackupManager: React.FC = () => {
             confirmButtonColor: '#16a34a',
             cancelButtonColor: '#6b7280',
             confirmButtonText: 'Sí, crear backup BD',
-            cancelButtonText: 'Cancelar'
+            cancelButtonText: 'Cancelar',
+            background: isDark ? '#1f2937' : '#fff',
+            color: isDark ? '#f3f4f6' : '#000',
         });
 
         if (result.isConfirmed) {
@@ -60,7 +63,9 @@ const BackupManager: React.FC = () => {
                     html: `<p><strong>Archivo:</strong> ${response.data.filename}</p>
                            <p><strong>Ubicación:</strong> ${response.data.path}</p>
                            <p><strong>Tamaño:</strong> ${formatFileSize(response.data.size)}</p>`,
-                    confirmButtonText: 'OK'
+                    confirmButtonText: 'OK',
+                    background: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#f3f4f6' : '#000',
                 });
 
                 // Clear custom path after successful backup
@@ -71,7 +76,9 @@ const BackupManager: React.FC = () => {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: error.response?.data?.message || 'No se pudo crear el backup. Verifica que PostgreSQL esté instalado y configurado.'
+                    text: error.response?.data?.message || 'No se pudo crear el backup. Verifica que PostgreSQL esté instalado y configurado.',
+                    background: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#f3f4f6' : '#000',
                 });
             } finally {
                 setLoading(false);
@@ -80,15 +87,18 @@ const BackupManager: React.FC = () => {
     };
 
     const handleCreateFullBackup = async () => {
+        const isDark = document.documentElement.classList.contains('dark');
         const result = await Swal.fire({
             title: '📦 ¿Crear Respaldo COMPLETO?',
-            html: '<p class="text-sm mb-2">Se empaquetará un archivo comprimido (.zip) con:</p><ul class="text-left text-xs bg-gray-100 dark:bg-gray-700 p-3 rounded-lg space-y-1"><li>✅ Base de Datos SQL completa</li><li>✅ Firmas digitales de pacientes y proformas</li><li>✅ Fotos de tratamientos, adjuntos y logotipos de clínicas</li></ul>',
+            html: '<p class="text-sm mb-2 text-gray-800 dark:text-gray-200">Se empaquetará un archivo comprimido (.zip) con:</p><ul class="text-left text-xs bg-gray-100 dark:bg-gray-700 p-3 rounded-lg space-y-1 text-gray-800 dark:text-gray-200"><li>✅ Base de Datos SQL completa</li><li>✅ Firmas digitales de pacientes y proformas</li><li>✅ Fotos de tratamientos, adjuntos y logotipos de clínicas</li></ul>',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#2563eb',
             cancelButtonColor: '#6b7280',
             confirmButtonText: 'Sí, crear respaldo completo',
-            cancelButtonText: 'Cancelar'
+            cancelButtonText: 'Cancelar',
+            background: isDark ? '#1f2937' : '#fff',
+            color: isDark ? '#f3f4f6' : '#000',
         });
 
         if (result.isConfirmed) {
@@ -103,7 +113,9 @@ const BackupManager: React.FC = () => {
                     html: `<p><strong>Archivo:</strong> ${response.data.filename}</p>
                            <p><strong>Ubicación:</strong> ${response.data.path}</p>
                            <p><strong>Tamaño:</strong> ${formatFileSize(response.data.size)}</p>`,
-                    confirmButtonText: 'OK'
+                    confirmButtonText: 'OK',
+                    background: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#f3f4f6' : '#000',
                 });
 
                 setCustomPath('');
@@ -113,7 +125,9 @@ const BackupManager: React.FC = () => {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: error.response?.data?.message || 'No se pudo crear el respaldo completo.'
+                    text: error.response?.data?.message || 'No se pudo crear el respaldo completo.',
+                    background: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#f3f4f6' : '#000',
                 });
             } finally {
                 setLoading(false);

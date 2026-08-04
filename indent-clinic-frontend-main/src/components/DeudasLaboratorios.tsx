@@ -111,7 +111,9 @@ const DeudasLaboratorios: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Paciente</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Laboratorio</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trabajo</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Monto (Bs)</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total (Bs)</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Abonado (Bs)</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Saldo (Bs)</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
@@ -129,8 +131,29 @@ const DeudasLaboratorios: React.FC = () => {
                                 <td className="p-3 text-gray-700 dark:text-gray-300">
                                     {work.precioLaboratorio ? work.precioLaboratorio.detalle : '-'}
                                 </td>
-                                <td className="p-3 text-green-600 dark:text-green-400 font-bold">
-                                    {work.total}
+                                <td className="p-3 text-right text-gray-700 dark:text-gray-300 font-medium">
+                                    {Number(work.total).toFixed(2)}
+                                </td>
+                                <td className="p-3 text-right">
+                                    {Number(work.monto_pagado || 0) > 0 ? (
+                                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                            {Number(work.monto_pagado).toFixed(2)}
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-400 dark:text-gray-600">—</span>
+                                    )}
+                                </td>
+                                <td className="p-3 text-right">
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className="font-bold text-red-600 dark:text-red-400">
+                                            {(Number(work.total) - Number(work.monto_pagado || 0)).toFixed(2)}
+                                        </span>
+                                        {Number(work.monto_pagado || 0) > 0 && (
+                                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-medium">
+                                                A cuenta
+                                            </span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="p-3">
                                     <button
@@ -148,7 +171,7 @@ const DeudasLaboratorios: React.FC = () => {
                         ))}
                         {currentItems.length === 0 && (
                             <tr>
-                                <td colSpan={7} className="p-5 text-center text-gray-500 dark:text-gray-400">
+                                <td colSpan={9} className="p-5 text-center text-gray-500 dark:text-gray-400">
                                     No se encontraron deudas pendientes.
                                 </td>
                             </tr>
@@ -160,13 +183,25 @@ const DeudasLaboratorios: React.FC = () => {
             {/* Total Sum */}
             <div className="mt-4 flex justify-end">
                 <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 dark:border-blue-400 rounded-lg px-6 py-3">
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                            Total de Deudas:
-                        </span>
-                        <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                            Bs {currentItems.reduce((sum, work) => sum + (Number(work.total) || 0), 0).toFixed(2)}
-                        </span>
+                    <div className="flex items-center gap-6">
+                        <div className="text-right">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total Adeudado</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-300">
+                                Bs {filteredDeudas.reduce((sum, work) => sum + (Number(work.total) || 0), 0).toFixed(2)}
+                            </div>
+                        </div>
+                        <div className="text-right border-l border-blue-300 dark:border-blue-600 pl-6">
+                            <div className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase">Ya Abonado</div>
+                            <div className="text-sm text-amber-600 dark:text-amber-400">
+                                Bs {filteredDeudas.reduce((sum, work) => sum + (Number(work.monto_pagado) || 0), 0).toFixed(2)}
+                            </div>
+                        </div>
+                        <div className="text-right border-l border-blue-300 dark:border-blue-600 pl-6">
+                            <div className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase">Saldo Total</div>
+                            <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                                Bs {filteredDeudas.reduce((sum, work) => sum + (Number(work.total) - Number(work.monto_pagado || 0)), 0).toFixed(2)}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

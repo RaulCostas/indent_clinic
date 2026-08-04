@@ -250,7 +250,7 @@ export class PacientesService {
     async findOne(id: number): Promise<Paciente> {
         const paciente = await this.pacientesRepository.findOne({ 
             where: { id }, 
-            relations: ['fichaMedica', 'historiaClinica'] 
+            relations: ['fichaMedica', 'historiaClinica', 'clinica'] 
         });
         if (!paciente) {
             throw new Error('Paciente not found');

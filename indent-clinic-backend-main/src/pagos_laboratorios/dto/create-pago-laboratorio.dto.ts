@@ -13,6 +13,10 @@ export class CreatePagoLaboratorioDto {
     @IsNotEmpty()
     monto: number;
 
+    @IsOptional()
+    @IsNumber()
+    descuento?: number;
+
     @IsString()
     @IsNotEmpty()
     moneda: string;

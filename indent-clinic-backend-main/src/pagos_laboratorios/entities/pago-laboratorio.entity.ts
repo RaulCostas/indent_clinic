@@ -21,6 +21,9 @@ export class PagoLaboratorio {
     @Column('decimal', { precision: 10, scale: 2, default: 0 })
     monto: number;
 
+    @Column('decimal', { precision: 10, scale: 2, default: 0 })
+    descuento: number;
+
     @Column()
     moneda: string;
 

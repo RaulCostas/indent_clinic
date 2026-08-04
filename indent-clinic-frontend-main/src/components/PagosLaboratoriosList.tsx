@@ -271,6 +271,7 @@ const PagosLaboratoriosList: React.FC = () => {
                                 <th>Trabajo</th>
                                 <th>Moneda</th>
                                 <th>Monto</th>
+                                <th>Descuento</th>
                                 <th>Forma Pago</th>
                             </tr>
                         </thead>
@@ -283,7 +284,8 @@ const PagosLaboratoriosList: React.FC = () => {
                                     <td>${p.trabajoLaboratorio?.laboratorio?.laboratorio || '-'}</td>
                                     <td>${p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-'}</td>
                                     <td>${p.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
-                                    <td>${p.monto}</td>
+                                    <td>${p.monto ? formatNumber(p.monto) : '0,00'}</td>
+                                    <td>${p.descuento ? formatNumber(p.descuento) : '0,00'}</td>
                                     <td>${p.formaPago?.nombre || p.formaPago?.forma_pago || '-'}</td>
                                 </tr>
                             `).join('')}
@@ -389,15 +391,16 @@ const PagosLaboratoriosList: React.FC = () => {
             doc.setTextColor(0, 0, 0);
 
             // Prepare table data
-            const tableColumn = ["Fecha", "Paciente", "Laboratorio", "Trabajo", "Mone.", "Monto", "Forma Pago"];
+            const tableColumn = ["Fecha", "Paciente", "Laboratorio", "Trabajo", "Mone.", "Monto", "Descuento", "Forma Pago"];
             const tableRows = filtered.map((p: any) => [
                 formatDate(p.fecha),
                 p.trabajoLaboratorio?.paciente ? `${p.trabajoLaboratorio.paciente.nombre} ${p.trabajoLaboratorio.paciente.paterno}` : '-',
                 p.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
                 p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
                 p.moneda === 'Bolivianos' ? 'Bs' : '$us',
-                p.monto ? formatNumber(p.monto) : (p.trabajoLaboratorio ? formatNumber(p.trabajoLaboratorio.total) : '0,00'),
-                p.formaPago ? p.formaPago.forma_pago : '-'
+                p.monto ? formatNumber(p.monto) : '0,00',
+                p.descuento ? formatNumber(p.descuento) : '0,00',
+                p.formaPago ? (p.formaPago.forma_pago || p.formaPago.nombre) : '-'
             ]);
 
             autoTable(doc, {
@@ -424,13 +427,14 @@ const PagosLaboratoriosList: React.FC = () => {
                     fillColor: [248, 249, 250]
                 },
                 columnStyles: {
-                    0: { cellWidth: 22 },
+                    0: { cellWidth: 20 },
                     1: { cellWidth: 'auto' },
                     2: { cellWidth: 'auto' },
                     3: { cellWidth: 'auto' },
-                    4: { cellWidth: 15, halign: 'center' },
-                    5: { cellWidth: 20, halign: 'right' },
-                    6: { cellWidth: 25 }
+                    4: { cellWidth: 12, halign: 'center' },
+                    5: { cellWidth: 18, halign: 'right' },
+                    6: { cellWidth: 18, halign: 'right' },
+                    7: { cellWidth: 22 }
                 }
             });
 
@@ -459,7 +463,8 @@ const PagosLaboratoriosList: React.FC = () => {
             Laboratorio: p.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
             Trabajo: p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
             Moneda: p.moneda,
-            Monto: p.monto,
+            Monto: Number(p.monto || 0),
+            Descuento: Number(p.descuento || 0),
             FormaPago: p.formaPago?.nombre || (p.formaPago?.forma_pago || '-')
         })));
         const workbook = XLSX.utils.book_new();
@@ -579,6 +584,7 @@ const PagosLaboratoriosList: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trabajo</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Mone.</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Monto</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Descuento</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Forma Pago</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                         </tr>
@@ -601,8 +607,11 @@ const PagosLaboratoriosList: React.FC = () => {
                                         {pago.trabajoLaboratorio?.precioLaboratorio ? pago.trabajoLaboratorio.precioLaboratorio.detalle : '-'}
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">{pago.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
-                                    <td className="p-3 text-gray-700 dark:text-gray-300">
-                                        {pago.monto ? formatNumber(pago.monto) : (pago.trabajoLaboratorio ? formatNumber(pago.trabajoLaboratorio.total) : '0,00')}
+                                    <td className="p-3 text-gray-700 dark:text-gray-300 font-medium">
+                                        {pago.monto ? formatNumber(pago.monto) : '0,00'}
+                                    </td>
+                                    <td className="p-3 text-purple-600 dark:text-purple-400 font-medium">
+                                        {Number(pago.descuento || 0) > 0 ? `Bs. ${formatNumber(pago.descuento)}` : '-'}
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">
                                         {pago.formaPago ? pago.formaPago.forma_pago : '-'}

@@ -590,6 +590,20 @@ export interface TrabajoLaboratorio {
     historiaClinica?: HistoriaClinica;
 }
 
+export interface PagoLaboratorio {
+    id: number;
+    fecha: string;
+    idTrabajos_Laboratorios: number;
+    trabajoLaboratorio?: TrabajoLaboratorio;
+    monto: number;
+    descuento?: number;
+    moneda: string;
+    idforma_pago: number;
+    formaPago?: FormaPago;
+    tc?: number;
+    clinicaId?: number;
+}
+
 export interface PropuestaDetalle {
     id: number;
     propuestaId: number;

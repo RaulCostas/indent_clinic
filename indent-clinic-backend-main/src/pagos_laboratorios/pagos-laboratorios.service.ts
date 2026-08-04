@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { PagoLaboratorio } from './entities/pago-laboratorio.entity';
@@ -7,12 +7,39 @@ import { UpdatePagoLaboratorioDto } from './dto/update-pago-laboratorio.dto';
 import { TrabajoLaboratorio } from '../trabajos_laboratorios/entities/trabajo_laboratorio.entity';
 
 @Injectable()
-export class PagosLaboratoriosService {
+export class PagosLaboratoriosService implements OnModuleInit {
     constructor(
         @InjectRepository(PagoLaboratorio)
         private pagoLaboratorioRepository: Repository<PagoLaboratorio>,
         private dataSource: DataSource,
     ) { }
+
+    async onModuleInit() {
+        try {
+            await this.dataSource.query(`
+                ALTER TABLE trabajos_laboratorios 
+                ADD COLUMN IF NOT EXISTS "monto_pagado" DECIMAL(10,2) NOT NULL DEFAULT 0;
+            `);
+            await this.dataSource.query(`
+                UPDATE trabajos_laboratorios tl
+                SET "monto_pagado" = COALESCE((
+                    SELECT SUM(pl.monto) 
+                    FROM pagos_laboratorios pl 
+                    WHERE pl."idTrabajos_Laboratorios" = tl.id
+                ), 0);
+            `);
+            await this.dataSource.query(`
+                ALTER TABLE pagos_laboratorios 
+                DROP CONSTRAINT IF EXISTS "UQ_pagos_laboratorios_idTrabajos_Laboratorios";
+            `);
+            await this.dataSource.query(`
+                DROP INDEX IF EXISTS "UQ_pagos_laboratorios_idTrabajos_Laboratorios";
+            `);
+            console.log('[PagosLaboratoriosService] Auto-migration executed successfully.');
+        } catch (e: any) {
+            console.error('[PagosLaboratoriosService] Auto-migration notice:', e.message);
+        }
+    }
 
     async create(createDto: CreatePagoLaboratorioDto) {
         const queryRunner = this.dataSource.createQueryRunner();

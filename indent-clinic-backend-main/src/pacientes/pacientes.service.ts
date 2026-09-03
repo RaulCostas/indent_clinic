@@ -193,7 +193,8 @@ export class PacientesService {
                 'paciente.celular',
                 'paciente.estado',
                 'paciente.clinicaId',
-                'paciente.fecha_vencimiento'
+                'paciente.fecha_vencimiento',
+                'paciente.clasificacion'
             ]);
         }
 

@@ -693,7 +693,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                                             return {
                                                 id: p.id,
                                                 label: `${p.nombre} ${p.paterno} ${p.materno || ''}`.trim(),
-                                                subLabel: `Cel: ${formattedCel}${p.fecha_vencimiento ? ` | Venc: ${formatDate(p.fecha_vencimiento)}` : ''}`
+                                                subLabel: `${p.clasificacion ? `[Clase ${p.clasificacion}] ` : ''}Cel: ${formattedCel}${p.fecha_vencimiento ? ` | Venc: ${formatDate(p.fecha_vencimiento)}` : ''}`
                                             };
                                         })}
                                         value={formData.pacienteId}
@@ -739,6 +739,21 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                                         </button>
                                     )}
                                 </div>
+                                {(() => {
+                                    const pSel = pacientes.find(p => p.id === formData.pacienteId) || (initialData?.pacienteId === formData.pacienteId ? initialData?.paciente : null);
+                                    if (!pSel?.clasificacion) return null;
+                                    return (
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                            <span className={`text-xs font-bold px-2.5 py-0.5 rounded shadow-sm border ${
+                                                pSel.clasificacion.charAt(0) === 'A' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300 dark:border-amber-700' :
+                                                pSel.clasificacion.charAt(0) === 'B' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-600' :
+                                                'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-300 dark:border-orange-700'
+                                            }`}>
+                                                Clasificación: {pSel.clasificacion}
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
 

@@ -607,9 +607,14 @@ const AgendaView: React.FC = () => {
                                     <div
                                         key={p.id}
                                         onClick={() => handlePatientSelect(p)}
-                                        className="p-2.5 cursor-pointer border-b border-gray-100 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm text-gray-800 dark:text-gray-200 flex flex-col"
+                                        className="p-2.5 cursor-pointer border-b border-gray-100 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm text-gray-800 dark:text-gray-200 flex justify-between items-center"
                                     >
                                         <strong className="text-blue-600 dark:text-blue-400">{p.nombre} {p.paterno} {p.materno || ''}</strong>
+                                        {p.clasificacion && (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-sm">
+                                                {p.clasificacion}
+                                            </span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -842,9 +847,12 @@ const AgendaView: React.FC = () => {
                                                                             >
                                                                                 {isBlock && <div className="absolute top-0 left-0 w-full h-full bg-stripe-pattern opacity-10 pointer-events-none rounded"></div>}
                                                                                 {appointment.paciente && appointment.paciente.clasificacion && (
-                                                                                    <div className={`absolute top-0 right-0 px-1 py-0.5 rounded-bl-[4px] text-[9px] font-black backdrop-blur-sm z-10 border-l border-b border-white/10 shadow-sm ${appointment.paciente.clasificacion.charAt(0) === 'A' ? 'bg-yellow-500/60 text-yellow-50' :
-                                                                                            appointment.paciente.clasificacion.charAt(0) === 'B' ? 'bg-slate-500/60 text-slate-50' :
-                                                                                                'bg-orange-500/60 text-orange-50'
+                                                                                    <div 
+                                                                                        title={`Clasificación: ${appointment.paciente.clasificacion}`}
+                                                                                        className={`absolute top-0 right-0 px-1.5 py-0.5 rounded-bl-[5px] text-[10px] font-black z-10 border-l border-b border-black/20 shadow-md ${
+                                                                                            appointment.paciente.clasificacion.charAt(0) === 'A' ? 'bg-amber-500 text-black' :
+                                                                                            appointment.paciente.clasificacion.charAt(0) === 'B' ? 'bg-slate-300 text-slate-950' :
+                                                                                            'bg-orange-500 text-white'
                                                                                         }`}>
                                                                                         {appointment.paciente.clasificacion}
                                                                                     </div>
@@ -966,7 +974,14 @@ const AgendaView: React.FC = () => {
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
                         <div className="bg-white dark:bg-gray-800 w-[90%] max-w-4xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
                             <div className="p-5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-white m-0">📅 Historial de Citas: {selectedPatientForHistory.nombre} {selectedPatientForHistory.paterno} {selectedPatientForHistory.materno || ''}</h2>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-white m-0 flex items-center gap-2 flex-wrap">
+                                    <span>📅 Historial de Citas: {selectedPatientForHistory.nombre} {selectedPatientForHistory.paterno} {selectedPatientForHistory.materno || ''}</span>
+                                    {selectedPatientForHistory.clasificacion && (
+                                        <span className="text-xs font-black px-2 py-0.5 rounded bg-amber-500 text-black shadow-sm border border-amber-600/30">
+                                            {selectedPatientForHistory.clasificacion}
+                                        </span>
+                                    )}
+                                </h2>
                             </div>
                             <div className="p-0 overflow-y-auto flex-1 dark:bg-gray-800">
                                 {patientHistory.length === 0 ? (

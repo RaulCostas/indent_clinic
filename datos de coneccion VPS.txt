@@ -1,4 +1,5 @@
-DB_HOST=qsc7d8rbks4w4ukedjm86pu2
+VPS_IP=177.7.62.252
+DB_HOST=pwpurmygh6ifetpyrc7fc3tj
 DB_DATABASE=indent_clinic
 DB_PORT=5432
 DB_USERNAME=postgres

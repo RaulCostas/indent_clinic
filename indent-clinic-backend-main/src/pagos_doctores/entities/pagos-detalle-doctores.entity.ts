@@ -30,7 +30,7 @@ export class PagosDetalleDoctores {
     @Column({ nullable: true })
     factura: string;
 
-    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
     descuento: number;
 
     @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })

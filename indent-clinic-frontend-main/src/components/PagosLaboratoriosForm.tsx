@@ -191,7 +191,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
             }
 
             const worksToShow = allTrabajos.filter((t: any) =>
-                (t.estado === 'terminado' && t.pagado !== 'si' && t.estado !== 'anulado') ||
+                (t.pagado !== 'si' && t.estado !== 'anulado') ||
                 (isEdit && currentPaymentWorkId && t.id === currentPaymentWorkId) ||
                 (preSelectedWorkId && t.id === preSelectedWorkId)
             );

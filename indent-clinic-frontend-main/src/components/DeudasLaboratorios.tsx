@@ -22,12 +22,8 @@ const DeudasLaboratorios: React.FC = () => {
 
     const fetchDeudas = async () => {
         try {
-            // Fetch finished works that are NOT paid
-            // We use the existing endpoint with filters.
-            // As per implementation plan: pagado !== 'si' and estado === 'terminado'
-            // The service might need to support filtering by pagado='no' if not explicit.
-            // Client side filtering is a safe bet given existing patterns.
-            const response = await api.get('/trabajos-laboratorios?limit=1000&estado=terminado');
+            // Fetch works that are NOT paid and NOT canceled
+            const response = await api.get('/trabajos-laboratorios?limit=1000');
 
             const allWorks = Array.isArray(response.data) ? response.data : (response.data.data || []);
             const unpaidWorks = allWorks.filter((w: any) => w.pagado !== 'si' && w.estado !== 'anulado');

@@ -270,8 +270,9 @@ const PagosLaboratoriosList: React.FC = () => {
                                 <th>Laboratorio</th>
                                 <th>Trabajo</th>
                                 <th>Moneda</th>
-                                <th>Monto</th>
-                                <th>Descuento</th>
+                                <th>Sub Total</th>
+                                <th>Desc.</th>
+                                <th>Total</th>
                                 <th>Forma Pago</th>
                             </tr>
                         </thead>
@@ -284,8 +285,9 @@ const PagosLaboratoriosList: React.FC = () => {
                                     <td>${p.trabajoLaboratorio?.laboratorio?.laboratorio || '-'}</td>
                                     <td>${p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-'}</td>
                                     <td>${p.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
-                                    <td>${p.monto ? formatNumber(p.monto) : '0,00'}</td>
+                                    <td>${formatNumber(Number(p.monto || 0) + Number(p.descuento || 0))}</td>
                                     <td>${p.descuento ? formatNumber(p.descuento) : '0,00'}</td>
+                                    <td>${p.monto ? formatNumber(p.monto) : '0,00'}</td>
                                     <td>${p.formaPago?.nombre || p.formaPago?.forma_pago || '-'}</td>
                                 </tr>
                             `).join('')}
@@ -391,15 +393,16 @@ const PagosLaboratoriosList: React.FC = () => {
             doc.setTextColor(0, 0, 0);
 
             // Prepare table data
-            const tableColumn = ["Fecha", "Paciente", "Laboratorio", "Trabajo", "Mone.", "Monto", "Descuento", "Forma Pago"];
+            const tableColumn = ["Fecha", "Paciente", "Laboratorio", "Trabajo", "Mone.", "Sub Total", "Desc.", "Total", "Forma Pago"];
             const tableRows = filtered.map((p: any) => [
                 formatDate(p.fecha),
                 p.trabajoLaboratorio?.paciente ? `${p.trabajoLaboratorio.paciente.nombre} ${p.trabajoLaboratorio.paciente.paterno}` : '-',
                 p.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
                 p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
                 p.moneda === 'Bolivianos' ? 'Bs' : '$us',
-                p.monto ? formatNumber(p.monto) : '0,00',
+                formatNumber(Number(p.monto || 0) + Number(p.descuento || 0)),
                 p.descuento ? formatNumber(p.descuento) : '0,00',
+                p.monto ? formatNumber(p.monto) : '0,00',
                 p.formaPago ? (p.formaPago.forma_pago || p.formaPago.nombre) : '-'
             ]);
 
@@ -427,14 +430,15 @@ const PagosLaboratoriosList: React.FC = () => {
                     fillColor: [248, 249, 250]
                 },
                 columnStyles: {
-                    0: { cellWidth: 20 },
+                    0: { cellWidth: 18 },
                     1: { cellWidth: 'auto' },
                     2: { cellWidth: 'auto' },
                     3: { cellWidth: 'auto' },
                     4: { cellWidth: 12, halign: 'center' },
-                    5: { cellWidth: 18, halign: 'right' },
-                    6: { cellWidth: 18, halign: 'right' },
-                    7: { cellWidth: 22 }
+                    5: { cellWidth: 16, halign: 'right' },
+                    6: { cellWidth: 15, halign: 'right' },
+                    7: { cellWidth: 16, halign: 'right' },
+                    8: { cellWidth: 20 }
                 }
             });
 
@@ -463,8 +467,9 @@ const PagosLaboratoriosList: React.FC = () => {
             Laboratorio: p.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
             Trabajo: p.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
             Moneda: p.moneda,
-            Monto: Number(p.monto || 0),
-            Descuento: Number(p.descuento || 0),
+            'Sub Total': Number(p.monto || 0) + Number(p.descuento || 0),
+            'Desc.': Number(p.descuento || 0),
+            Total: Number(p.monto || 0),
             FormaPago: p.formaPago?.nombre || (p.formaPago?.forma_pago || '-')
         })));
         const workbook = XLSX.utils.book_new();
@@ -583,8 +588,9 @@ const PagosLaboratoriosList: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Laboratorio</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trabajo</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Mone.</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Monto</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Descuento</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Sub Total</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Desc.</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Total</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Forma Pago</th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                         </tr>
@@ -592,6 +598,7 @@ const PagosLaboratoriosList: React.FC = () => {
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                          {currentItems.map((pago, index) => {
                             const isLocked = userPermisos.includes('cerrar-caja') && clinicaActual?.fecha_cierre_caja && pago.fecha.split('T')[0] <= clinicaActual.fecha_cierre_caja.split('T')[0];
+                            const subTotal = Number(pago.monto || 0) + Number(pago.descuento || 0);
 
                             return (
                                 <tr key={pago.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -608,10 +615,13 @@ const PagosLaboratoriosList: React.FC = () => {
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">{pago.moneda === 'Bolivianos' ? 'Bs' : '$us'}</td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300 font-medium">
-                                        {pago.monto ? formatNumber(pago.monto) : '0,00'}
+                                        {formatNumber(subTotal)}
                                     </td>
                                     <td className="p-3 text-purple-600 dark:text-purple-400 font-medium">
-                                        {Number(pago.descuento || 0) > 0 ? `Bs. ${formatNumber(pago.descuento)}` : '-'}
+                                        {Number(pago.descuento || 0) > 0 ? formatNumber(pago.descuento) : '0,00'}
+                                    </td>
+                                    <td className="p-3 text-green-600 dark:text-green-400 font-bold">
+                                        {pago.monto ? formatNumber(pago.monto) : '0,00'}
                                     </td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300">
                                         {pago.formaPago ? pago.formaPago.forma_pago : '-'}
@@ -643,7 +653,7 @@ const PagosLaboratoriosList: React.FC = () => {
                         })}
                         {currentItems.length === 0 && (
                             <tr>
-                                <td colSpan={9} className="p-5 text-center text-gray-500 dark:text-gray-400">
+                                <td colSpan={11} className="p-5 text-center text-gray-500 dark:text-gray-400">
                                     No se encontraron registros de pagos.
                                 </td>
                             </tr>

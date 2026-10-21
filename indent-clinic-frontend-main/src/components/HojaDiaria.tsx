@@ -412,7 +412,7 @@ const HojaDiaria: React.FC = () => {
             const sortData = (data: any[], type: string) => {
                 return [...data].sort((a, b) => {
                     // Si es rango, primero ordenar por fecha ASC
-                    if (searchMode === 'range') {
+                    if (currentMode === 'range') {
                         const dateA = new Date(a.fecha || a.createdAt || 0).getTime();
                         const dateB = new Date(b.fecha || b.createdAt || 0).getTime();
                         if (dateA !== dateB) return dateA - dateB;
@@ -2209,6 +2209,23 @@ const HojaDiaria: React.FC = () => {
         return (doc as any).lastAutoTable.finalY + 8;
     };
 
+    // Helper to sort records by fecha ASC for PDF export
+    const sortByFechaAsc = <T extends { fecha?: string; createdAt?: string; id?: number }>(data: T[]): T[] => {
+        return [...data].sort((a, b) => {
+            const fechaA = String(a.fecha || a.createdAt || '').split('T')[0];
+            const fechaB = String(b.fecha || b.createdAt || '').split('T')[0];
+            if (fechaA !== fechaB) {
+                return fechaA.localeCompare(fechaB);
+            }
+            const timeA = new Date(a.fecha || a.createdAt || 0).getTime();
+            const timeB = new Date(b.fecha || b.createdAt || 0).getTime();
+            if (timeA !== timeB) {
+                return timeA - timeB;
+            }
+            return (a.id || 0) - (b.id || 0);
+        });
+    };
+
     // Export Active Tab to PDF
     const handleExportTabPDF = async () => {
         const isRange = searchMode === 'range';
@@ -2218,6 +2235,7 @@ const HojaDiaria: React.FC = () => {
             case 0: { // Ingresos
                 const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Ingresos');
+                const sortedIngresos = sortByFechaAsc(ingresos);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2231,7 +2249,7 @@ const HojaDiaria: React.FC = () => {
                     'Observaciones'
                 ];
 
-                const body = ingresos.map(r => {
+                const body = sortedIngresos.map(r => {
                     const covered = getCoveredTreatmentsForPaymentLocal(r);
                     const treatments = r.observaciones?.includes('Venta de productos')
                         ? 'PRODUCTOS COMERCIALES'
@@ -2272,13 +2290,14 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(ingresos, 'ingreso'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedIngresos, 'ingreso'), finalY);
                 doc.save(`Hoja_Diaria_Ingresos_${fileNameDate}.pdf`);
                 break;
             }
             case 1: { // Otros Ingresos
                 const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Otros Ingresos');
+                const sortedOtrosIngresos = sortByFechaAsc(otrosIngresos);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2287,7 +2306,7 @@ const HojaDiaria: React.FC = () => {
                     'Forma Pago'
                 ];
 
-                const body = otrosIngresos.map(r => [
+                const body = sortedOtrosIngresos.map(r => [
                     ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                     r.detalle || '-',
                     formatMoney(Number(r.monto), r.moneda),
@@ -2309,13 +2328,14 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(otrosIngresos, 'egreso'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedOtrosIngresos, 'egreso'), finalY);
                 doc.save(`Hoja_Diaria_Otros_Ingresos_${fileNameDate}.pdf`);
                 break;
             }
             case 2: { // Egresos Diarios
                 const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Egresos Diarios');
+                const sortedEgresos = sortByFechaAsc(egresos);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2324,7 +2344,7 @@ const HojaDiaria: React.FC = () => {
                     'Forma Pago'
                 ];
 
-                const body = egresos.map(r => [
+                const body = sortedEgresos.map(r => [
                     ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                     r.detalle || '-',
                     formatMoney(Number(r.monto), r.moneda),
@@ -2346,13 +2366,14 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(egresos, 'egreso'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedEgresos, 'egreso'), finalY);
                 doc.save(`Hoja_Diaria_Egresos_${fileNameDate}.pdf`);
                 break;
             }
             case 3: { // Pagos Doctores
                 const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Pagos a Doctores');
+                const sortedPagosDoctores = sortByFechaAsc(pagosDoctores);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2362,7 +2383,7 @@ const HojaDiaria: React.FC = () => {
                     'Forma Pago'
                 ];
 
-                const body = pagosDoctores.map(r => {
+                const body = sortedPagosDoctores.map(r => {
                     const doctorName = `Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}`;
                     const treatments = r.detalles?.map(d => `• ${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}: ${d.historiaClinica?.tratamiento || ''}`).join('\n') || '-';
 
@@ -2390,13 +2411,14 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(pagosDoctores, 'doctor'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedPagosDoctores, 'doctor'), finalY);
                 doc.save(`Hoja_Diaria_Pagos_Doctores_${fileNameDate}.pdf`);
                 break;
             }
             case 4: { // Pagos Laboratorios
                 const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Pagos a Laboratorios');
+                const sortedPagosLaboratorios = sortByFechaAsc(pagosLaboratorios);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2407,7 +2429,7 @@ const HojaDiaria: React.FC = () => {
                     'Forma Pago'
                 ];
 
-                const body = pagosLaboratorios.map(r => [
+                const body = sortedPagosLaboratorios.map(r => [
                     ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                     r.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
                     r.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
@@ -2431,13 +2453,14 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(pagosLaboratorios, 'laboratorio'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedPagosLaboratorios, 'laboratorio'), finalY);
                 doc.save(`Hoja_Diaria_Pagos_Laboratorios_${fileNameDate}.pdf`);
                 break;
             }
             case 5: { // Pagos Pedidos
                 const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Pagos de Pedidos');
+                const sortedPagosPedidos = sortByFechaAsc(pagosPedidos);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2448,7 +2471,7 @@ const HojaDiaria: React.FC = () => {
                     'Forma Pago'
                 ];
 
-                const body = pagosPedidos.map(r => [
+                const body = sortedPagosPedidos.map(r => [
                     ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                     r.pedido?.proveedor?.proveedor || '-',
                     r.factura || '-',
@@ -2472,13 +2495,14 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(pagosPedidos, 'pedido'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedPagosPedidos, 'pedido'), finalY);
                 doc.save(`Hoja_Diaria_Pagos_Pedidos_${fileNameDate}.pdf`);
                 break;
             }
             case 6: { // Gastos Fijos
                 const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
                 const startY = await addPDFHeader(doc, 'Pagos Gastos Fijos');
+                const sortedPagosGastosFijos = sortByFechaAsc(pagosGastosFijos);
 
                 const head = [
                     ...(isRange ? ['Fecha'] : []),
@@ -2488,7 +2512,7 @@ const HojaDiaria: React.FC = () => {
                     'Observaciones'
                 ];
 
-                const body = pagosGastosFijos.map(r => [
+                const body = sortedPagosGastosFijos.map(r => [
                     ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                     r.gastoFijo?.gasto_fijo || '-',
                     formatMoney(Number(r.monto), r.moneda),
@@ -2511,7 +2535,7 @@ const HojaDiaria: React.FC = () => {
                 });
 
                 const finalY = (doc as any).lastAutoTable.finalY + 8;
-                addPDFSummary(doc, calculateSummary(pagosGastosFijos, 'gasto'), finalY);
+                addPDFSummary(doc, calculateSummary(sortedPagosGastosFijos, 'gasto'), finalY);
                 doc.save(`Hoja_Diaria_Gastos_Fijos_${fileNameDate}.pdf`);
                 break;
             }
@@ -2543,6 +2567,7 @@ const HojaDiaria: React.FC = () => {
         // 1. Ingresos
         if (ingresos.length > 0) {
             addSectionTitle('1. Ingresos de Pacientes');
+            const sortedIngresos = sortByFechaAsc(ingresos);
             const head = [
                 ...(isRange ? ['Fecha'] : []),
                 'Paciente',
@@ -2552,7 +2577,7 @@ const HojaDiaria: React.FC = () => {
                 'F. Pago',
                 'Recibo/Fact.'
             ];
-            const body = ingresos.map(r => {
+            const body = sortedIngresos.map(r => {
                 const covered = getCoveredTreatmentsForPaymentLocal(r);
                 const treatments = r.observaciones?.includes('Venta de productos')
                     ? 'PRODUCTOS COMERCIALES'
@@ -2585,14 +2610,15 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(ingresos, 'ingreso'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedIngresos, 'ingreso'), currentY);
         }
 
         // 2. Otros Ingresos
         if (otrosIngresos.length > 0) {
             addSectionTitle('2. Otros Ingresos');
+            const sortedOtrosIngresos = sortByFechaAsc(otrosIngresos);
             const head = [...(isRange ? ['Fecha'] : []), 'Detalle', 'Monto', 'F. Pago'];
-            const body = otrosIngresos.map(r => [
+            const body = sortedOtrosIngresos.map(r => [
                 ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                 r.detalle,
                 formatMoney(Number(r.monto), r.moneda),
@@ -2612,14 +2638,15 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(otrosIngresos, 'egreso'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedOtrosIngresos, 'egreso'), currentY);
         }
 
         // 3. Egresos
         if (egresos.length > 0) {
             addSectionTitle('3. Egresos Diarios');
+            const sortedEgresos = sortByFechaAsc(egresos);
             const head = [...(isRange ? ['Fecha'] : []), 'Detalle', 'Monto', 'F. Pago'];
-            const body = egresos.map(r => [
+            const body = sortedEgresos.map(r => [
                 ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                 r.detalle,
                 formatMoney(Number(r.monto), r.moneda),
@@ -2639,14 +2666,15 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(egresos, 'egreso'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedEgresos, 'egreso'), currentY);
         }
 
         // 4. Pagos Doctores
         if (pagosDoctores.length > 0) {
             addSectionTitle('4. Pagos a Doctores');
+            const sortedPagosDoctores = sortByFechaAsc(pagosDoctores);
             const head = [...(isRange ? ['Fecha'] : []), 'Doctor', 'Pacientes / Tratamientos', 'Monto Total', 'F. Pago'];
-            const body = pagosDoctores.map(r => [
+            const body = sortedPagosDoctores.map(r => [
                 ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                 `Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}`,
                 r.detalles?.map(d => `${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}: ${d.historiaClinica?.tratamiento || ''}`).join(', ') || '-',
@@ -2667,14 +2695,15 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(pagosDoctores, 'doctor'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedPagosDoctores, 'doctor'), currentY);
         }
 
         // 5. Pagos Laboratorios
         if (pagosLaboratorios.length > 0) {
             addSectionTitle('5. Pagos a Laboratorios');
+            const sortedPagosLaboratorios = sortByFechaAsc(pagosLaboratorios);
             const head = [...(isRange ? ['Fecha'] : []), 'Laboratorio', 'Trabajo', 'Paciente', 'Monto', 'F. Pago'];
-            const body = pagosLaboratorios.map(r => [
+            const body = sortedPagosLaboratorios.map(r => [
                 ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                 r.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
                 r.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
@@ -2696,14 +2725,15 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(pagosLaboratorios, 'laboratorio'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedPagosLaboratorios, 'laboratorio'), currentY);
         }
 
         // 6. Pagos Pedidos
         if (pagosPedidos.length > 0) {
             addSectionTitle('6. Pagos de Pedidos');
+            const sortedPagosPedidos = sortByFechaAsc(pagosPedidos);
             const head = [...(isRange ? ['Fecha'] : []), 'Proveedor', 'Factura', 'Recibo', 'Monto', 'F. Pago'];
-            const body = pagosPedidos.map(r => [
+            const body = sortedPagosPedidos.map(r => [
                 ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                 r.pedido?.proveedor?.proveedor || '-',
                 r.factura || '-',
@@ -2725,14 +2755,15 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(pagosPedidos, 'pedido'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedPagosPedidos, 'pedido'), currentY);
         }
 
         // 7. Pagos Gastos Fijos
         if (pagosGastosFijos.length > 0) {
             addSectionTitle('7. Pagos Gastos Fijos');
+            const sortedPagosGastosFijos = sortByFechaAsc(pagosGastosFijos);
             const head = [...(isRange ? ['Fecha'] : []), 'Gasto', 'Monto', 'F. Pago', 'Observaciones'];
-            const body = pagosGastosFijos.map(r => [
+            const body = sortedPagosGastosFijos.map(r => [
                 ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
                 r.gastoFijo?.gasto_fijo || '-',
                 formatMoney(Number(r.monto), r.moneda),
@@ -2753,7 +2784,7 @@ const HojaDiaria: React.FC = () => {
             });
 
             currentY = (doc as any).lastAutoTable.finalY + 6;
-            currentY = addPDFSummary(doc, calculateSummary(pagosGastosFijos, 'gasto'), currentY);
+            currentY = addPDFSummary(doc, calculateSummary(sortedPagosGastosFijos, 'gasto'), currentY);
         }
 
         // Final Section: Resumen de Utilidad General

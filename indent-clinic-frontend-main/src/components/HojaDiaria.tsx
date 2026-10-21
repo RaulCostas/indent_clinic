@@ -676,75 +676,66 @@ const HojaDiaria: React.FC = () => {
     };
 
 
-    const getActiveLogoUrl = (): string => {
+    const getActiveLogoUrl = (): string | null => {
         if (clinicaActual?.logo) {
             const url = getLogoUrl(clinicaActual.logo);
             if (url) return url;
         }
-        return '/logo-clinica-dental.png';
+        return null;
     };
 
     const getLogoBase64ForPDF = async (): Promise<{ base64: string, format: 'PNG' | 'JPEG' } | null> => {
-        const primaryUrl = getActiveLogoUrl();
-        const fallbackUrl = '/logo-clinica-dental.png';
+        const logoUrl = getActiveLogoUrl();
+        if (!logoUrl) return null;
 
-        const tryConvert = async (url: string): Promise<{ base64: string, format: 'PNG' | 'JPEG' } | null> => {
-            if (!url) return null;
-            if (url.startsWith('data:image')) {
-                const format = url.includes('image/jpeg') || url.includes('image/jpg') ? 'JPEG' : 'PNG';
-                return { base64: url, format };
-            }
-
-            // 1. Try fetch + FileReader
-            try {
-                const res = await fetch(url);
-                if (res.ok) {
-                    const blob = await res.blob();
-                    const base64 = await new Promise<string>((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result as string);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(blob);
-                    });
-                    const format = blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'JPEG' : 'PNG';
-                    return { base64, format };
-                }
-            } catch (e) {
-                // Ignore and try canvas
-            }
-
-            // 2. Try Image + Canvas
-            try {
-                const img = new Image();
-                if (url.startsWith('http') || url.startsWith('//')) {
-                    img.crossOrigin = 'Anonymous';
-                }
-                img.src = url;
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                });
-                const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth || img.width;
-                canvas.height = img.naturalHeight || img.height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0);
-                    const base64 = canvas.toDataURL('image/png');
-                    return { base64, format: 'PNG' };
-                }
-            } catch (e) {
-                // Ignore
-            }
-
-            return null;
-        };
-
-        let result = await tryConvert(primaryUrl);
-        if (!result && primaryUrl !== fallbackUrl) {
-            result = await tryConvert(fallbackUrl);
+        if (logoUrl.startsWith('data:image')) {
+            const format = logoUrl.includes('image/jpeg') || logoUrl.includes('image/jpg') ? 'JPEG' : 'PNG';
+            return { base64: logoUrl, format };
         }
-        return result;
+
+        // 1. Try fetch + FileReader
+        try {
+            const res = await fetch(logoUrl);
+            if (res.ok) {
+                const blob = await res.blob();
+                const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+                const format = blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'JPEG' : 'PNG';
+                return { base64, format };
+            }
+        } catch (e) {
+            // Ignore and try canvas
+        }
+
+        // 2. Try Image + Canvas
+        try {
+            const img = new Image();
+            if (logoUrl.startsWith('http') || logoUrl.startsWith('//')) {
+                img.crossOrigin = 'Anonymous';
+            }
+            img.src = logoUrl;
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                const base64 = canvas.toDataURL('image/png');
+                return { base64, format: 'PNG' };
+            }
+        } catch (e) {
+            // Ignore
+        }
+
+        return null;
     };
 
     const getCoveredTreatmentsForPaymentLocal = (r: any) => {
@@ -849,7 +840,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Ingresos - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -987,7 +978,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Egresos Diarios - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -1113,7 +1104,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Otros Ingresos - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -1238,7 +1229,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Pagos a Doctores - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -1367,7 +1358,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Pagos a Laboratorios - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -1496,7 +1487,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Pagos de Pedidos - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -1625,7 +1616,7 @@ const HojaDiaria: React.FC = () => {
             <body>
                 <div class="header">
                     <div class="title-container">
-                        <img src="${logoUrl}" alt="Logo">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}
                         <h1>Pagos Gastos Fijos - Hoja Diaria</h1>
                     </div>
                 </div>
@@ -1803,7 +1794,7 @@ const HojaDiaria: React.FC = () => {
             </head>
             <body>
                 <div class="header">
-                    <div><img src="${logoUrl}" alt="Logo"></div>
+                    <div>${logoUrl ? `<img src="${logoUrl}" alt="Logo">` : ''}</div>
                     <h1>Reporte General - Hoja Diaria</h1>
                 </div>
                 <div class="report-info">Filtro: <strong>${filterInfo}</strong></div>
@@ -2115,11 +2106,13 @@ const HojaDiaria: React.FC = () => {
     // Helper to add standard PDF Header
     const addPDFHeader = async (doc: any, title: string) => {
         const pageWidth = doc.internal.pageSize.getWidth();
+        let startTextX = 14;
 
         try {
             const logoData = await getLogoBase64ForPDF();
             if (logoData && logoData.base64) {
                 doc.addImage(logoData.base64, logoData.format, 14, 7, 28, 14);
+                startTextX = 46;
             }
         } catch (e) {
             console.warn('Failed to add logo to PDF:', e);
@@ -2129,12 +2122,12 @@ const HojaDiaria: React.FC = () => {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
         doc.setTextColor(30, 58, 138); // #1e3a8a
-        doc.text(`${clinicaName} - ${title.toUpperCase()}`, 45, 14);
+        doc.text(`${clinicaName} - ${title.toUpperCase()}`, startTextX, 14);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.setTextColor(100, 116, 139); // #64748b
-        doc.text('Hoja Diaria - Resumen de Movimientos Financieros', 45, 19);
+        doc.text('Hoja Diaria - Resumen de Movimientos Financieros', startTextX, 19);
 
         // Filter info on right
         doc.setFont('helvetica', 'bold');

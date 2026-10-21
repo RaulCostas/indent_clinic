@@ -9,7 +9,9 @@ import Pagination from './Pagination';
 import { useClinica } from '../context/ClinicaContext';
 import { Printer, FileText, Lock, Tablet } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { formatNumber, formatMoney } from '../utils/formatters';
+import { formatNumber, formatMoney, getLogoUrl } from '../utils/formatters';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 
 // Interfaces
@@ -28,6 +30,8 @@ interface Ingreso {
     comisionTarjeta?: { redBanco: string; monto: number }; // Updated interface
     tc?: number; // Added TC
     descuento: number; // Added Discount
+    recibo?: string; // Added Recibo
+    factura?: string; // Added Factura
 }
 
 interface Egreso {
@@ -671,6 +675,100 @@ const HojaDiaria: React.FC = () => {
         `;
     };
 
+
+    const getActiveLogoUrl = (): string => {
+        if (clinicaActual?.logo) {
+            const url = getLogoUrl(clinicaActual.logo);
+            if (url) return url;
+        }
+        return '/logo-clinica-dental.png';
+    };
+
+    const getLogoBase64ForPDF = async (): Promise<{ base64: string, format: 'PNG' | 'JPEG' } | null> => {
+        const primaryUrl = getActiveLogoUrl();
+        const fallbackUrl = '/logo-clinica-dental.png';
+
+        const tryConvert = async (url: string): Promise<{ base64: string, format: 'PNG' | 'JPEG' } | null> => {
+            if (!url) return null;
+            if (url.startsWith('data:image')) {
+                const format = url.includes('image/jpeg') || url.includes('image/jpg') ? 'JPEG' : 'PNG';
+                return { base64: url, format };
+            }
+
+            // 1. Try fetch + FileReader
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const base64 = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    const format = blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'JPEG' : 'PNG';
+                    return { base64, format };
+                }
+            } catch (e) {
+                // Ignore and try canvas
+            }
+
+            // 2. Try Image + Canvas
+            try {
+                const img = new Image();
+                if (url.startsWith('http') || url.startsWith('//')) {
+                    img.crossOrigin = 'Anonymous';
+                }
+                img.src = url;
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0);
+                    const base64 = canvas.toDataURL('image/png');
+                    return { base64, format: 'PNG' };
+                }
+            } catch (e) {
+                // Ignore
+            }
+
+            return null;
+        };
+
+        let result = await tryConvert(primaryUrl);
+        if (!result && primaryUrl !== fallbackUrl) {
+            result = await tryConvert(fallbackUrl);
+        }
+        return result;
+    };
+
+    const getCoveredTreatmentsForPaymentLocal = (r: any) => {
+        if (!r.proforma || !r.proforma.historiaClinica || r.proforma.historiaClinica.length === 0) return [];
+        
+        let ids: string[] = [];
+        if (r.historiaClinicaId) ids.push(String(r.historiaClinicaId));
+        
+        if (r.tratamientosIds) {
+            if (Array.isArray(r.tratamientosIds)) {
+                ids = [...ids, ...r.tratamientosIds.map(String)];
+            } else if (typeof r.tratamientosIds === 'string') {
+                ids = [...ids, ...r.tratamientosIds.split(',')];
+            }
+        }
+
+        if (ids.length > 0) {
+            const uniqueIds = Array.from(new Set(ids));
+            return r.proforma.historiaClinica.filter((h: any) => uniqueIds.includes(String(h.id)));
+        }
+
+        return [];
+    };
+
     const handlePrintIngresos = () => {
         const iframe = document.createElement('iframe');
         iframe.style.position = 'fixed';
@@ -714,7 +812,7 @@ const HojaDiaria: React.FC = () => {
         const summary = calculateSummary(ingresos, 'ingreso');
         const filterInfo = getFilterInfoText();
 
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const printContent = `
             <!DOCTYPE html>
@@ -775,7 +873,7 @@ const HojaDiaria: React.FC = () => {
                     </thead>
                     <tbody>
                         ${ingresos.length === 0 ? `
-                            <tr><td colspan="${searchMode === 'range' ? 7 : 6}" style="text-align: center; font-style: italic; color: #64748b;">No hay registros</td></tr>
+                            <tr><td colspan="${searchMode === 'range' ? 8 : 7}" style="text-align: center; font-style: italic; color: #64748b;">No hay registros</td></tr>
                         ` : ingresos.map(r => `
                             <tr>
                                 ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
@@ -852,7 +950,7 @@ const HojaDiaria: React.FC = () => {
         const summary = calculateSummary(egresos, 'egreso');
         const filterInfo = getFilterInfoText();
 
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const printContent = `
             <!DOCTYPE html>
@@ -958,6 +1056,132 @@ const HojaDiaria: React.FC = () => {
         }
     };
 
+
+    const handlePrintOtrosIngresos = () => {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (!doc) {
+            document.body.removeChild(iframe);
+            return;
+        }
+
+        const summary = calculateSummary(otrosIngresos, 'egreso');
+        const filterInfo = getFilterInfoText();
+
+        const logoUrl = getActiveLogoUrl();
+
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Otros Ingresos - Hoja Diaria</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+                    @page { size: A4; margin: 1.5cm; }
+                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1e293b; background: white; line-height: 1.5; }
+                    
+                    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 25px; }
+                    .header img { height: 50px; object-fit: contain; }
+                    
+                    .title-container h1 { color: #1e293b; margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.025em; }
+                    
+                    .report-info { background: #f8fafc; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #475569; }
+                    .filter-badge { background: #eff6ff; color: #2563eb; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 12px; }
+                    
+                    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; }
+                    th { background-color: #3b82f6; color: white; padding: 12px 10px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+                    td { padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155; }
+                    tr:last-child td { border-bottom: none; }
+                    tr:nth-child(even) { background-color: #f8fafc; }
+                    
+                    .amount { font-weight: 700; color: #16a34a; text-align: right; }
+                    
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        th { background-color: #3b82f6 !important; color: white !important; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="title-container">
+                        <img src="${logoUrl}" alt="Logo">
+                        <h1>Otros Ingresos - Hoja Diaria</h1>
+                    </div>
+                </div>
+                
+                <div class="report-info">
+                    <div>Filtro: <span class="filter-badge">${filterInfo}</span></div>
+                </div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            ${searchMode === 'range' ? '<th style="width: 100px;">Fecha</th>' : ''}
+                            <th>Detalle</th>
+                            <th style="text-align: right; width: 120px;">Monto</th>
+                            <th style="width: 120px;">Forma Pago</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${otrosIngresos.length === 0 ? `
+                            <tr><td colspan="${searchMode === 'range' ? 4 : 3}" style="text-align: center; font-style: italic; color: #64748b;">No hay registros</td></tr>
+                        ` : otrosIngresos.map(r => `
+                            <tr>
+                                ${searchMode === 'range' ? `<td>${formatDate(r.fecha.split('T')[0])}</td>` : ''}
+                                <td style="font-weight: 600;">${r.detalle}</td>
+                                <td class="amount">${formatMoney(Number(r.monto), r.moneda)}</td>
+                                <td>${r.formaPago?.forma_pago || 'N/A'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+
+                ${generateSummaryHTML(summary)}
+            </body>
+            </html>
+        `;
+
+        doc.open();
+        doc.write(printContent);
+        doc.close();
+
+        const logo = doc.querySelector('img');
+        const doPrint = () => {
+            try {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+            } catch (e) {
+                console.error('Print error:', e);
+            } finally {
+                setTimeout(() => {
+                    if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                    }
+                }, 2000);
+            }
+        };
+
+        if (logo) {
+            if (logo.complete) {
+                doPrint();
+            } else {
+                logo.onload = doPrint;
+                logo.onerror = doPrint;
+            }
+        } else {
+            doPrint();
+        }
+    };
+
     const handlePrintDoctores = () => {
         const iframe = document.createElement('iframe');
         iframe.style.position = 'fixed';
@@ -977,7 +1201,7 @@ const HojaDiaria: React.FC = () => {
         const summary = calculateSummary(pagosDoctores, 'doctor');
         const filterInfo = getFilterInfoText();
 
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const printContent = `
             <!DOCTYPE html>
@@ -1106,7 +1330,7 @@ const HojaDiaria: React.FC = () => {
         const summary = calculateSummary(pagosLaboratorios, 'laboratorio');
         const filterInfo = getFilterInfoText();
 
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const printContent = `
             <!DOCTYPE html>
@@ -1235,7 +1459,7 @@ const HojaDiaria: React.FC = () => {
         const summary = calculateSummary(pagosPedidos, 'pedido');
         const filterInfo = getFilterInfoText();
 
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const printContent = `
             <!DOCTYPE html>
@@ -1364,7 +1588,7 @@ const HojaDiaria: React.FC = () => {
         const summary = calculateSummary(pagosGastosFijos, 'gasto');
         const filterInfo = getFilterInfoText();
 
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const printContent = `
             <!DOCTYPE html>
@@ -1489,7 +1713,7 @@ const HojaDiaria: React.FC = () => {
         }
 
         const filterInfo = getFilterInfoText();
-        const logoUrl = clinicaActual?.logo || '/logo-curare.png';
+        const logoUrl = getActiveLogoUrl();
 
         const getCoveredTreatmentsLocal = (r: any) => {
             if (!r.proforma || !r.proforma.historiaClinica || r.proforma.historiaClinica.length === 0) return [];
@@ -1805,7 +2029,7 @@ const HojaDiaria: React.FC = () => {
     const handlePrint = () => {
         switch (activeTab) {
             case 0: handlePrintIngresos(); break;
-            case 1: handlePrintEgresos(); break; // This should be handlePrintOtrosIngresos if defined, checking case index
+            case 1: handlePrintOtrosIngresos(); break;
             case 2: handlePrintEgresos(); break;
             case 3: handlePrintDoctores(); break;
             case 4: handlePrintLaboratorios(); break;
@@ -1885,6 +2109,703 @@ const HojaDiaria: React.FC = () => {
         });
 
         return summary;
+    };
+
+
+    // Helper to add standard PDF Header
+    const addPDFHeader = async (doc: any, title: string) => {
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        try {
+            const logoData = await getLogoBase64ForPDF();
+            if (logoData && logoData.base64) {
+                doc.addImage(logoData.base64, logoData.format, 14, 7, 28, 14);
+            }
+        } catch (e) {
+            console.warn('Failed to add logo to PDF:', e);
+        }
+
+        const clinicaName = (clinicaActual?.nombre || 'CLÍNICA DENTAL').toUpperCase();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(30, 58, 138); // #1e3a8a
+        doc.text(`${clinicaName} - ${title.toUpperCase()}`, 45, 14);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139); // #64748b
+        doc.text('Hoja Diaria - Resumen de Movimientos Financieros', 45, 19);
+
+        // Filter info on right
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(37, 99, 235); // #2563eb
+        doc.text(`Filtro: ${getFilterInfoText()}`, pageWidth - 14, 16, { align: 'right' });
+
+        // Accent line
+        doc.setDrawColor(59, 130, 246);
+        doc.setLineWidth(0.6);
+        doc.line(14, 24, pageWidth - 14, 24);
+
+        return 28; // next Y position
+    };
+
+    // Helper to add summary table to PDF
+    const addPDFSummary = (doc: any, summary: Summary, startY: number) => {
+        const pageHeight = doc.internal.pageSize.getHeight();
+        let currentY = startY;
+
+        if (currentY + 40 > pageHeight) {
+            doc.addPage();
+            currentY = 15;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 58, 138);
+        doc.text('RESUMEN POR FORMA DE PAGO', 14, currentY);
+
+        const summaryEntries = Object.entries(summary);
+        const totalBs = summaryEntries.reduce((acc, [, t]) => acc + t.Bs, 0);
+        const totalSus = summaryEntries.reduce((acc, [, t]) => acc + t.Sus, 0);
+
+        const body: any[] = summaryEntries.map(([method, totals]) => [
+            method,
+            `${formatNumber(totals.Bs)} Bs`,
+            `${formatNumber(totals.Sus)} $us`
+        ]);
+
+        body.push([
+            'Total General',
+            `${formatNumber(totalBs)} Bs`,
+            `${formatNumber(totalSus)} $us`
+        ]);
+
+        const totalRowIndex = body.length - 1;
+
+        autoTable(doc, {
+            startY: currentY + 3,
+            head: [['Forma de Pago', 'Total Bs', 'Total $us']],
+            body: body,
+            tableWidth: 125,
+            margin: { left: 14 },
+            headStyles: {
+                fillColor: [59, 130, 246],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 8
+            },
+            styles: {
+                fontSize: 7.5,
+                cellPadding: 1.8
+            },
+            columnStyles: {
+                0: { fontStyle: 'bold' },
+                1: { halign: 'right', fontStyle: 'bold', textColor: [37, 99, 235] },
+                2: { halign: 'right', fontStyle: 'bold', textColor: [22, 163, 74] }
+            },
+            didParseCell: (data: any) => {
+                if (data.row.index === totalRowIndex) {
+                    data.cell.styles.fillColor = [226, 232, 240];
+                    data.cell.styles.fontStyle = 'bold';
+                    data.cell.styles.textColor = [15, 23, 42];
+                }
+            }
+        });
+
+        return (doc as any).lastAutoTable.finalY + 8;
+    };
+
+    // Export Active Tab to PDF
+    const handleExportTabPDF = async () => {
+        const isRange = searchMode === 'range';
+        const fileNameDate = isRange ? `${rangeStart}_al_${rangeEnd}` : selectedDate;
+
+        switch (activeTab) {
+            case 0: { // Ingresos
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Ingresos');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Paciente',
+                    'Plan',
+                    'Tratamientos',
+                    'Desc.',
+                    'Monto Pago',
+                    'Forma Pago',
+                    'Recibo/Fact.',
+                    'Observaciones'
+                ];
+
+                const body = ingresos.map(r => {
+                    const covered = getCoveredTreatmentsForPaymentLocal(r);
+                    const treatments = r.observaciones?.includes('Venta de productos')
+                        ? 'PRODUCTOS COMERCIALES'
+                        : covered.length > 0
+                            ? covered.map((h: any) => `• ${h.tratamiento}${h.pieza ? ` (Pz. ${h.pieza})` : ''}`).join('\n')
+                            : '-';
+
+                    return [
+                        ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                        [r.paciente?.nombre, r.paciente?.paterno, r.paciente?.materno].filter(Boolean).join(' '),
+                        r.proforma?.numero ? String(r.proforma.numero) : 'Generales',
+                        treatments,
+                        Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-',
+                        `${formatMoney(Number(r.monto), r.moneda)}${r.moneda === 'Dólares' && r.tc ? ` (TC ${formatNumber(r.tc)})` : ''}`,
+                        `${r.formaPagoRel?.forma_pago || 'N/A'}${r.formaPagoRel?.forma_pago?.toLowerCase() === 'tarjeta' && r.comisionTarjeta?.redBanco ? ` (${r.comisionTarjeta.redBanco})` : ''}`,
+                        [r.recibo ? `R: ${r.recibo}` : '', r.factura ? `F: ${r.factura}` : ''].filter(Boolean).join(' / ') || '-',
+                        r.observaciones || '-'
+                    ];
+                });
+
+                const descIdx = isRange ? 4 : 3;
+                const montoIdx = isRange ? 5 : 4;
+                const recIdx = isRange ? 7 : 6;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+                    columnStyles: {
+                        1: { fontStyle: 'bold' },
+                        [descIdx]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' },
+                        [montoIdx]: { halign: 'right', textColor: [22, 163, 74], fontStyle: 'bold' },
+                        [recIdx]: { halign: 'center', fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(ingresos, 'ingreso'), finalY);
+                doc.save(`Hoja_Diaria_Ingresos_${fileNameDate}.pdf`);
+                break;
+            }
+            case 1: { // Otros Ingresos
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Otros Ingresos');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Detalle',
+                    'Monto',
+                    'Forma Pago'
+                ];
+
+                const body = otrosIngresos.map(r => [
+                    ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                    r.detalle || '-',
+                    formatMoney(Number(r.monto), r.moneda),
+                    r.formaPago?.forma_pago || 'N/A'
+                ]);
+
+                const montoIdx = isRange ? 2 : 1;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 8, cellPadding: 2.5 },
+                    columnStyles: {
+                        [montoIdx]: { halign: 'right', textColor: [22, 163, 74], fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(otrosIngresos, 'egreso'), finalY);
+                doc.save(`Hoja_Diaria_Otros_Ingresos_${fileNameDate}.pdf`);
+                break;
+            }
+            case 2: { // Egresos Diarios
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Egresos Diarios');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Detalle',
+                    'Monto',
+                    'Forma Pago'
+                ];
+
+                const body = egresos.map(r => [
+                    ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                    r.detalle || '-',
+                    formatMoney(Number(r.monto), r.moneda),
+                    r.formaPago?.forma_pago || 'N/A'
+                ]);
+
+                const montoIdx = isRange ? 2 : 1;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 8, cellPadding: 2.5 },
+                    columnStyles: {
+                        [montoIdx]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(egresos, 'egreso'), finalY);
+                doc.save(`Hoja_Diaria_Egresos_${fileNameDate}.pdf`);
+                break;
+            }
+            case 3: { // Pagos Doctores
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Pagos a Doctores');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Doctor',
+                    'Pacientes / Tratamientos',
+                    'Monto Total',
+                    'Forma Pago'
+                ];
+
+                const body = pagosDoctores.map(r => {
+                    const doctorName = `Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}`;
+                    const treatments = r.detalles?.map(d => `• ${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}: ${d.historiaClinica?.tratamiento || ''}`).join('\n') || '-';
+
+                    return [
+                        ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                        doctorName,
+                        treatments,
+                        formatMoney(Number(r.total), r.moneda),
+                        r.formaPago?.forma_pago || 'N/A'
+                    ];
+                });
+
+                const montoIdx = isRange ? 3 : 2;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+                    columnStyles: {
+                        [montoIdx]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(pagosDoctores, 'doctor'), finalY);
+                doc.save(`Hoja_Diaria_Pagos_Doctores_${fileNameDate}.pdf`);
+                break;
+            }
+            case 4: { // Pagos Laboratorios
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Pagos a Laboratorios');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Laboratorio',
+                    'Trabajo',
+                    'Paciente',
+                    'Monto',
+                    'Forma Pago'
+                ];
+
+                const body = pagosLaboratorios.map(r => [
+                    ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                    r.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
+                    r.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
+                    [r.trabajoLaboratorio?.paciente?.nombre, r.trabajoLaboratorio?.paciente?.paterno, r.trabajoLaboratorio?.paciente?.materno].filter(Boolean).join(' ') || '-',
+                    formatMoney(Number(r.monto), r.moneda),
+                    r.formaPago?.forma_pago || '-'
+                ]);
+
+                const montoIdx = isRange ? 4 : 3;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    columnStyles: {
+                        [montoIdx]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(pagosLaboratorios, 'laboratorio'), finalY);
+                doc.save(`Hoja_Diaria_Pagos_Laboratorios_${fileNameDate}.pdf`);
+                break;
+            }
+            case 5: { // Pagos Pedidos
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Pagos de Pedidos');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Proveedor',
+                    'Factura',
+                    'Recibo',
+                    'Monto',
+                    'Forma Pago'
+                ];
+
+                const body = pagosPedidos.map(r => [
+                    ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                    r.pedido?.proveedor?.proveedor || '-',
+                    r.factura || '-',
+                    r.recibo || '-',
+                    formatMoney(Number(r.monto), 'Bolivianos'),
+                    r.forma_pago || '-'
+                ]);
+
+                const montoIdx = isRange ? 4 : 3;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 8, cellPadding: 2.2 },
+                    columnStyles: {
+                        [montoIdx]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(pagosPedidos, 'pedido'), finalY);
+                doc.save(`Hoja_Diaria_Pagos_Pedidos_${fileNameDate}.pdf`);
+                break;
+            }
+            case 6: { // Gastos Fijos
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const startY = await addPDFHeader(doc, 'Pagos Gastos Fijos');
+
+                const head = [
+                    ...(isRange ? ['Fecha'] : []),
+                    'Gasto',
+                    'Monto',
+                    'Forma Pago',
+                    'Observaciones'
+                ];
+
+                const body = pagosGastosFijos.map(r => [
+                    ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                    r.gastoFijo?.gasto_fijo || '-',
+                    formatMoney(Number(r.monto), r.moneda),
+                    r.formaPago?.forma_pago || '-',
+                    r.observaciones || '-'
+                ]);
+
+                const montoIdx = isRange ? 2 : 1;
+
+                autoTable(doc, {
+                    startY,
+                    head: [head],
+                    body: body.length === 0 ? [['No hay registros para esta consulta']] : body,
+                    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+                    alternateRowStyles: { fillColor: [248, 250, 252] },
+                    styles: { fontSize: 8, cellPadding: 2.2 },
+                    columnStyles: {
+                        [montoIdx]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                    }
+                });
+
+                const finalY = (doc as any).lastAutoTable.finalY + 8;
+                addPDFSummary(doc, calculateSummary(pagosGastosFijos, 'gasto'), finalY);
+                doc.save(`Hoja_Diaria_Gastos_Fijos_${fileNameDate}.pdf`);
+                break;
+            }
+        }
+    };
+
+    // Export Complete General Report to PDF
+    const handleExportGeneralPDF = async () => {
+        const isRange = searchMode === 'range';
+        const fileNameDate = isRange ? `${rangeStart}_al_${rangeEnd}` : selectedDate;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        let currentY = await addPDFHeader(doc, 'Reporte General');
+
+        const addSectionTitle = (title: string) => {
+            const pageHeight = doc.internal.pageSize.getHeight();
+            if (currentY + 25 > pageHeight) {
+                doc.addPage();
+                currentY = 15;
+            }
+            doc.setFillColor(59, 130, 246);
+            doc.roundedRect(14, currentY, doc.internal.pageSize.getWidth() - 28, 7, 1.5, 1.5, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.setTextColor(255, 255, 255);
+            doc.text(title.toUpperCase(), 18, currentY + 5);
+            currentY += 10;
+        };
+
+        // 1. Ingresos
+        if (ingresos.length > 0) {
+            addSectionTitle('1. Ingresos de Pacientes');
+            const head = [
+                ...(isRange ? ['Fecha'] : []),
+                'Paciente',
+                'Plan/Tratamientos',
+                'Desc.',
+                'Monto',
+                'F. Pago',
+                'Recibo/Fact.'
+            ];
+            const body = ingresos.map(r => {
+                const covered = getCoveredTreatmentsForPaymentLocal(r);
+                const treatments = r.observaciones?.includes('Venta de productos')
+                    ? 'PRODUCTOS COMERCIALES'
+                    : covered.length > 0
+                        ? covered.map((h: any) => h.tratamiento).join(', ')
+                        : r.observaciones || '-';
+
+                return [
+                    ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                    [r.paciente?.nombre, r.paciente?.paterno, r.paciente?.materno].filter(Boolean).join(' '),
+                    `#${r.proforma?.numero || 'Gen'}: ${treatments}`,
+                    Number(r.descuento) > 0 ? formatMoney(Number(r.descuento), r.moneda) : '-',
+                    formatMoney(Number(r.monto), r.moneda),
+                    r.formaPagoRel?.forma_pago || 'N/A',
+                    [r.recibo ? `R: ${r.recibo}` : '', r.factura ? `F: ${r.factura}` : ''].filter(Boolean).join(' / ') || '-'
+                ];
+            });
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 3 : 2]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' },
+                    [isRange ? 4 : 3]: { halign: 'right', textColor: [22, 163, 74], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(ingresos, 'ingreso'), currentY);
+        }
+
+        // 2. Otros Ingresos
+        if (otrosIngresos.length > 0) {
+            addSectionTitle('2. Otros Ingresos');
+            const head = [...(isRange ? ['Fecha'] : []), 'Detalle', 'Monto', 'F. Pago'];
+            const body = otrosIngresos.map(r => [
+                ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                r.detalle,
+                formatMoney(Number(r.monto), r.moneda),
+                r.formaPago?.forma_pago || 'N/A'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 2 : 1]: { halign: 'right', textColor: [22, 163, 74], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(otrosIngresos, 'egreso'), currentY);
+        }
+
+        // 3. Egresos
+        if (egresos.length > 0) {
+            addSectionTitle('3. Egresos Diarios');
+            const head = [...(isRange ? ['Fecha'] : []), 'Detalle', 'Monto', 'F. Pago'];
+            const body = egresos.map(r => [
+                ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                r.detalle,
+                formatMoney(Number(r.monto), r.moneda),
+                r.formaPago?.forma_pago || 'N/A'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 2 : 1]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(egresos, 'egreso'), currentY);
+        }
+
+        // 4. Pagos Doctores
+        if (pagosDoctores.length > 0) {
+            addSectionTitle('4. Pagos a Doctores');
+            const head = [...(isRange ? ['Fecha'] : []), 'Doctor', 'Pacientes / Tratamientos', 'Monto Total', 'F. Pago'];
+            const body = pagosDoctores.map(r => [
+                ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                `Dr. ${[r.doctor?.nombre, r.doctor?.paterno, r.doctor?.materno].filter(Boolean).join(' ')}`,
+                r.detalles?.map(d => `${[d.historiaClinica?.paciente?.nombre, d.historiaClinica?.paciente?.paterno].filter(Boolean).join(' ')}: ${d.historiaClinica?.tratamiento || ''}`).join(', ') || '-',
+                formatMoney(Number(r.total), r.moneda),
+                r.formaPago?.forma_pago || 'N/A'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 3 : 2]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(pagosDoctores, 'doctor'), currentY);
+        }
+
+        // 5. Pagos Laboratorios
+        if (pagosLaboratorios.length > 0) {
+            addSectionTitle('5. Pagos a Laboratorios');
+            const head = [...(isRange ? ['Fecha'] : []), 'Laboratorio', 'Trabajo', 'Paciente', 'Monto', 'F. Pago'];
+            const body = pagosLaboratorios.map(r => [
+                ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                r.trabajoLaboratorio?.laboratorio?.laboratorio || '-',
+                r.trabajoLaboratorio?.precioLaboratorio?.detalle || '-',
+                [r.trabajoLaboratorio?.paciente?.nombre, r.trabajoLaboratorio?.paciente?.paterno, r.trabajoLaboratorio?.paciente?.materno].filter(Boolean).join(' ') || '-',
+                formatMoney(Number(r.monto), r.moneda),
+                r.formaPago?.forma_pago || '-'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 4 : 3]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(pagosLaboratorios, 'laboratorio'), currentY);
+        }
+
+        // 6. Pagos Pedidos
+        if (pagosPedidos.length > 0) {
+            addSectionTitle('6. Pagos de Pedidos');
+            const head = [...(isRange ? ['Fecha'] : []), 'Proveedor', 'Factura', 'Recibo', 'Monto', 'F. Pago'];
+            const body = pagosPedidos.map(r => [
+                ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                r.pedido?.proveedor?.proveedor || '-',
+                r.factura || '-',
+                r.recibo || '-',
+                formatMoney(Number(r.monto), 'Bolivianos'),
+                r.forma_pago || '-'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 4 : 3]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(pagosPedidos, 'pedido'), currentY);
+        }
+
+        // 7. Pagos Gastos Fijos
+        if (pagosGastosFijos.length > 0) {
+            addSectionTitle('7. Pagos Gastos Fijos');
+            const head = [...(isRange ? ['Fecha'] : []), 'Gasto', 'Monto', 'F. Pago', 'Observaciones'];
+            const body = pagosGastosFijos.map(r => [
+                ...(isRange ? [formatDate(r.fecha.split('T')[0])] : []),
+                r.gastoFijo?.gasto_fijo || '-',
+                formatMoney(Number(r.monto), r.moneda),
+                r.formaPago?.forma_pago || '-',
+                r.observaciones || '-'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [head],
+                body,
+                headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 8 },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 7.5, cellPadding: 1.8 },
+                columnStyles: {
+                    [isRange ? 2 : 1]: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' }
+                }
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 6;
+            currentY = addPDFSummary(doc, calculateSummary(pagosGastosFijos, 'gasto'), currentY);
+        }
+
+        // Final Section: Resumen de Utilidad General
+        const pageHeight = doc.internal.pageSize.getHeight();
+        if (currentY + 45 > pageHeight) {
+            doc.addPage();
+            currentY = 15;
+        }
+
+        addSectionTitle('Resumen de Utilidad General');
+
+        const { ingresos: ingTotal, egresos: egTotal, utilidad: utTotal } = currentTotals;
+        const utilidadBody = [
+            ['Total Ingresos', `${formatNumber(ingTotal.bs)} Bs`, `${formatNumber(ingTotal.sus)} $us`],
+            ['Total Egresos', `${formatNumber(egTotal.bs)} Bs`, `${formatNumber(egTotal.sus)} $us`],
+            ['Utilidad Neta', `${formatNumber(utTotal.bs)} Bs`, `${formatNumber(utTotal.sus)} $us`]
+        ];
+
+        autoTable(doc, {
+            startY: currentY,
+            head: [['Concepto', 'Total Bs', 'Total $us']],
+            body: utilidadBody,
+            tableWidth: 150,
+            margin: { left: 14 },
+            headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+            styles: { fontSize: 8, cellPadding: 2.2 },
+            columnStyles: {
+                0: { fontStyle: 'bold' },
+                1: { halign: 'right', fontStyle: 'bold' },
+                2: { halign: 'right', fontStyle: 'bold' }
+            },
+            didParseCell: (data: any) => {
+                if (data.row.index === 0) {
+                    data.cell.styles.textColor = [22, 163, 74];
+                } else if (data.row.index === 1) {
+                    data.cell.styles.textColor = [220, 38, 38];
+                } else if (data.row.index === 2) {
+                    data.cell.styles.fillColor = [226, 232, 240];
+                    data.cell.styles.fontStyle = 'bold';
+                    data.cell.styles.textColor = utTotal.bs >= 0 ? [37, 99, 235] : [220, 38, 38];
+                }
+            }
+        });
+
+        doc.save(`Hoja_Diaria_Reporte_General_${fileNameDate}.pdf`);
     };
 
     const renderSummary = (summary: Summary) => (
@@ -2171,78 +3092,99 @@ const HojaDiaria: React.FC = () => {
     const currentTotals = calculateAllTotals(ingresos, egresos, pagosDoctores, pagosLaboratorios, pagosPedidos, pagosGastosFijos, otrosIngresos);
 
     return (
-        <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-800 flex flex-col text-gray-800 dark:text-white">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 no-print gap-4">
-                <div className="flex flex-col">
-                    <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-3">
-                        <FileText className="text-blue-600" size={32} />
-                        Hoja Diaria
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Resumen diario de movimientos financieros</p>
+        <div className="p-3 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-800 flex flex-col text-gray-800 dark:text-white">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 no-print gap-4">
+                <div className="flex flex-col w-full lg:w-auto">
+                    <div className="flex items-center justify-between lg:justify-start gap-3">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2 sm:gap-3">
+                            <FileText className="text-blue-600 flex-shrink-0" size={28} />
+                            <span>Hoja Diaria</span>
+                        </h1>
+                        <button
+                            onClick={() => setShowManual(true)}
+                            className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[28px] h-[28px] text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            title="Ayuda / Manual"
+                        >
+                            ?
+                        </button>
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-1">Resumen diario de movimientos financieros</p>
                 </div>
-                <div className="flex items-center gap-4">
+
+                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
+                    <div className="w-full sm:w-auto text-sm sm:text-base font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-750 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between sm:justify-start gap-2 mb-1 sm:mb-0">
+                        <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
+                            {searchMode === 'single' ? 'Fecha:' : 'Rango:'}
+                        </span>
+                        <span className="text-blue-600 dark:text-blue-400 font-bold">
+                            {searchMode === 'single' ? formatDate(selectedDate) : `${formatDate(rangeStart)} al ${formatDate(rangeEnd)}`}
+                        </span>
+                    </div>
+
                     <button
-                        onClick={() => setShowManual(true)}
-                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors self-center mr-2"
-                        title="Ayuda / Manual"
+                        onClick={handleExportTabPDF}
+                        className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-3 sm:px-3.5 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-1.5 text-xs sm:text-sm"
+                        title="Exportar Pestaña Actual a PDF"
                     >
-                        ?
+                        <FileText size={16} />
+                        <span>PDF</span>
+                    </button>
+                    <button
+                        onClick={handleExportGeneralPDF}
+                        className="bg-rose-700 hover:bg-rose-800 text-white font-semibold py-2 px-3 sm:px-3.5 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-1.5 text-xs sm:text-sm"
+                        title="Exportar Reporte General a PDF"
+                    >
+                        <FileText size={16} />
+                        <span>PDF General</span>
                     </button>
                     <button
                         onClick={handlePrint}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-3 sm:px-3.5 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-1.5 text-xs sm:text-sm"
                         title="Imprimir Pestaña Actual"
                     >
-                        <Printer size={18} />
-                        <span className="text-sm">Imprimir</span>
+                        <Printer size={16} />
+                        <span>Imprimir</span>
                     </button>
                     <button
                         onClick={handlePrintGeneral}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
-                        title="Reporte General (Todas las pestañas)"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 sm:px-3.5 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-1.5 text-xs sm:text-sm"
+                        title="Imprimir Reporte General"
                     >
-                        <FileText size={18} />
-                        <span className="text-sm">Reporte General</span>
+                        <FileText size={16} />
+                        <span>Rep. General</span>
                     </button>
                     {canCrucePagos && searchMode === 'single' && (
                         <button
                             onClick={handleCrucePagos}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 sm:px-3.5 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-1.5 text-xs sm:text-sm"
                             title="Cruce Pagos Tablet"
                         >
-                            <Tablet size={18} />
-                            <span className="text-sm hidden sm:inline">Cruce Pagos</span>
+                            <Tablet size={16} />
+                            <span>Cruce Pagos</span>
                         </button>
                     )}
                     {canCerrarCaja && searchMode === 'single' && (
                         <button
                             onClick={handleCerrarCaja}
                             disabled={!!(clinicaActual?.fecha_cierre_caja && selectedDate <= clinicaActual.fecha_cierre_caja)}
-                            className={`font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2 ${clinicaActual?.fecha_cierre_caja && selectedDate <= clinicaActual.fecha_cierre_caja ? 'bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed opacity-75' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                            className={`font-semibold py-2 px-3 sm:px-3.5 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-1.5 text-xs sm:text-sm ${clinicaActual?.fecha_cierre_caja && selectedDate <= clinicaActual.fecha_cierre_caja ? 'bg-gray-400 dark:bg-gray-600 text-gray-200 cursor-not-allowed opacity-75' : 'bg-red-600 hover:bg-red-700 text-white'}`}
                             title={clinicaActual?.fecha_cierre_caja && selectedDate <= clinicaActual.fecha_cierre_caja ? "Caja Cerrada" : "Cerrar Caja"}
                         >
-                            <Lock size={18} />
-                            {clinicaActual?.fecha_cierre_caja && selectedDate <= clinicaActual.fecha_cierre_caja ? 'Caja Cerrada' : 'Cerrar Caja'}
+                            <Lock size={16} />
+                            <span>{clinicaActual?.fecha_cierre_caja && selectedDate <= clinicaActual.fecha_cierre_caja ? 'Cerrada' : 'Cerrar Caja'}</span>
                         </button>
                     )}
-                    <div className="text-xl font-semibold text-gray-600 dark:text-gray-300">
-                        {searchMode === 'single' ? (
-                            <>Fecha: <span className="text-blue-600 dark:text-blue-400">{formatDate(selectedDate)}</span></>
-                        ) : (
-                            <>Rango: <span className="text-blue-600 dark:text-blue-400">{formatDate(rangeStart)}</span> al <span className="text-blue-600 dark:text-blue-400">{formatDate(rangeEnd)}</span></>
-                        )}
-                    </div>
                 </div>
             </div>
 
             <div className="mb-6">
                 {/* Tabs Navigation */}
-                <div className="no-print flex flex-wrap border-b border-gray-200 dark:border-gray-600 mb-5 bg-white dark:bg-gray-800 rounded-t-lg pt-2 px-2">
+                <div className="no-print flex overflow-x-auto border-b border-gray-200 dark:border-gray-600 mb-5 bg-white dark:bg-gray-800 rounded-t-lg pt-2 px-2 gap-1 scrollbar-thin">
                     {tabs.map((tab, idx) => (
                         <div
                             key={idx}
                             onClick={() => setActiveTab(idx)}
-                            className={`px-5 py-2.5 cursor-pointer border-b-4 flex items-center gap-2 transition-all duration-200 text-base ${activeTab === idx
+                            className={`px-3 sm:px-5 py-2.5 cursor-pointer border-b-4 flex items-center gap-2 transition-all duration-200 text-sm sm:text-base whitespace-nowrap flex-shrink-0 ${activeTab === idx
                                 ? 'border-blue-500 text-blue-500 font-bold dark:border-blue-400 dark:text-blue-400'
                                 : 'border-transparent text-gray-600 dark:text-gray-400 font-normal hover:text-blue-500 dark:hover:text-blue-300'
                                 }`}

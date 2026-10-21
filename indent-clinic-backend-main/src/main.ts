@@ -20,6 +20,10 @@ async function bootstrap() {
   console.log(`[Main] Serving static assets from: ${uploadDir}`);
   app.useStaticAssets(uploadDir, {
     prefix: '/uploads/',
+    setHeaders: (res: any) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    },
   });
 
   app.enableCors({

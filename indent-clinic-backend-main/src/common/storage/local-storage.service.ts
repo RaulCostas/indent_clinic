@@ -9,17 +9,47 @@ export class LocalStorageService {
   private readonly uploadDir: string;
 
   constructor() {
+    const bundledUploadsDir = path.join(process.cwd(), 'uploads');
     // Priority: /data (Hostinger/Render Persistent Disk) -> uploads (local)
     if (fs.existsSync('/data') && process.platform !== 'win32') {
       this.uploadDir = '/data';
       this.logger.log(`[LocalStorageService] Using persistent disk at ${this.uploadDir}`);
+      this.syncBundledUploads(bundledUploadsDir, this.uploadDir);
     } else {
-      this.uploadDir = path.join(process.cwd(), 'uploads');
+      this.uploadDir = bundledUploadsDir;
       this.logger.log(`[LocalStorageService] Using local directory at ${this.uploadDir}`);
     }
 
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
+    }
+  }
+
+  private syncBundledUploads(srcDir: string, destDir: string): void {
+    try {
+      if (!fs.existsSync(srcDir)) return;
+      const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+      for (const entry of entries) {
+        const srcPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+        if (entry.isDirectory()) {
+          if (!fs.existsSync(destPath)) {
+            fs.mkdirSync(destPath, { recursive: true });
+          }
+          this.syncBundledUploads(srcPath, destPath);
+        } else if (entry.isFile()) {
+          const srcStat = fs.statSync(srcPath);
+          if (srcStat.size > 0) {
+            const destExists = fs.existsSync(destPath);
+            const destSize = destExists ? fs.statSync(destPath).size : -1;
+            if (!destExists || destSize === 0) {
+              fs.copyFileSync(srcPath, destPath);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error syncing bundled uploads: ${error.message}`);
     }
   }
 
@@ -123,10 +153,19 @@ export class LocalStorageService {
           : fileUrl;
       if (!relativePath) throw new Error('Invalid relative path');
 
-      const targetPath = path.join(this.uploadDir, bucket, relativePath);
+      let targetPath = path.join(this.uploadDir, bucket, relativePath);
+      if (!fs.existsSync(targetPath) || fs.statSync(targetPath).size === 0) {
+        const bundledPath = path.join(process.cwd(), 'uploads', bucket, relativePath);
+        if (fs.existsSync(bundledPath) && fs.statSync(bundledPath).size > 0) {
+          targetPath = bundledPath;
+        }
+      }
       if (!fs.existsSync(targetPath)) throw new Error(`File not found: ${targetPath}`);
 
       const buffer = fs.readFileSync(targetPath);
+      if (buffer.length === 0) {
+        throw new Error(`File is empty (0 bytes): ${targetPath}`);
+      }
       const extension = path.extname(targetPath).substring(1) || 'png';
       const contentType = `image/${extension}`;
       

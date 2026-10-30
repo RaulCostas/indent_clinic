@@ -540,15 +540,18 @@ const PacienteList: React.FC = () => {
             const fullPaciente = res.data;
             const ficha = fullPaciente.fichaMedica;
 
+            const isEmptyBase64 = (val?: string) => !val || /^data:image\/[^;]+;base64,\s*$/i.test(val.trim());
+
             let finalSignatureData = '';
             
             // Try direct firmaFC from patient record
-            if (fullPaciente.firmaFC) {
+            if (fullPaciente.firmaFC && !isEmptyBase64(fullPaciente.firmaFC)) {
                 finalSignatureData = fullPaciente.firmaFC;
                 if (!finalSignatureData.startsWith('data:image')) {
                     try {
                         const proxyRes = await api.get<{ base64: string }>(`/pacientes/${fullPaciente.id}/firma-base64`);
-                        finalSignatureData = proxyRes.data.base64;
+                        const b64 = proxyRes.data.base64;
+                        finalSignatureData = !isEmptyBase64(b64) ? b64 : '';
                     } catch (e) {
                         console.error('Error loading signature via proxy:', e);
                         finalSignatureData = getImageUrl(fullPaciente.firmaFC);
@@ -557,17 +560,19 @@ const PacienteList: React.FC = () => {
             } 
 
             // Fallback to legacy signatures table if not found
-            if (!finalSignatureData) {
+            if (!finalSignatureData || isEmptyBase64(finalSignatureData)) {
+                finalSignatureData = '';
                 try {
                     const response = await api.get(`/firmas/documento/paciente/${fullPaciente.id}`);
                     const signatures = Array.isArray(response.data) ? response.data : [];
-                    const pSig = signatures.find(s => s.rolFirmante === 'paciente');
+                    const pSig = signatures.find(s => s.rolFirmante === 'paciente' && s.firmaData && !isEmptyBase64(s.firmaData));
                     if (pSig && pSig.firmaData) {
                         finalSignatureData = pSig.firmaData;
                         if (!finalSignatureData.startsWith('data:image') && pSig.id) {
                             try {
                                 const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
-                                finalSignatureData = proxyRes.data.base64;
+                                const b64 = proxyRes.data.base64;
+                                finalSignatureData = !isEmptyBase64(b64) ? b64 : '';
                             } catch (e) {
                                 console.error('Error loading legacy signature via proxy:', e);
                                 finalSignatureData = getImageUrl(pSig.firmaData);
@@ -707,7 +712,7 @@ const PacienteList: React.FC = () => {
                         ` : '<p>No hay ficha médica registrada.</p>'}
                         <div style="margin-top: auto; text-align: center; padding-bottom: 20px;">
                             ${finalSignatureData ? `
-                                <img src="${finalSignatureData}" style="max-width: 250px; max-height: 100px; margin-bottom: 5px;" />
+                                <img src="${finalSignatureData}" style="max-width: 250px; max-height: 100px; margin-bottom: 5px;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='none';" />
                                 <div style="font-size: 8px; color: #999;">FIRMADO DIGITALMENTE</div>
                             ` : '<div style="height: 100px;"></div>'}
                             <div style="border-top: 1px solid #333; width: 300px; margin: 10px auto;"></div>

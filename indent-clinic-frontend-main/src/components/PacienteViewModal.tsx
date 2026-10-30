@@ -199,7 +199,7 @@ const PacienteViewModal: React.FC<PacienteViewModalProps> = ({ isOpen, onClose, 
                                 </section>
 
                                 {/* Firma */}
-                                {(paciente as any).tieneFirmaFC && (
+                                {(paciente.firmaFC || (paciente as any).tieneFirmaFC) && (
                                     <section>
                                         <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3">
                                             <FileText size={14} /> Firma Digital

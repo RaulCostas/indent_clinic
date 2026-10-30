@@ -240,29 +240,11 @@ const HistoriaClinica: React.FC = () => {
 
         // Table
         if (filteredHistoria.length > 0) {
-            // Pre-process signatures to Base64 (including legacy fallback)
+            // Pre-process signatures to Base64
             const processedHistoria = await Promise.all(filteredHistoria.map(async (item) => {
                 let sign = item.firmaPaciente;
 
-                // 1. If no direct signature, try to find it in legacy table
-                if (!sign) {
-                    try {
-                        const legacyRes = await api.get(`/firmas/documento/historia_clinica/${item.id}`);
-                        const signatures = Array.isArray(legacyRes.data) ? legacyRes.data : [];
-                        const pSig = signatures.find(s => s.rolFirmante === 'paciente');
-                        if (pSig && pSig.firmaData) {
-                            sign = pSig.firmaData;
-                            // If legacy is a URL, use proxy
-                            if (sign && !sign.startsWith('data:image') && pSig.id) {
-                                const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
-                                sign = proxyRes.data.base64;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn(`Could not fetch legacy signature for HC #${item.id}`);
-                    }
-                } else if (sign && !sign.startsWith('data:image')) {
-                    // 2. If it is a direct URL signature, use proxy
+                if (sign && !sign.startsWith('data:image')) {
                     try {
                         const res = await api.get<{ base64: string }>(`/historia-clinica/${item.id}/firma-base64`);
                         sign = res.data.base64;

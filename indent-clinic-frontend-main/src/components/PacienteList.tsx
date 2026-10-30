@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import Pagination from './Pagination';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { formatDate } from '../utils/dateUtils';
+import { getImageUrl } from '../utils/formatters';
 import Swal from 'sweetalert2';
 import { FileText, Download, Printer, Users, CheckCircle } from 'lucide-react';
 import SignatureModal from './SignatureModal';
@@ -550,7 +551,7 @@ const PacienteList: React.FC = () => {
                         finalSignatureData = proxyRes.data.base64;
                     } catch (e) {
                         console.error('Error loading signature via proxy:', e);
-                        finalSignatureData = '';
+                        finalSignatureData = getImageUrl(fullPaciente.firmaFC);
                     }
                 }
             } 
@@ -558,43 +559,18 @@ const PacienteList: React.FC = () => {
             // Fallback to legacy signatures table if not found
             if (!finalSignatureData) {
                 try {
-                    // 1. Try as 'paciente' directly linked to patient ID
-                    let response = await api.get(`/firmas/documento/paciente/${fullPaciente.id}`);
-                    let signatures = Array.isArray(response.data) ? response.data : [];
-                    
-                    // 2. If not found, try searching in their clinical history treatments
-                    if (signatures.length === 0 && fullPaciente.historiaClinica) {
-                        for (const hc of fullPaciente.historiaClinica) {
-                            if (hc.firmaPaciente) {
-                                finalSignatureData = hc.firmaPaciente;
-                                break;
-                            }
-                            // Also check legacy table for each HC entry
-                            const hcSigRes = await api.get(`/firmas/documento/historia_clinica/${hc.id}`);
-                            const hcSigs = Array.isArray(hcSigRes.data) ? hcSigRes.data : [];
-                            const pSig = hcSigs.find(s => s.rolFirmante === 'paciente');
-                            if (pSig && pSig.firmaData) {
-                                finalSignatureData = pSig.firmaData;
-                                if (!finalSignatureData.startsWith('data:image') && pSig.id) {
-                                    try {
-                                        const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
-                                        finalSignatureData = proxyRes.data.base64;
-                                    } catch (e) { console.error(e); }
-                                }
-                                break;
-                            }
-                        }
-                    } else {
-                        const pSig = signatures.find(s => s.rolFirmante === 'paciente');
-                        if (pSig && pSig.firmaData) {
-                            finalSignatureData = pSig.firmaData;
-                            if (!finalSignatureData.startsWith('data:image') && pSig.id) {
-                                try {
-                                    const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
-                                    finalSignatureData = proxyRes.data.base64;
-                                } catch (e) {
-                                    console.error('Error loading legacy signature via proxy:', e);
-                                }
+                    const response = await api.get(`/firmas/documento/paciente/${fullPaciente.id}`);
+                    const signatures = Array.isArray(response.data) ? response.data : [];
+                    const pSig = signatures.find(s => s.rolFirmante === 'paciente');
+                    if (pSig && pSig.firmaData) {
+                        finalSignatureData = pSig.firmaData;
+                        if (!finalSignatureData.startsWith('data:image') && pSig.id) {
+                            try {
+                                const proxyRes = await api.get<{ base64: string }>(`/firmas/${pSig.id}/base64`);
+                                finalSignatureData = proxyRes.data.base64;
+                            } catch (e) {
+                                console.error('Error loading legacy signature via proxy:', e);
+                                finalSignatureData = getImageUrl(pSig.firmaData);
                             }
                         }
                     }
@@ -603,19 +579,15 @@ const PacienteList: React.FC = () => {
                 }
             }
 
-            // Final safety check: if it's still a URL and not base64, try one last proxy call
-            if (finalSignatureData && !finalSignatureData.startsWith('data:image') && !finalSignatureData.startsWith('http')) {
-                 // If it's a relative path or something weird, it might fail. 
-                 // But if it's a full URL, we should have proxied it by now.
-            } else if (finalSignatureData && !finalSignatureData.startsWith('data:image')) {
-                try {
-                    const proxyRes = await api.get<{ base64: string }>(`/pacientes/${fullPaciente.id}/firma-base64`);
-                    finalSignatureData = proxyRes.data.base64;
-                } catch (e) {
-                    console.error('Final proxy attempt failed:', e);
-                    finalSignatureData = ''; // Clear to avoid broken icon
-                }
+            // Close SweetAlert and completely clean up its backdrop BEFORE opening the print dialog
+            if (Swal.isVisible()) {
+                Swal.close();
             }
+            document.querySelectorAll('.swal2-container').forEach(el => el.remove());
+            document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+            document.documentElement.classList.remove('swal2-shown', 'swal2-height-auto');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
 
             const checkIcon = (val: boolean | undefined) => val ? '☒' : '☐';
 
@@ -760,19 +732,26 @@ const PacienteList: React.FC = () => {
                 if (printTriggered) return;
                 printTriggered = true;
 
+                // Ensure no SweetAlert overlay remains blocking clicks
                 if (Swal.isVisible()) Swal.close();
-                
-                try {
-                    iframe.contentWindow?.focus();
-                    iframe.contentWindow?.print();
-                } catch (e) {
-                    console.error('Print trigger error:', e);
-                }
+                document.querySelectorAll('.swal2-container').forEach(el => el.remove());
+                document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+                document.documentElement.classList.remove('swal2-shown', 'swal2-height-auto');
+                document.body.style.removeProperty('overflow');
 
-                // Give it time to open the dialog before removing
-                setTimeout(() => { 
-                    if (document.body.contains(iframe)) document.body.removeChild(iframe); 
-                }, 2000);
+                setTimeout(() => {
+                    try {
+                        iframe.contentWindow?.focus();
+                        iframe.contentWindow?.print();
+                    } catch (e) {
+                        console.error('Print trigger error:', e);
+                    } finally {
+                        window.focus();
+                        setTimeout(() => {
+                            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+                        }, 1000);
+                    }
+                }, 100);
             };
 
             if (images.length > 0) {

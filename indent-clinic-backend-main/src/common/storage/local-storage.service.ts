@@ -73,7 +73,12 @@ export class LocalStorageService {
     try {
       if (!fileUrl) return;
       const urlPart = `uploads/${bucket}/`;
-      const relativePath = fileUrl.includes(urlPart) ? fileUrl.split(urlPart).pop() : fileUrl;
+      const bucketPart = `${bucket}/`;
+      const relativePath = fileUrl.includes(urlPart)
+        ? fileUrl.split(urlPart).pop()
+        : fileUrl.includes(bucketPart)
+          ? fileUrl.split(bucketPart).pop()
+          : fileUrl;
       if (!relativePath) return;
 
       const targetPath = path.join(this.uploadDir, bucket, relativePath);
@@ -110,7 +115,12 @@ export class LocalStorageService {
       if (fileUrl.startsWith('data:image')) return fileUrl;
 
       const urlPart = `uploads/${bucket}/`;
-      const relativePath = fileUrl.includes(urlPart) ? fileUrl.split(urlPart).pop() : fileUrl;
+      const bucketPart = `${bucket}/`;
+      const relativePath = fileUrl.includes(urlPart)
+        ? fileUrl.split(urlPart).pop()
+        : fileUrl.includes(bucketPart)
+          ? fileUrl.split(bucketPart).pop()
+          : fileUrl;
       if (!relativePath) throw new Error('Invalid relative path');
 
       const targetPath = path.join(this.uploadDir, bucket, relativePath);

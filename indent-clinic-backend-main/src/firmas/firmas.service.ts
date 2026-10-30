@@ -40,6 +40,11 @@ export class FirmasService {
      * Create a new digital signature
      */
     async create(createFirmaDto: CreateFirmaDto, usuarioId: number): Promise<FirmaDigital> {
+        // Normalize legacy 'historia_clinica' from PacienteForm to 'paciente' (Ficha Médica)
+        if (createFirmaDto.tipoDocumento === 'historia_clinica') {
+            createFirmaDto.tipoDocumento = 'paciente';
+        }
+
         if (createFirmaDto.firmaData && createFirmaDto.firmaData.startsWith('data:image')) {
             try {
                 createFirmaDto.firmaData = await this.storageService.uploadBase64('clinica-media', `signature-digital-${usuarioId}-${Date.now()}`, createFirmaDto.firmaData);
@@ -73,8 +78,6 @@ export class FirmasService {
                 await this.proformaRepository.update(documentoId, { firma: firmaData });
             } else if (tipoDocumento === 'receta') {
                 await this.recetaRepository.update(documentoId, { firma: firmaData });
-            } else if (tipoDocumento === 'historia_clinica') {
-                await this.hcRepository.update(documentoId, { firmaPaciente: firmaData });
             }
         } catch (error) {
             console.error('[FirmasService] Failed to sync signature to entity:', error.message);
@@ -272,8 +275,8 @@ export class FirmasService {
             `);
             console.log(`[Migration] Recetas migrated.`);
 
-            // 2. Migrate Historia Clinica signatures to Pacientes (Fallback for deleted HC table)
-            console.log('[Migration] Migrating HC signatures to Pacientes (Fallback)...');
+            // 4. Migrate legacy 'historia_clinica' signatures (from PacienteForm) to Pacientes.firmaFC
+            console.log('[Migration] Migrating legacy HC signatures to Pacientes...');
             await this.firmaRepository.query(`
                 UPDATE pacientes
                 SET "firmaFC" = fd."firmaData"
@@ -281,27 +284,12 @@ export class FirmasService {
                 WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = pacientes.id
                 AND (pacientes."firmaFC" IS NULL OR pacientes."firmaFC" = '');
             `);
-
-            // 3. Migrate Historia Clinica signatures to current HC table (Normal join)
-            console.log('[Migration] Migrating to Historia Clinica table...');
             await this.firmaRepository.query(`
-                UPDATE historia_clinica
-                SET "firmaPaciente" = fd."firmaData"
-                FROM firmas_digitales fd
-                WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = historia_clinica.id
-                AND (historia_clinica."firmaPaciente" IS NULL OR historia_clinica."firmaPaciente" = '');
+                UPDATE firmas_digitales
+                SET "tipoDocumento" = 'paciente'
+                WHERE "tipoDocumento" = 'historia_clinica';
             `);
-            
-            // 4. Try to link HC signatures to HC table via Paciente ID if ID doesn't match directly
-            // (Only for records where firmaPaciente is still null)
-            await this.firmaRepository.query(`
-                UPDATE historia_clinica
-                SET "firmaPaciente" = fd."firmaData"
-                FROM firmas_digitales fd
-                WHERE fd."tipoDocumento" = 'historia_clinica' AND fd."documentoId" = historia_clinica."pacienteId"
-                AND (historia_clinica."firmaPaciente" IS NULL OR historia_clinica."firmaPaciente" = '');
-            `);
-            console.log(`[Migration] Historia Clinica migrated.`);
+            console.log(`[Migration] Legacy HC signatures migrated to Pacientes.`);
 
             return {
                 success: true,

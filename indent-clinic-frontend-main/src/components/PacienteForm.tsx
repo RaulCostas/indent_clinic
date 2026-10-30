@@ -1258,7 +1258,7 @@ const PacienteForm: React.FC = () => {
                 <SignatureModal
                     isOpen={showSignatureModal}
                     onClose={() => setShowSignatureModal(false)}
-                    tipoDocumento="historia_clinica"
+                    tipoDocumento="paciente"
                     documentoId={parseInt(id || '0')}
                     rolFirmante="paciente"
                     hideHistory={true}

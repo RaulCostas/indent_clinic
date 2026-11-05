@@ -110,9 +110,18 @@ export class PagosService {
 
     async findAll(fecha?: string, startDate?: string, endDate?: string, clinicaId?: number): Promise<Pago[]> {
         const qb = this.pagoRepository.createQueryBuilder('pago')
-            .leftJoinAndSelect('pago.paciente', 'paciente')
-            .leftJoinAndSelect('pago.proforma', 'proforma')
-            .leftJoinAndSelect('proforma.historiaClinica', 'historiaClinica')
+            .leftJoin('pago.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.ci', 'paciente.celular', 'paciente.clinicaId'])
+            .leftJoin('pago.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total', 'proforma.fecha', 'proforma.clinicaId', 'proforma.pacienteId'])
+            .leftJoin('proforma.historiaClinica', 'historiaClinica')
+            .addSelect([
+                'historiaClinica.id', 'historiaClinica.pacienteId', 'historiaClinica.proformaId',
+                'historiaClinica.proformaDetalleId', 'historiaClinica.tratamiento', 'historiaClinica.pieza',
+                'historiaClinica.cantidad', 'historiaClinica.precio', 'historiaClinica.descuento',
+                'historiaClinica.precioConDescuento', 'historiaClinica.montoPagado', 'historiaClinica.saldo',
+                'historiaClinica.fecha', 'historiaClinica.estadoTratamiento', 'historiaClinica.cancelado'
+            ])
             .leftJoinAndSelect('proforma.pagos', 'proformaPagos')
             .leftJoinAndSelect('pago.comisionTarjeta', 'comisionTarjeta')
             .leftJoinAndSelect('pago.formaPagoRel', 'formaPagoRel');

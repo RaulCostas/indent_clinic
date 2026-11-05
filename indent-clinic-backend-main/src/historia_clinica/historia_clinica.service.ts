@@ -79,17 +79,21 @@ export class HistoriaClinicaService {
     }
 
     async findAll(): Promise<HistoriaClinica[]> {
-        // Optimized for general list views
-        return await this.historiaClinicaRepository.createQueryBuilder('hc')
+        // Optimized for general list views (exclude heavy Base64 firmaPaciente / proforma.firma)
+        const rows = await this.historiaClinicaRepository.createQueryBuilder('hc')
             .leftJoin('hc.paciente', 'paciente')
             .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno'])
             .leftJoinAndSelect('hc.doctor', 'doctor')
             .leftJoinAndSelect('hc.especialidad', 'especialidad')
-            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .leftJoin('hc.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total', 'proforma.fecha', 'proforma.clinicaId'])
             .leftJoinAndSelect('hc.proformaDetalle', 'proformaDetalle')
             .leftJoinAndSelect('proformaDetalle.arancel', 'arancel')
             .orderBy('hc.fecha', 'DESC')
+            .take(1000)
             .getMany();
+        rows.forEach(r => { delete (r as any).firmaPaciente; });
+        return rows;
     }
 
     async findAllByPaciente(pacienteId: number): Promise<any[]> {
@@ -125,10 +129,12 @@ export class HistoriaClinicaService {
         console.log(`[PAGOS_DOCTORES][${timestamp}] Buscando pendientes para Doctor #${doctorId} (Clinica: ${clinicaId})`);
         
         const qb = this.historiaClinicaRepository.createQueryBuilder('hc')
-            .leftJoinAndSelect('hc.paciente', 'paciente')
+            .leftJoin('hc.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.ci', 'paciente.celular'])
             .leftJoinAndSelect('hc.doctor', 'doctor')
             .leftJoinAndSelect('hc.especialidad', 'especialidad')
-            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .leftJoin('hc.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total', 'proforma.fecha', 'proforma.clinicaId'])
             .leftJoinAndSelect('hc.proformaDetalle', 'proformaDetalle')
             .leftJoinAndSelect('proformaDetalle.arancel', 'arancel');
             // NO usamos relaciones para pagos ni pagosDetalleDoctores para evitar circularidad
@@ -260,31 +266,54 @@ export class HistoriaClinicaService {
 
     async findCancelados(): Promise<any[]> {
         const results = await this.historiaClinicaRepository.createQueryBuilder('hc')
-            .leftJoinAndSelect('hc.paciente', 'paciente')
+            .leftJoin('hc.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.ci', 'paciente.celular'])
             .leftJoinAndSelect('hc.doctor', 'doctor')
-            .leftJoinAndSelect('hc.proforma', 'proforma')
+            .leftJoin('hc.proforma', 'proforma')
+            .addSelect(['proforma.id', 'proforma.numero', 'proforma.total', 'proforma.fecha', 'proforma.clinicaId'])
             .leftJoinAndSelect('hc.proformaDetalle', 'detalle')
             .where('hc.pagado = :pagado', { pagado: 'SI' })
             .orderBy('hc.fecha', 'DESC')
             .getMany();
 
-        return await Promise.all(results.map(async (hc) => {
-            // Fetch doctor payment details manually
-            const detailDoc = await this.pagosDetalleDoctoresRepository.findOne({
-                where: { idhistoria_clinica: hc.id },
-                relations: ['pago']
-            });
+        if (results.length === 0) return [];
 
-            // Fetch patient payments manually via proforma
-            let proformaPagos: Pago[] = [];
-            if (hc.proformaId) {
-                proformaPagos = await this.pagoRepository.find({
-                    where: { proformaId: hc.proformaId },
+        const hcIds = results.map(r => r.id);
+        const proformaIds = Array.from(new Set(results.map(r => r.proformaId).filter(Boolean)));
+
+        const [allDetailsDoc, allProformaPagos] = await Promise.all([
+            this.pagosDetalleDoctoresRepository.find({
+                where: { idhistoria_clinica: In(hcIds) },
+                relations: ['pago']
+            }),
+            proformaIds.length > 0
+                ? this.pagoRepository.find({
+                    where: { proformaId: In(proformaIds) },
                     relations: ['formaPagoRel'],
                     order: { fecha: 'DESC' }
-                });
-            }
+                })
+                : Promise.resolve([] as Pago[])
+        ]);
 
+        const detailDocByHcId = new Map<number, any>();
+        for (const d of allDetailsDoc) {
+            if (!detailDocByHcId.has(d.idhistoria_clinica)) {
+                detailDocByHcId.set(d.idhistoria_clinica, d);
+            }
+        }
+
+        const pagosByProformaId = new Map<number, Pago[]>();
+        for (const p of allProformaPagos) {
+            if (!p.proformaId) continue;
+            const arr = pagosByProformaId.get(p.proformaId) || [];
+            arr.push(p);
+            pagosByProformaId.set(p.proformaId, arr);
+        }
+
+        return results.map((hc) => {
+            delete (hc as any).firmaPaciente;
+            const detailDoc = detailDocByHcId.get(hc.id);
+            const proformaPagos = hc.proformaId ? (pagosByProformaId.get(hc.proformaId) || []) : [];
             const latestPayment = proformaPagos[0] || null;
             const pagoConFactura = proformaPagos.find(p => p.factura && p.factura.trim() !== '');
 
@@ -300,7 +329,7 @@ export class HistoriaClinicaService {
                 fechaPagoDoctor: detailDoc?.pago?.fecha,
                 factura: pagoConFactura ? pagoConFactura.factura : (latestPayment?.factura || null)
             };
-        }));
+        });
     }
 
     async findOne(id: number): Promise<HistoriaClinica> {

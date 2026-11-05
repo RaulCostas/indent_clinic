@@ -228,7 +228,7 @@ export class PacientesService {
         const [data, total] = await queryBuilder.getManyAndCount();
 
         // Check signatures for these patients
-        if (data.length > 0) {
+        if (!minimal && data.length > 0) {
             const patientIds = data.map(p => p.id);
             // Check BOTH the new column AND the old table for backward compatibility during migration
             const signatures = await this.pacientesRepository.query(

@@ -143,7 +143,7 @@ const PresupuestoList: React.FC = () => {
     const checkBudgetsWithRelations = async (proformaIds: number[]) => {
         try {
             const [pagosResponse, historiaResponse] = await Promise.all([
-                api.get('/pagos'),
+                api.get(`/pagos/paciente/${id}`),
                 api.get(`/historia-clinica/paciente/${id}`)
             ]);
 

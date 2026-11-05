@@ -295,7 +295,8 @@ export class AgendaService {
             .leftJoin('agenda.clinica', 'clinica')
             .addSelect(['clinica.id', 'clinica.nombre', 'clinica.slug'])
             
-            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
+            .leftJoin('agenda.sucursal', 'sucursal')
+            .addSelect(['sucursal.id', 'sucursal.nombre', 'sucursal.direccion', 'sucursal.horario', 'sucursal.telefono', 'sucursal.es_principal', 'sucursal.clinicaId'])
             
             .leftJoin('agenda.usuario', 'usuario')
             .addSelect(['usuario.id', 'usuario.name'])
@@ -335,6 +336,10 @@ export class AgendaService {
             query.andWhere('agenda.doctorId = :doctorId', { doctorId });
         }
 
+        if (!date && !fechaInicio && !fechaFinal && !pacienteId) {
+            query.take(1000);
+        }
+
         query.orderBy('agenda.hora', 'ASC');
 
         return await query.getMany();
@@ -351,7 +356,8 @@ export class AgendaService {
             .leftJoin('agenda.usuario', 'usuario')
             .addSelect(['usuario.id', 'usuario.name'])
             .leftJoinAndSelect('agenda.doctorDeriva', 'doctorDeriva')
-            .leftJoinAndSelect('agenda.sucursal', 'sucursal')
+            .leftJoin('agenda.sucursal', 'sucursal')
+            .addSelect(['sucursal.id', 'sucursal.nombre', 'sucursal.direccion', 'sucursal.horario', 'sucursal.telefono', 'sucursal.es_principal', 'sucursal.clinicaId'])
             .where('agenda.pacienteId = :pacienteId', { pacienteId })
             .orderBy('agenda.fecha', 'DESC')
             .addOrderBy('agenda.hora', 'ASC')

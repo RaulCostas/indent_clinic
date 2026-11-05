@@ -126,7 +126,12 @@ export class ProformasService {
       options.where = { clinicaId };
     }
 
-    return this.proformaRepository.find(options);
+    const list = await this.proformaRepository.find(options);
+    list.forEach(p => {
+      delete (p as any).firma;
+      if (p.paciente) delete (p.paciente as any).firmaFC;
+    });
+    return list;
   }
 
   async findAllByPaciente(pacienteId: number, clinicaId?: number) {

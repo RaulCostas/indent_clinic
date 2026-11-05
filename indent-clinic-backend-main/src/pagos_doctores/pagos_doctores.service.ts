@@ -68,8 +68,16 @@ export class PagosDoctoresService {
             .leftJoinAndSelect('pago.doctor', 'doctor')
             .leftJoinAndSelect('pago.formaPago', 'formaPago')
             .leftJoinAndSelect('pago.detalles', 'detalles')
-            .leftJoinAndSelect('detalles.historiaClinica', 'historiaClinica')
-            .leftJoinAndSelect('historiaClinica.paciente', 'paciente');
+            .leftJoin('detalles.historiaClinica', 'historiaClinica')
+            .addSelect([
+                'historiaClinica.id', 'historiaClinica.pacienteId', 'historiaClinica.proformaId',
+                'historiaClinica.proformaDetalleId', 'historiaClinica.tratamiento', 'historiaClinica.pieza',
+                'historiaClinica.cantidad', 'historiaClinica.precio', 'historiaClinica.descuento',
+                'historiaClinica.precioConDescuento', 'historiaClinica.montoPagado', 'historiaClinica.saldo',
+                'historiaClinica.fecha', 'historiaClinica.estadoTratamiento', 'historiaClinica.pagado', 'historiaClinica.cancelado'
+            ])
+            .leftJoin('historiaClinica.paciente', 'paciente')
+            .addSelect(['paciente.id', 'paciente.nombre', 'paciente.paterno', 'paciente.materno', 'paciente.ci', 'paciente.celular']);
 
         // Default ordering
         queryBuilder.orderBy('pago.fecha', 'DESC')

@@ -25,6 +25,10 @@ export class PagosLaboratoriosService implements OnModuleInit {
                 ADD COLUMN IF NOT EXISTS "descuento" DECIMAL(10,2) NOT NULL DEFAULT 0;
             `);
             await this.dataSource.query(`
+                ALTER TABLE pagos_laboratorios 
+                ADD COLUMN IF NOT EXISTS "observaciones" TEXT;
+            `);
+            await this.dataSource.query(`
                 UPDATE trabajos_laboratorios tl
                 SET "monto_pagado" = COALESCE((
                     SELECT SUM(pl.monto + COALESCE(pl.descuento, 0)) 

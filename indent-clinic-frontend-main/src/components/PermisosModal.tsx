@@ -58,6 +58,7 @@ const PermisosModal: React.FC<PermisosModalProps> = ({ user, isOpen, onClose, on
             items: [
                 { id: 'agenda', label: 'Agenda' },
                 { id: 'agenda-restringida', label: 'Agenda (Solo Lectura/Notas)' },
+                { id: 'agenda-eliminar', label: 'Agenda (botón Eliminar)' },
                 { id: 'pacientes', label: 'Pacientes (Módulo)' },
                 { id: 'pacientes-registro', label: ' - Registro de Pacientes' },
                 { id: 'pagos', label: ' - Pagos' },
@@ -93,6 +94,7 @@ const PermisosModal: React.FC<PermisosModalProps> = ({ user, isOpen, onClose, on
                 { id: 'inventario', label: 'Inventario' },
                 { id: 'otros-ingresos', label: 'Otros Ingresos' },
                 { id: 'egresos', label: 'Egresos Diarios' },
+                { id: 'egresos-eliminar', label: 'Egresos (botón Eliminar)' },
                 { id: 'gastos', label: 'Gastos Fijos' },
                 { id: 'cerrar-caja', label: 'Boton Cerrar Caja (Hoja Diaria)' },
                 { id: 'cruce-pagos', label: 'Boton Cruce de Pagos (Hoja Diaria)' },

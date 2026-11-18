@@ -30,6 +30,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
     const [moneda, setMoneda] = useState('Bolivianos');
     const [tc, setTc] = useState<number | string>(6.96);
     const [idFormaPago, setIdFormaPago] = useState<number | ''>('');
+    const [observaciones, setObservaciones] = useState<string>('');
     const [clinicaId, setClinicaId] = useState<number>(0);
     // Manual monto input for partial payments
     const [montoInput, setMontoInput] = useState<string>('');
@@ -144,6 +145,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                         setDescuentoInput(String(pago.descuento || '0'));
 
                         if (pago.idforma_pago) setIdFormaPago(pago.idforma_pago);
+                        setObservaciones(pago.observaciones || '');
                         setClinicaId(pago.clinicaId || 0);
 
                         if (pago.trabajoLaboratorio) {
@@ -158,6 +160,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                 }
             } else {
                 setClinicaId(clinicaSeleccionada || 0);
+                setObservaciones('');
                 if (preSelectedWorkId) {
                     // Logic for "Ver Deudas" -> "Pagar" Pre-fill
                     const targetWork = allTrabajos.find((w: any) => w.id === preSelectedWorkId);
@@ -337,6 +340,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
             moneda,
             tc: moneda === 'Dólares' ? Number(tc) : 0,
             idforma_pago: Number(idFormaPago),
+            observaciones: observaciones.trim() || undefined,
             clinicaId: clinicaId !== 0 ? clinicaId : null
         };
 
@@ -416,7 +420,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         type="date"
                                         value={fecha}
                                         onChange={(e) => setFecha(e.target.value)}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required
                                     />
                                 </div>
@@ -434,7 +438,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <select
                                         value={selectedLabId}
                                         onChange={handleLabChange}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required
                                         disabled={isEdit}
                                     >
@@ -458,7 +462,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <select
                                         value={selectedPatientId}
                                         onChange={handlePatientChange}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required={!!selectedLabId}
                                         disabled={!selectedLabId || isEdit}
                                     >
@@ -482,7 +486,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                     <select
                                         value={idTrabajosLaboratorios}
                                         onChange={handleWorkChange}
-                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         required={!!selectedPatientId}
                                         disabled={!selectedPatientId || isEdit}
                                     >
@@ -583,7 +587,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                                         }
                                                     }}
                                                     placeholder="0.00"
-                                                    className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold"
+                                                    className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold"
                                                 />
                                             </div>
                                         </div>
@@ -618,7 +622,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                                         }
                                                     }}
                                                     placeholder={`Ej: ${totalAPagarBs.toFixed(2)}`}
-                                                    className={`w-full pl-10 px-3 py-2 border rounded text-sm focus:ring-2 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold transition-colors ${
+                                                    className={`w-full pl-10 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold transition-colors ${
                                                         montoError
                                                             ? 'border-red-400 dark:border-red-500 focus:ring-red-400'
                                                             : 'border-gray-300 dark:border-gray-600 focus:ring-green-500'
@@ -664,7 +668,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         <select
                                             value={moneda}
                                             onChange={(e) => setMoneda(e.target.value)}
-                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         >
                                             <option value="" disabled>-- Seleccione --</option>
                                             <option value="Bolivianos">Bolivianos</option>
@@ -683,7 +687,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                             value={tc}
                                             onChange={(e) => setTc(e.target.value)}
                                             placeholder="Ej: 6.96"
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                         />
                                     </div>
                                 )}
@@ -712,7 +716,7 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                         <select
                                             value={idFormaPago}
                                             onChange={(e) => setIdFormaPago(Number(e.target.value))}
-                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                            className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                             required
                                         >
                                             <option value="">Seleccione Forma de Pago...</option>
@@ -736,6 +740,25 @@ const PagosLaboratoriosForm: React.FC<PagosLaboratoriosFormProps> = ({ isOpen, o
                                             </svg>
                                         </button>
                                     )}
+                                </div>
+                            </div>
+
+                            {/* Observaciones */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Observaciones</label>
+                                <div className="relative">
+                                    <div className="absolute top-2.5 left-0 pl-3 flex items-start pointer-events-none">
+                                        <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </div>
+                                    <textarea
+                                        rows={2}
+                                        value={observaciones}
+                                        onChange={(e) => setObservaciones(e.target.value)}
+                                        placeholder="Ingrese observaciones adicionales..."
+                                        className="w-full pl-10 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+                                    />
                                 </div>
                             </div>
 

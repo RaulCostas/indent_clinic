@@ -40,6 +40,9 @@ export class PagoLaboratorio {
     @Column({ nullable: true })
     clinicaId: number;
 
+    @Column({ type: 'text', nullable: true })
+    observaciones: string;
+
     @ManyToOne(() => Clinica, { nullable: true, eager: true })
     @JoinColumn({ name: 'clinicaId' })
     clinica: Clinica;

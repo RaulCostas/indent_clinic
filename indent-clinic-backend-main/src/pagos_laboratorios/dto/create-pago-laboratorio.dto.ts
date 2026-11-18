@@ -32,4 +32,8 @@ export class CreatePagoLaboratorioDto {
     @IsOptional()
     @IsNumber()
     clinicaId?: number;
+
+    @IsOptional()
+    @IsString()
+    observaciones?: string;
 }

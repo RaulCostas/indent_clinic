@@ -56,6 +56,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
     const [durationWarning, setDurationWarning] = useState<string | null>(null);
     const [doctorWarning, setDoctorWarning] = useState<string | null>(null);
     const [isRestricted, setIsRestricted] = useState(false);
+    const [canDeleteAgenda, setCanDeleteAgenda] = useState(true);
     const [horaHastaLocal, setHoraHastaLocal] = useState('');
 
     // Sync Hora Hasta Local when start time or duration changes
@@ -82,6 +83,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                 const user = JSON.parse(userStr);
                 const userPermisos = Array.isArray(user.permisos) ? user.permisos : [];
                 setIsRestricted(userPermisos.includes('agenda-restringida'));
+                setCanDeleteAgenda(!userPermisos.includes('agenda-eliminar'));
             } catch (e) {
                 console.error('Error parsing user permissions', e);
             }
@@ -1036,7 +1038,7 @@ const AgendaForm: React.FC<AgendaFormProps> = ({
                             Cancelar
                         </button>
 
-                        {initialData && !isRestricted && (
+                        {initialData && !isRestricted && canDeleteAgenda && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
